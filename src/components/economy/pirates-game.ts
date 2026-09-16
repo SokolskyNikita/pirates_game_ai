@@ -16,7 +16,7 @@ const pct = (n: number) => Number((n * 100).toFixed(1)) + '%';
 const num = (n: number) => n.toFixed(1);
 const change = (index: number) => (index >= 100 ? '+' : '−') + Math.abs(index - 100).toFixed(1) + '%';
 const last = (profile: ProfileOutcome) => profile.us[profile.us.length - 1]!;
-const foreignKeys = new Set<string>(['capitalMobility', 'foreignStrength', 'tradeIntensity', 'foreignTradeIntensity', 'foreignMarketSize', 'foreignPopulationRatio']);
+const foreignKeys = new Set<string>(['foreignGdpGrowth', 'capitalMobility', 'foreignStrength', 'tradeIntensity', 'foreignTradeIntensity', 'foreignMarketSize', 'foreignPopulationRatio']);
 const visibleInputSpecs = INPUT_SPECS.filter(spec => spec.key !== 'foreignPopulationRatio');
 const calibratedKeys = new Set<string>(['foreignMarketSize', 'tradeIntensity', 'foreignTradeIntensity']);
 const structuralKeys = new Set<string>(['investmentResponse']);
@@ -38,6 +38,7 @@ let revision = 0;
 let pending = true;
 
 function formatInput(key: keyof ModelInputs, value: number) {
+  if (key === 'usGdpGrowth' || key === 'foreignGdpGrowth') return pct(value) + '/year';
   if (key === 'foreignMarketSize') return Number(value.toFixed(2)) + '× US';
   if (key === 'foreignStrength') return pct(value) + ' of US';
   return pct(value);
@@ -62,7 +63,7 @@ function scenarioURL() {
   const url = new URL(location.href);
   url.search = '';
   url.hash = 'simulator';
-  url.searchParams.set('v', '6');
+  url.searchParams.set('v', '7');
   url.searchParams.set('world', mode);
   if (mode === 'strategic') url.searchParams.set('foreignObjective', foreignObjective);
   url.searchParams.set('rollout', String(pace));
@@ -302,6 +303,7 @@ function render() {
   ].map(([value, label]) => '<div class="policy-item"><strong>' + value + '</strong><span>' + label + '</span></div>').join('');
   el('manual-help').textContent = treatySigned() ? 'Explore another US policy while holding the treaty’s deployment target and foreign terms fixed. This is a counterfactual comparison; it does not amend the binding agreement.' : 'Choose job retention, the benefit budget, the benefit formula and both tax rates. US deployment and foreign policy stay fixed.';
   el('policy-meaning').textContent = 'Benefits include modeled cash payments and consumption support. Health insurance is not counted as cash. Year-ten US AI adoption: ' + pct(end.adoption) + '; productive capacity: ' + pct(end.capacityFactor) + ' of the starting level.';
+  el('growth-summary').textContent = 'Year-ten US GDP growth: ' + pct(end.gdpGrowthRate) + '/year, with ' + pct(end.exposure) + ' AI exposure. The full-AI growth assumption is ' + pct(current.inputs.usGdpGrowth) + '/year; investment and work incentives can change the realized rate.';
   const verdict = el('funding-verdict');
   const shortfall = active.us.some(point => point.governmentFundingGap > 1e-6 || point.welfareFundingGap > 1e-6 || point.employerFundingGap > 1e-6);
   verdict.hidden = !shortfall;
@@ -440,11 +442,11 @@ el('reset').addEventListener('click', () => {
 });
 document.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach(button => button.addEventListener('click', () => {
   inputs = { ...DEFAULT_INPUTS };
-  if (button.dataset.preset === 'shared') Object.assign(inputs, { productivityGain: .6, displacement: .3, reemployment: .5, investmentResponse: .1 });
-  if (button.dataset.preset === 'displacement') Object.assign(inputs, { productivityGain: .25, displacement: .7, reemployment: .05 });
+  if (button.dataset.preset === 'shared') Object.assign(inputs, { usGdpGrowth: .06, foreignGdpGrowth: .06, productivityGain: .1, displacement: .3, reemployment: .5, investmentResponse: .1 });
+  if (button.dataset.preset === 'displacement') Object.assign(inputs, { usGdpGrowth: .025, foreignGdpGrowth: .025, productivityGain: .25, displacement: .7, reemployment: .05 });
   if (button.dataset.preset === 'tax-response') {
     mode = 'us-only'; pace = 1;
-    Object.assign(inputs, { investmentResponse: 1, productivityGain: 1, displacement: .35 });
+    Object.assign(inputs, { investmentResponse: 1, usGdpGrowth: .1, foreignGdpGrowth: .1, productivityGain: .4, displacement: .35 });
   }
   if (button.dataset.preset === 'rivalry') {
     mode = 'strategic';
@@ -474,7 +476,7 @@ el('share').addEventListener('click', async () => {
 el('download').addEventListener('click', () => {
   if (pending || !snapshot) return;
   const payload = {
-    model: 'pirates-treaty-ratification-v6', interpretation: 'Finite policy model with illustrative economic responses; not a forecast.',
+    model: 'pirates-gdp-growth-v7', interpretation: 'Finite policy model with illustrative economic responses; not a forecast.',
     scenario: { inputs: snapshot.inputs, mode: snapshot.mode, foreignObjective: snapshot.foreignObjective, pace: snapshot.pace },
     selection: treatySigned() ? 'signed-treaty' : snapshot.selection, stableCount: snapshot.stableCount, selected: activeProfile(),
     noTreaty: snapshot.selected, treaty: snapshot.treaty,

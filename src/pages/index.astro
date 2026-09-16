@@ -110,6 +110,7 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
               <p id="decision-votes-note" class="decision-summary"></p>
               <div id="policy-strip" class="policy-strip"></div>
               <p id="policy-meaning" class="small-copy"></p>
+              <p id="growth-summary" class="small-copy"></p>
               <div id="funding-verdict" class="funding-verdict"></div>
 
               <figure class="income-figure">
@@ -168,6 +169,8 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
           <details class="method-details"><summary>Economic assumptions and limits</summary>
             <p>The US population and income distribution come from the Census survey. Household income is pooled and divided among adult household members. The model groups citizens by that household’s main income source, income level and their own employment status. Main sources include work, capital, public benefits and pensions. Benefit receipt and employment overlap. These group labels do not determine how anyone votes; their own projected income does.</p>
             <p>International defaults use relative GDP and bilateral trade exposure. The foreign actor uses the same income distribution as a simplifying assumption; it is not a survey of foreign voters. AI gains, displacement, return to work and responses to taxes remain adjustable assumptions. Zero foreign frontier capability leaves the foreign economy and its imports in place.</p>
+            <p><strong>GDP growth and employer gains are separate.</strong> The default assumes 5% annual real GDP growth at full AI exposure. During rollout, the potential growth rate is 5% multiplied by that year’s exposure and compounds each year. There is no separate background-growth assumption. The foreign economy has its own growth setting. Taxes and investment responses can change realized growth.</p>
+            <p>The employer-gain parameter divides that output. At a 50% gain, an automated role with a $100,000 prior wage gives the employer a $150,000 income claim. Keeping the employee at $100,000 leaves $50,000 before other adjustments. To keep total income consistent with the separate GDP assumption, all gross income claims are scaled to the available output before costs, taxes and retained wages are paid. This allocation rule can change workers’ and owners’ shares without changing the GDP path for a fixed policy. Changing those shares can change the policy voters choose.</p>
             <p>Taxes and required employer pay can slow AI investment and reduce productive effort. They can also erode existing capital capacity through an assumed 5% annual renewal requirement. This rate is a modeling choice, not an estimate from the cited data.</p>
             <p>This is a comparison within a policy menu, not a full model of the world economy. Observed household investment income is not total company profit or wealth. The employer-funding limit and production responses remain modeling assumptions. It does not solve market prices, demand, debt, firms’ investment decisions or individual labor supply. It omits lobbying, monetary policy, AI safety and military outcomes. Changing the policy menu or voting procedure can change the result.</p>
           </details>

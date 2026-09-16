@@ -5,18 +5,20 @@ export type ModelMode = 'us-only' | 'strategic';
 export type Objective = 'prosperity' | 'output' | 'workers';
 export type BenefitFormula = 'current' | 'flat' | 'prior-income';
 export interface ModelInputs {
-  productivityGain: number; displacement: number; reemployment: number;
+  usGdpGrowth: number; foreignGdpGrowth: number; productivityGain: number; displacement: number; reemployment: number;
   capitalMobility: number; investmentResponse: number; foreignStrength: number;
   tradeIntensity: number; foreignMarketSize: number; foreignPopulationRatio: number; foreignTradeIntensity: number;
 }
 export interface InputSpec { key: keyof ModelInputs; label: string; min: number; max: number; step: number; description: string }
 export const DEFAULT_INPUTS: ModelInputs = {
-  productivityGain: .4, displacement: .35, reemployment: .2, capitalMobility: .5, investmentResponse: .35,
+  usGdpGrowth: .05, foreignGdpGrowth: .05, productivityGain: .4, displacement: .35, reemployment: .2, capitalMobility: .5, investmentResponse: .35,
   foreignStrength: 1, tradeIntensity: .14175546, foreignMarketSize: 2.8463217399,
   foreignPopulationRatio: 23.0368311373, foreignTradeIntensity: .03916185,
 };
 export const INPUT_SPECS: readonly InputSpec[] = [
-  {key:'productivityGain',label:'Potential productivity gain',min:0,max:1,step:.05,description:'Extra output at full AI exposure before displacement and resource costs; a scenario assumption.'},
+  {key:'usGdpGrowth',label:'US GDP growth/year at max AI proliferation',min:0,max:.2,step:.005,description:'Annual real output growth at full AI exposure, before policy effects. Growth compounds each year and scales with AI exposure during deployment.'},
+  {key:'foreignGdpGrowth',label:'Foreign GDP growth/year at max AI proliferation',min:0,max:.2,step:.005,description:'The foreign bloc’s annual real output growth at full AI exposure, before policy effects. Independent of the US growth assumption.'},
+  {key:'productivityGain',label:'Employer gain from AI',min:0,max:1,step:.05,description:'Extra employer return per automated role. At 50%, a $100,000 role yields $150,000 from AI or $50,000 after keeping its $100,000 wage, before GDP scaling, taxes and costs.'},
   {key:'displacement',label:'Roles made obsolete',min:0,max:1,step:.05,description:'Share of work exposed to displacement at full adoption. The same risk applies to household labor income across income bands.'},
   {key:'reemployment',label:'Return to productive work',min:0,max:1,step:.05,description:'Share of affected labor income restored to productive work each year.'},
   {key:'investmentResponse',label:'Response to policy changes',min:0,max:1,step:.05,description:'Strength of investment and labor responses to policy changes relative to current taxes. An assumption, not an estimated elasticity.'},
@@ -101,6 +103,7 @@ export function policiesAtPace(pace=1):readonly Policy[] {
 export function currentPolicy(pace=1):Policy {return makePolicy({...BASELINE_POLICY,pace});}
 export interface RegionYear {
   year:number; adoption:number; exposure:number; output:number; netOutput:number;
+  potentialOutput:number; potentialGrowthRate:number; gdpGrowthRate:number;
   workerIncome:number; ownerIncome:number; allIncome:number; workerIncomeIndex:number; ownerIncomeIndex:number; allIncomeIndex:number;
   employedIncomeIndex:number; displacedIncomeIndex:number; newlyDisplacedIncomeIndex:number; longTermDisplacedIncomeIndex:number;
   cohortIncome:number[]; unemployment:number; newlyDisplaced:number; longTermDisplaced:number; reemployed:number;
@@ -122,8 +125,8 @@ export interface SolveResult {
   evaluateLight:(us:Policy,foreign?:Policy)=>LightProfile;
   evaluateForeign:(us:Policy,foreign:Policy)=>number;
 }
-interface Production {adoption:number;exposure:number;u:number;newly:number;reemployed:number;output:number;labor:number;passive:number;capital:number;rents:number;investment:number;adjustment:number;effort:number;burden:number;capacity:number}
-interface TrajectoryState {u:number;exposure:number;adoption:number}
+interface Production {incomeAllocationFactor:number;growth:number;potentialGrowthRate:number;gdpGrowthRate:number;adoption:number;exposure:number;u:number;newly:number;reemployed:number;output:number;labor:number;passive:number;capital:number;rents:number;investment:number;adjustment:number;effort:number;burden:number;capacity:number}
+interface TrajectoryState {u:number;exposure:number;adoption:number;growth:number;output:number}
 function checkedPolicy(p:Policy):void {
   if(![p.pace,p.replacement,p.welfareScale,p.laborTax,p.capitalTax].every(Number.isFinite)||p.pace<0||p.pace>1||p.replacement<0||p.replacement>1.25||p.welfareScale<0||p.welfareScale>2||p.laborTax<0||p.laborTax>1||p.capitalTax<0||p.capitalTax>1||!BENEFIT_FORMULAS.includes(p.benefitFormula)) throw new RangeError('Invalid policy.');
 }
@@ -135,26 +138,35 @@ function burden(inputs:ModelInputs,p:Policy,otherPotential:number,strength:numbe
   const shift=p.capitalTax-c.capitalTaxRate;
   return clamp(shift+(1-Math.max(0,shift))*retained,-1,1);
 }
-function produce(inputs:ModelInputs,p:Policy,old:TrajectoryState,adoption:number,foreignAdoption:number,b:number,trade:number,year:number,c:Calibration):Production {
+function produce(inputs:ModelInputs,p:Policy,old:TrajectoryState,adoption:number,foreignAdoption:number,b:number,trade:number,year:number,c:Calibration,gdpGrowth:number):Production {
   const exposure=adoption+trade*foreignAdoption*(1-adoption);
   const delta=Math.max(0,exposure-old.exposure),deltaAdoption=Math.max(0,adoption-old.adoption);
   const newly=inputs.displacement*delta,reemployed=old.u*inputs.reemployment,u=clamp(old.u-reemployed+newly);
   const effort=clamp(1-inputs.investmentResponse*(p.laborTax-c.laborTaxRate),0,1.5);
   const capacity=clamp(1-inputs.investmentResponse*b*(1-(1-CAPACITY_RENEWAL_RATE)**year),0,1.5);
   const L=c.laborIncome/c.marketIncome*100,P=c.passiveIncome/c.marketIncome*100;
-  const output=capacity*(100-L+L*(1-u)*effort+100*inputs.productivityGain*exposure);
-  const labor=capacity*L*(1-u)*effort*(1+.35*inputs.productivityGain*exposure);
-  const passive=capacity*P;
+  const potentialGrowthRate=gdpGrowth*exposure,growth=old.growth*(1+potentialGrowthRate);
+  // The GDP path already includes AI replacing obsolete production. Job losses
+  // change its distribution, not the potential output assumed by the user.
+  const output=capacity*growth*(100+L*(1-u)*(effort-1));
+  // Firm-level claims: an automated role yields its former wage plus the
+  // chosen employer gain. Normalize all claims to the separately assumed GDP,
+  // so a higher firm markup reallocates income rather than inventing output.
+  const rawClaims=100+L*(1-u)*(effort-1)+inputs.productivityGain*L*u;
+  const incomeAllocationFactor=output/rawClaims;
+  const labor=incomeAllocationFactor*L*(1-u)*effort;
+  const passive=incomeAllocationFactor*P;
+  const gdpGrowthRate=old.output>0?output/old.output-1:0;
   const investment=12*deltaAdoption+40*deltaAdoption**2,adjustment=.5*L*newly;
   const capital=output-labor-passive-investment-adjustment;
-  return {adoption,exposure,u,newly,reemployed,output,labor,passive,capital,rents:Math.max(0,capital-(100-L-P)*capacity),investment,adjustment,effort,burden:b,capacity};
+  return {incomeAllocationFactor,growth,potentialGrowthRate,gdpGrowthRate,adoption,exposure,u,newly,reemployed,output,labor,passive,capital,rents:Math.max(0,capital-(100-L-P)*incomeAllocationFactor),investment,adjustment,effort,burden:b,capacity};
 }
 interface Settlement {point?:RegionYear;utilities:Float64Array;workerScore:number;prosperityScore:number;outputScore:number;admissible:boolean}
 function taxRate(baseline:number,target:number,mean:number):number {
   if(target<=mean)return mean>0?clamp(baseline*target/mean):0;
   return mean<1?clamp(baseline+(1-baseline)*(target-mean)/(1-mean)):1;
 }
-function settle(inputs:ModelInputs,policy:Policy,p:Production,year:number,flow:number,prepared:Prepared,materialize:boolean):Settlement {
+function settle(policy:Policy,p:Production,year:number,flow:number,prepared:Prepared,materialize:boolean):Settlement {
   const {cells,calibration:c}=prepared,n=cells.length,unit=c.marketIncome/100;
   const grossResources=(p.output-p.investment-p.adjustment+flow)*unit;
   const capitalBefore=(p.capital+flow)*unit;
@@ -164,13 +176,13 @@ function settle(inputs:ModelInputs,policy:Policy,p:Production,year:number,flow:n
   const capitalAfter=capitalBefore-employerPay;
   // Negative capital resources are an economic loss, not a negative tax credit.
   const capitalFactor=capitalAfter/c.capitalIncome;
-  const productiveWageFactor=p.capacity*p.effort*(1+.35*inputs.productivityGain*p.exposure);
+  const productiveWageFactor=p.incomeAllocationFactor*p.effort;
   const emNet=new Float64Array(n),unNet=new Float64Array(n),netEmployer=new Float64Array(n),capitalTax=new Float64Array(n),laborTax=new Float64Array(n);
   let laborTaxRevenue=0,capitalTaxRevenue=0,laborTaxBase=0,capitalTaxBase=0,netEmployerTotal=0;
   for(let i=0;i<n;i++) {
-    const cell=cells[i]!,work=cell.labor*productiveWageFactor,retained=cell.labor*employerRatio,passive=cell.passive*p.capacity,capital=cell.capital*capitalFactor;
+    const cell=cells[i]!,work=cell.labor*productiveWageFactor,retained=cell.labor*employerRatio,passive=cell.passive*p.incomeAllocationFactor,capital=cell.capital*capitalFactor;
     const lr=taxRate(cell.laborRate,policy.laborTax,c.laborTaxRate),cr=taxRate(cell.capitalRate,policy.capitalTax,c.capitalTaxRate);
-    const taxablePassive=cell.taxablePassive*p.capacity;
+    const taxablePassive=cell.taxablePassive*p.incomeAllocationFactor;
     const taxE=Math.max(0,work+taxablePassive)*lr,taxU=Math.max(0,retained+taxablePassive)*lr,taxC=Math.max(0,capital)*cr;
     const expectedTax=(1-p.u)*taxE+p.u*taxU;
     emNet[i]=work+passive+capital-taxE-taxC;unNet[i]=retained+passive+capital-taxU-taxC;
@@ -208,6 +220,7 @@ function settle(inputs:ModelInputs,policy:Policy,p:Production,year:number,flow:n
   let point:RegionYear|undefined;
   if(materialize)point={
     year,adoption:p.adoption,exposure:p.exposure,output:p.output,netOutput:p.output-p.investment-p.adjustment,
+    potentialOutput:100*p.growth,potentialGrowthRate:p.potentialGrowthRate,gdpGrowthRate:p.gdpGrowthRate,
     workerIncome,ownerIncome,allIncome,workerIncomeIndex:100*(workerScore+1),ownerIncomeIndex:prepared.baselineOwnerIncome>0?100*ownerIncome/prepared.baselineOwnerIncome:100,allIncomeIndex:100*allIncome/prepared.baselineAllIncome,
     employedIncomeIndex:baselineExposed>0?100*employedIncome/baselineExposed:100,displacedIncomeIndex:baselineExposed>0?100*displacedIncome/baselineExposed:100,
     newlyDisplacedIncomeIndex:baselineExposed>0?100*displacedIncome/baselineExposed:100,longTermDisplacedIncomeIndex:baselineExposed>0?100*displacedIncome/baselineExposed:100,
@@ -225,22 +238,22 @@ function settle(inputs:ModelInputs,policy:Policy,p:Production,year:number,flow:n
 function initialPoint(prepared:Prepared):RegionYear {
   const c=prepared.calibration,unit=c.marketIncome/100;
   const policy=makePolicy({...BASELINE_POLICY,laborTax:c.laborTaxRate,capitalTax:c.capitalTaxRate});
-  return settle(DEFAULT_INPUTS,policy,{adoption:0,exposure:0,u:0,newly:0,reemployed:0,output:100,labor:c.laborIncome/unit,passive:c.passiveIncome/unit,capital:c.capitalIncome/unit,rents:0,investment:0,adjustment:0,effort:1,burden:0,capacity:1},0,0,prepared,true).point!;
+  return settle(policy,{incomeAllocationFactor:1,growth:1,potentialGrowthRate:0,gdpGrowthRate:0,adoption:0,exposure:0,u:0,newly:0,reemployed:0,output:100,labor:c.laborIncome/unit,passive:c.passiveIncome/unit,capital:c.capitalIncome/unit,rents:0,investment:0,adjustment:0,effort:1,burden:0,capacity:1},0,0,prepared,true).point!;
 }
 function simulate(inputs:ModelInputs,usPolicy:Policy,foreignPolicy:Policy|undefined,foreignObjective:Objective,prepared:Prepared,materialize:boolean,foreignOnly=false):LightProfile|ProfileOutcome {
   checkedPolicy(usPolicy);if(foreignPolicy)checkedPolicy(foreignPolicy);
   const c=prepared.calibration,us:RegionYear[]=materialize?[initialPoint(prepared)]:[],foreign:RegionYear[]|undefined=materialize&&foreignPolicy?[initialPoint(prepared)]:undefined;
   const utilities=new Float64Array(prepared.cells.length);
   let usScore=0,foreignScore=0,weightTotal=0,usAdmissible=true,foreignAdmissible=true;
-  let stateUS:TrajectoryState={u:0,exposure:0,adoption:0},stateForeign={...stateUS};
+  let stateUS:TrajectoryState={u:0,exposure:0,adoption:0,growth:1,output:100},stateForeign={...stateUS};
   const trade=foreignPolicy?inputs.tradeIntensity:0;
   const bUS=burden(inputs,usPolicy,foreignPolicy?foreignPolicy.pace*inputs.foreignStrength:0,1,trade,c);
   const bForeign=foreignPolicy?burden(inputs,foreignPolicy,usPolicy.pace,inputs.foreignStrength,inputs.foreignTradeIntensity,c):0;
   for(let year=1;year<=YEARS;year++) {
     const adoptUS=clamp(usPolicy.pace*year/YEARS*(1-inputs.investmentResponse*bUS));
     const adoptForeign=foreignPolicy?clamp(foreignPolicy.pace*year/YEARS*inputs.foreignStrength*(1-inputs.investmentResponse*bForeign)):0;
-    const pUS=produce(inputs,usPolicy,stateUS,adoptUS,adoptForeign,bUS,trade,year,c);
-    const pF=foreignPolicy?produce(inputs,foreignPolicy,stateForeign,adoptForeign,adoptUS,bForeign,inputs.foreignTradeIntensity,year,c):undefined;
+    const pUS=produce(inputs,usPolicy,stateUS,adoptUS,adoptForeign,bUS,trade,year,c,inputs.usGdpGrowth);
+    const pF=foreignPolicy?produce(inputs,foreignPolicy,stateForeign,adoptForeign,adoptUS,bForeign,inputs.foreignTradeIntensity,year,c,inputs.foreignGdpGrowth):undefined;
     let flow=0;
     if(pF&&foreignPolicy) {
       const mobile=.6*inputs.capitalMobility*inputs.foreignStrength,total=mobile*(pUS.rents+inputs.foreignMarketSize*pF.rents);
@@ -249,20 +262,20 @@ function simulate(inputs:ModelInputs,usPolicy:Policy,foreignPolicy:Policy|undefi
     }
     const w=(1+DISCOUNT_RATE)**-year;weightTotal+=w;
     if(!foreignOnly) {
-      const result=settle(inputs,usPolicy,pUS,year,flow,prepared,materialize);
+      const result=settle(usPolicy,pUS,year,flow,prepared,materialize);
       for(let i=0;i<utilities.length;i++)utilities[i]+=w*result.utilities[i]!;
       usScore+=w*result.workerScore;usAdmissible&&=result.admissible;if(result.point)us.push(result.point);
     }
     if(pF&&foreignPolicy) {
       {
-        const result=settle(inputs,foreignPolicy,pF,year,-flow/inputs.foreignMarketSize,prepared,materialize);
+        const result=settle(foreignPolicy,pF,year,-flow/inputs.foreignMarketSize,prepared,materialize);
         foreignAdmissible&&=result.admissible;
         foreignScore+=w*(foreignObjective==='workers'?result.workerScore:foreignObjective==='output'?result.outputScore:result.prosperityScore);
         if(result.point)foreign!.push(result.point);
       }
-      stateForeign={u:pF.u,exposure:pF.exposure,adoption:pF.adoption};
+      stateForeign={u:pF.u,exposure:pF.exposure,adoption:pF.adoption,growth:pF.growth,output:pF.output};
     }
-    stateUS={u:pUS.u,exposure:pUS.exposure,adoption:pUS.adoption};
+    stateUS={u:pUS.u,exposure:pUS.exposure,adoption:pUS.adoption,growth:pUS.growth,output:pUS.output};
   }
   for(let i=0;i<utilities.length;i++)utilities[i]/=weightTotal;
   const light:LightProfile={id:usPolicy.id+'::'+(foreignPolicy?.id??'none'),usPolicy,foreignPolicy,usUtilities:utilities,usScore:usScore/weightTotal,foreignScore:foreignPolicy?foreignScore/weightTotal:undefined,usAdmissible,foreignAdmissible:foreignPolicy?foreignAdmissible:undefined};
@@ -288,6 +301,8 @@ export const MODEL_NOTES:readonly {title:string;detail:string;equation?:string}[
   {title:'Taxes and the budget',detail:'Noncapital income includes work, private pensions and other noninvestment income. Investment income is taxed separately. Current cohort tax-rate differences remain at the current benchmark. Lower benchmarks scale rates toward zero; higher benchmarks scale them toward 100%, so the endpoints apply to every cohort. The benchmark equals the aggregate effective rate on unchanged tax bases; the actual rate can change as incomes change. Negative baseline taxes become modeled net refund benefits. Taxes must fund a fixed baseline nontransfer spending requirement in every year for a policy to be eligible in the vote, then fund the chosen benefit budget. Any excess goes to nontransfer public spending, not an undisclosed household dividend. Voters value their private resources; they do not receive utility from this other public spending.'},
   {title:'Actual payments',detail:'Employer retention is paid from available investment income before household taxes. Public payments are capped by tax revenue after other spending. The result shows funded amounts and shortfalls, not only promises. Household resources plus nontransfer government spending equal available production after installation costs, adjustment costs and foreign rent flows.'},
   {title:'Risk and selfish voters',detail:'Each citizen compares expected log utility of their own household resources over ten years, discounted at 3%. Productive and obsolete-work states are evaluated separately. The same displacement risk applies across household income bands; there is no claim to forecast which profession disappears first. The 1% utility offset prevents log zero and adds no spendable money.'},
+  {title:'Firm returns and fixed GDP',detail:'Before economy-wide adjustment, automating a role claims its former wage plus the employer-gain percentage as investment income. A $100,000 role at a 50% gain therefore claims $150,000; paying its old salary would leave $50,000 before taxes and costs. Aggregate GDP is set separately: productive wages, passive income and gross investment claims receive a common scaling factor so their total equals output. Higher employer gains therefore change income shares, not GDP growth. Real installation and adjustment costs and actual retention payments are then deducted from investment income. Retained wages remain promises in baseline dollars, so actual proceeds can differ from the simple example.',equation:'Raw investment claim = baseline investment income + obsolete wages × (1 + employer gain)'},
+  {title:'Annual GDP growth',detail:'US and foreign potential output compound independently at their chosen annual growth rates multiplied by that year’s AI exposure. Exposure includes imported AI. The no-AI reference assumes no growth; deployment ramps over ten years, so a 5% full-AI rate does not mean ten years of 5% growth. Displacement changes who receives production income rather than automatically destroying the production AI replaces. Policy responses can raise or lower realized GDP relative to this potential path. Growth scales productive wages, pensions and other passive resources; benefit budgets and retained-wage promises remain fixed in real baseline dollars.',equation:'Potential outputₜ = potential outputₜ₋₁ × (1 + annual growth at full AI × exposureₜ)'},
   {title:'Production and policy responses',detail:'The production index starts at 100 and is allocated using observed household income components; it is not a forecast of dollar GDP. Work resources respond to displacement and work incentives. Pension and other resources face aggregate capacity changes but are not directly laid off. Retention costs and tax increases relative to current rates discourage adoption and capacity renewal; tax reductions can improve incentives. The assumed annual renewal share is 5%, not an estimated capital-stock model.'},
   {title:'International assumptions',detail:'The foreign bloc chooses its own full policy and AI deployment pace to maximize worker income, average income utility or output. GDP weights cross-border rent flows. For comparability, its household distribution and baseline fiscal system use the same US-calibrated cohort structure; this is an explicit simplification, not foreign microdata.'},
   {title:'Finding a stable policy',detail:'A change passes only with strictly more than half of adult-citizen population weight. Separate ballots change one decision at a time. A reported stable policy is checked against every US single-decision alternative and every foreign package. The bounded search may miss other equilibria and cannot prove none exist. A combined US package can defeat a policy that is stable under separate ballots.'},

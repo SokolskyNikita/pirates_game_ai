@@ -104,3 +104,97 @@ describe('international policies and objectives',()=>{
   expect(model.evaluateForeign(a,b)).toBeCloseTo(full.foreignScore!,11);
  });
 });
+
+describe('independent annual GDP growth',()=>{
+ it('defaults both potential annual growth rates to 5%',()=>{
+  expect(DEFAULT_INPUTS.usGdpGrowth).toBe(.05);expect(DEFAULT_INPUTS.foreignGdpGrowth).toBe(.05);
+  expect(normalizeInputs({usGdpGrowth:9,foreignGdpGrowth:-1})).toMatchObject({usGdpGrowth:.2,foreignGdpGrowth:0});
+ });
+ it('compounds each year at that year’s exposure, reaching 5% growth at full AI',()=>{
+  const result=evaluateProfile({...DEFAULT_INPUTS,investmentResponse:0},policy(),undefined,'us-only');
+  let expected=100;
+  for(let year=1;year<=YEARS;year++){
+   const point=result.us[year]!;expected*=1+.05*year/YEARS;
+   expect(point.output).toBeCloseTo(expected,10);
+   expect(point.potentialOutput).toBeCloseTo(expected,10);
+   expect(point.potentialGrowthRate).toBeCloseTo(.05*year/YEARS,12);
+   expect(point.gdpGrowthRate).toBeCloseTo(.05*year/YEARS,12);
+  }
+  expect(final(result).gdpGrowthRate).toBeCloseTo(.05,12);
+  expect(final(result).output).toBeLessThan(100*1.05**YEARS);
+  closed(result);
+ });
+ it('keeps the no-AI reference unchanged even at a high full-AI growth assumption',()=>{
+  const result=evaluateProfile({...DEFAULT_INPUTS,usGdpGrowth:.2},BASELINE_POLICY,undefined,'us-only');
+  for(const point of result.us){expect(point.output).toBe(100);expect(point.potentialOutput).toBe(100);expect(point.gdpGrowthRate).toBe(0);}
+  closed(result);
+ });
+ it('does not subtract the production replaced by AI when every role becomes obsolete',()=>{
+  const result=evaluateProfile({...DEFAULT_INPUTS,usGdpGrowth:0,investmentResponse:0,displacement:1,reemployment:0},policy(),undefined,'us-only');
+  expect(final(result).unemployment).toBeCloseTo(1,12);
+  expect(final(result).output).toBeCloseTo(100,12);
+  expect(final(result).laborIncome).toBeCloseTo(0,8);
+  closed(result);
+ });
+ it('does not use the firm productivity assumption to set gross GDP',()=>{
+  const low=evaluateProfile({...DEFAULT_INPUTS,productivityGain:0},policy({replacement:.5}),undefined,'us-only');
+  const high=evaluateProfile({...DEFAULT_INPUTS,productivityGain:1},policy({replacement:.5}),undefined,'us-only');
+  low.us.forEach((point,i)=>{
+   expect(point.output).toBeCloseTo(high.us[i]!.output,12);
+   expect(point.potentialOutput).toBeCloseTo(high.us[i]!.potentialOutput,12);
+  });
+ });
+ it('keeps each region’s potential growth independent while conserving rent transfers',()=>{
+  const assumptions={...DEFAULT_INPUTS,investmentResponse:0,usGdpGrowth:.02,foreignGdpGrowth:.1};
+  const result=evaluateProfile(assumptions,policy(),policy(),'strategic');
+  const fasterUS=evaluateProfile({...assumptions,usGdpGrowth:.15},policy(),policy(),'strategic');
+  for(let year=1;year<=YEARS;year++){
+   const us=result.us[year]!,foreign=result.foreign![year]!;
+   expect(us.potentialGrowthRate).toBeCloseTo(.02*us.exposure,12);
+   expect(foreign.potentialGrowthRate).toBeCloseTo(.1*foreign.exposure,12);
+   expect(foreign.output).toBeCloseTo(fasterUS.foreign![year]!.output,12);
+   expect(us.netRentFlow+assumptions.foreignMarketSize*foreign.netRentFlow).toBeCloseTo(0,7);
+  }
+  expect(final(fasterUS).output).toBeGreaterThan(final(result).output);
+  closed(result);closed(fasterUS);
+ });
+ it('lets imported AI contribute to growth without domestic frontier deployment',()=>{
+  const result=evaluateProfile({...DEFAULT_INPUTS,investmentResponse:0},policy({pace:0}),policy(),'strategic');
+  expect(final(result).adoption).toBe(0);expect(final(result).exposure).toBeGreaterThan(0);
+  expect(final(result).potentialOutput).toBeGreaterThan(100);closed(result);
+ });
+});
+
+describe('firm returns within independently specified GDP',()=>{
+ it('allocates more income to investment at higher employer gains, without extra GDP',()=>{
+  const assumptions={...DEFAULT_INPUTS,investmentResponse:0,displacement:.7,reemployment:0};
+  const low=evaluateProfile({...assumptions,productivityGain:0},policy(),undefined,'us-only');
+  const high=evaluateProfile({...assumptions,productivityGain:1},policy(),undefined,'us-only');
+  expect(final(high).capitalIncome).toBeGreaterThan(final(low).capitalIncome);
+  expect(final(high).laborIncome).toBeLessThan(final(low).laborIncome);
+  low.us.forEach((point,i)=>expect(point.output).toBeCloseTo(high.us[i]!.output,12));
+  closed(low);closed(high);
+ });
+ it('leaves incomes unchanged when there are no obsolete roles to automate',()=>{
+  const assumptions={...DEFAULT_INPUTS,displacement:0};
+  const low=evaluateProfile({...assumptions,productivityGain:0},policy(),undefined,'us-only');
+  const high=evaluateProfile({...assumptions,productivityGain:1},policy(),undefined,'us-only');
+  low.us.forEach((point,i)=>{
+   expect(point.cohortIncome).toEqual(high.us[i]!.cohortIncome);
+   expect(point.capitalIncome).toBeCloseTo(high.us[i]!.capitalIncome,12);
+  });
+ });
+ it('deducts exactly the funded retained salary from employer returns',()=>{
+  const assumptions={...DEFAULT_INPUTS,investmentResponse:0,displacement:.4,reemployment:0,productivityGain:.5};
+  const laidOff=evaluateProfile(assumptions,policy({replacement:0}),undefined,'us-only');
+  const retained=evaluateProfile(assumptions,policy({replacement:1}),undefined,'us-only');
+  for(let year=1;year<=YEARS;year++){
+   const off=laidOff.us[year]!,keep=retained.us[year]!;
+   expect(keep.output).toBeCloseTo(off.output,12);
+   expect(keep.capitalIncome).toBeCloseTo(off.capitalIncome,8);
+   expect(off.capitalAfterRetention-keep.capitalAfterRetention).toBeCloseTo(keep.employerPay,8);
+  }
+  expect(final(retained).employerPay).toBeGreaterThan(0);
+  closed(laidOff);closed(retained);
+ });
+});

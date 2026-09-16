@@ -295,3 +295,5 @@ tr.selected th, tr.selected td { color: var(--green); font-weight: 650; }
 .treaty-verdict { margin-top: 8px; font-size: 18px; font-weight: 600; color: var(--green); }
 .treaty-result > .small-copy, .treaty-result details p + p { margin-top: 9px; }
 .treaty-result details { margin-top: 4px; }
+
+#growth-summary { margin-top: 10px; }
