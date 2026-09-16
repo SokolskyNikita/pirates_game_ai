@@ -286,11 +286,11 @@ export class ResultsView {
     el('equilibrium-explanation').textContent =
       'Foreign objective: ' +
       objectiveLabels[current.foreignObjective].toLowerCase() +
-      '. Each side knows the other’s chosen policy. ' +
+      '. US voters and the foreign actor choose independently, each knowing the other’s chosen policy. AI pace, job retention, benefits, benefit rules, both tax rates and trade permission can all differ between them. ' +
       (current.pauseUnavailable
         ? 'Neither side can pause AI. Both choose current pace or acceleration for the ten-year scenario. '
-        : 'Both choices stay in place for ten years, so a mutual pause lasts the full decade. ') +
-      'Trade requires both sides’ consent. A domestic AI pause can still leave workers exposed to foreign competition. The foreign actor uses the US household distribution and behavioral rules as a modeling assumption, with separate economic size, trade exposure and frontier capability.';
+        : 'Each policy stays in place for ten years. If both independently choose to pause, both pauses last the decade. ') +
+      'Trade stays open only when both independently allow it. A domestic AI pause can still leave workers exposed to foreign competition. The foreign actor uses the US household distribution and behavioral rules as a modeling assumption, with separate economic size, trade exposure and frontier capability.';
     const verified = current.selection === 'verified-consistent';
     el('deviation').classList.toggle('unstable', !verified);
     el('international-heading').textContent = 'The foreign choice and trade';
