@@ -7,6 +7,7 @@ const last = (profile: ProfileOutcome) => profile.us[profile.us.length - 1]!;
 function formatInput(key: keyof ModelInputs, value: number) {
   if (key === 'usGdpGrowth' || key === 'foreignGdpGrowth') return pct(value) + '/year';
   if (key === 'foreignMarketSize') return Number(value.toFixed(2)) + '× US';
+  if (key === 'tradeElasticity') return String(value);
   if (key === 'foreignStrength') return pct(value) + ' of US';
   return pct(value);
 }
@@ -27,6 +28,7 @@ const policyAxes = [
   'benefitFormula',
   'laborTax',
   'capitalTax',
+  'allowFreeTrade',
 ] as const;
 const axisLabels: Record<PolicyAxis, string> = {
   pace: 'AI pace',
@@ -35,6 +37,7 @@ const axisLabels: Record<PolicyAxis, string> = {
   benefitFormula: 'Who receives the benefits',
   laborTax: 'Tax on work and pension income',
   capitalTax: 'Tax on investment income',
+  allowFreeTrade: 'International trade',
 };
 const formulaNames: Record<Policy['benefitFormula'], string> = {
   current: 'Keep the current recipient mix',
@@ -57,7 +60,8 @@ function welfareName(scale: number) {
       ? 'End the modeled benefit payments'
       : (scale < 1 ? 'Reduce' : 'Increase') + ' the total budget by ' + pct(Math.abs(scale - 1));
 }
-function axisOptionValue(axis: PolicyAxis, value: number | BenefitFormula) {
+function axisOptionValue(axis: PolicyAxis, value: number | BenefitFormula | boolean) {
+  if (axis === 'allowFreeTrade') return value ? 'Allow free trade' : 'Ban trade with the other economy';
   if (axis === 'benefitFormula') return formulaNames[value as BenefitFormula];
   const number = value as number;
   if (axis === 'pace') return paceName(number);
@@ -69,7 +73,7 @@ function axisOptionValue(axis: PolicyAxis, value: number | BenefitFormula) {
 function axisValue(axis: PolicyAxis, policy: Policy) {
   return axisOptionValue(axis, policy[axis]);
 }
-function policyDescription(policy: Policy) {
+function policyDescription(policy: Policy, includeTrade = false) {
   return (
     paceName(policy.pace) +
     '; ' +
@@ -82,6 +86,7 @@ function policyDescription(policy: Policy) {
     pct(policy.laborTax) +
     ', investment tax ' +
     pct(policy.capitalTax) +
+    (includeTrade ? '; ' + axisValue('allowFreeTrade', policy).toLowerCase() : '') +
     '.'
   );
 }

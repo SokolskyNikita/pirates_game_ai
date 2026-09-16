@@ -9,10 +9,18 @@ from __future__ import annotations
 from typing import Any
 
 from .config import DISCOUNT_RATE, YEARS, normalize_inputs
-from .policies import BASELINE_POLICY, POLICIES, checked_policy, current_policy, make_policy, policies_at_pace
+from .policies import (
+    BASELINE_POLICY,
+    checked_policy,
+    current_policy,
+    make_policy,
+    policies_at_pace,
+    policies_for_mode,
+)
 from .population import CALIBRATION, PREPARED, US_COHORTS, prepare
-from .production import deployment_at_year, international_rent_flow, policy_burden, produce
+from .production import deployment_at_year, policy_burden, produce
 from .settlement import settle
+from .trade import baseline_trade, competition_displacement, trade_market, trade_retention_burden
 from .types import ModelInputs, Policy, Prepared, Production, TrajectoryState
 
 
@@ -84,7 +92,23 @@ def simulate(
     us_admissible = foreign_admissible = True
     state_us = TrajectoryState()
     state_foreign = TrajectoryState()
-    trade = inputs["tradeIntensity"] if foreign_policy is not None else 0
+    opened = (
+        foreign_policy is not None
+        and us_policy.get("allowFreeTrade", True)
+        and foreign_policy.get("allowFreeTrade", True)
+    )
+    trade = foreign_trade = 0.0
+    if foreign_policy is not None:
+        baseline_us, baseline_foreign, _ = baseline_trade(inputs)
+        trade = baseline_us if opened else 0
+        foreign_trade = baseline_foreign if opened else 0
+        state_us.import_share = state_us.export_share = baseline_us
+        state_foreign.import_share = state_foreign.export_share = baseline_foreign
+        state_us.export_volume = 100 * baseline_us
+        state_foreign.export_volume = 100 * baseline_foreign
+        if materialize:
+            for point, baseline in ((us[0], baseline_us), (foreign[0], baseline_foreign)):
+                point.update(tradeOpen=True, importShare=baseline, exportShare=baseline)
     burden_us = policy_burden(
         inputs,
         us_policy,
@@ -101,58 +125,137 @@ def simulate(
             us_policy["pace"],
             1,
             inputs["foreignStrength"],
-            inputs["foreignTradeIntensity"],
+            foreign_trade,
             c,
         )
         if foreign_policy is not None
         else 0
     )
     for year in range(1, YEARS + 1):
-        adoption_us = deployment_at_year(1, us_policy["pace"], year, inputs["investmentResponse"], burden_us)
-        adoption_foreign = (
-            deployment_at_year(
-                inputs["foreignStrength"],
-                foreign_policy["pace"],
-                year,
-                inputs["investmentResponse"],
+        annual_burden_us = trade_retention_burden(
+            burden_us,
+            state_us.unemployment,
+            state_us.trade_adjustment,
+            state_us.consumer_price_index,
+            us_policy["replacement"],
+            c,
+        )
+        annual_burden_foreign = (
+            trade_retention_burden(
                 burden_foreign,
+                state_foreign.unemployment,
+                state_foreign.trade_adjustment,
+                state_foreign.consumer_price_index,
+                foreign_policy["replacement"],
+                c,
             )
             if foreign_policy is not None
             else 0
         )
-        production_us = produce(
-            inputs,
-            us_policy,
-            state_us,
-            adoption_us,
-            adoption_foreign,
-            burden_us,
-            trade,
-            year,
-            c,
-            inputs["usGdpGrowth"],
+        # Lower investment can delay new installations, not undo existing AI.
+        adoption_us = max(
+            state_us.adoption,
+            deployment_at_year(1, us_policy["pace"], year, inputs["investmentResponse"], annual_burden_us),
         )
-        production_foreign = (
-            produce(
+        adoption_foreign = (
+            max(
+                state_foreign.adoption,
+                deployment_at_year(
+                    inputs["foreignStrength"],
+                    foreign_policy["pace"],
+                    year,
+                    inputs["investmentResponse"],
+                    annual_burden_foreign,
+                ),
+            )
+            if foreign_policy is not None
+            else 0
+        )
+
+        def produce_us(
+            adjustment: float | None = None,
+            state: TrajectoryState = state_us,
+            adoption: float = adoption_us,
+            other_adoption: float = adoption_foreign,
+            current_year: int = year,
+            annual_burden: float = annual_burden_us,
+        ) -> Production:
+            return produce(
+                inputs,
+                us_policy,
+                state,
+                adoption,
+                other_adoption,
+                annual_burden,
+                trade,
+                current_year,
+                c,
+                inputs["usGdpGrowth"],
+                adjustment,
+            )
+
+        def produce_foreign(
+            adjustment: float | None = None,
+            state: TrajectoryState = state_foreign,
+            adoption: float = adoption_foreign,
+            other_adoption: float = adoption_us,
+            current_year: int = year,
+            annual_burden: float = annual_burden_foreign,
+        ) -> Production:
+            assert foreign_policy is not None
+            return produce(
                 inputs,
                 foreign_policy,
-                state_foreign,
-                adoption_foreign,
-                adoption_us,
-                burden_foreign,
-                inputs["foreignTradeIntensity"],
-                year,
+                state,
+                adoption,
+                other_adoption,
+                annual_burden,
+                foreign_trade,
+                current_year,
                 c,
                 inputs["foreignGdpGrowth"],
+                adjustment,
             )
-            if foreign_policy is not None
-            else None
-        )
-        flow = (
-            international_rent_flow(inputs, production_us, production_foreign)
-            if production_foreign is not None
-            else 0
-        )
+
+        production_us = produce_us()
+        production_foreign = produce_foreign() if foreign_policy is not None else None
+        flow = foreign_flow = 0.0
+        if production_foreign is not None and foreign_policy is not None:
+            # Price first at recovered employment, then apply this year's new
+            # trade adjustment and clear the market again at actual production.
+            first_market = trade_market(inputs, us_policy, foreign_policy, production_us, production_foreign)
+            new_us_adjustment = competition_displacement(
+                state_us.trade_adjustment,
+                inputs["reemployment"],
+                first_market["usImportShare"],
+                first_market["usExportVolume"],
+                state_us.import_share,
+                state_us.export_volume,
+                state_us.net_output,
+                inputs.get("tradableShare", 0.4),
+            )
+            new_foreign_adjustment = competition_displacement(
+                state_foreign.trade_adjustment,
+                inputs["reemployment"],
+                first_market["foreignImportShare"],
+                first_market["foreignExportVolume"],
+                state_foreign.import_share,
+                state_foreign.export_volume,
+                state_foreign.net_output,
+                inputs.get("tradableShare", 0.4),
+            )
+            production_us = produce_us(new_us_adjustment)
+            production_foreign = produce_foreign(new_foreign_adjustment)
+            market = trade_market(inputs, us_policy, foreign_policy, production_us, production_foreign)
+            flow, foreign_flow = market["usFlow"], market["foreignFlow"]
+            for production, prefix in ((production_us, "us"), (production_foreign, "foreign")):
+                production.consumer_price_index = market[prefix + "PriceIndex"]
+                production.trade_open = market["open"]
+                production.import_share = market[prefix + "ImportShare"]
+                production.export_share = market[prefix + "ExportShare"]
+                production.export_volume = market[prefix + "ExportVolume"]
+                production.relative_producer_price = market["relativeProducerPrice"]
+                production.trade_balance_residual = market["residual"]
         weight = (1 + DISCOUNT_RATE) ** -year
         weight_total += weight
         if not foreign_only:
@@ -168,7 +271,7 @@ def simulate(
                 foreign_policy,
                 production_foreign,
                 year,
-                -flow / inputs["foreignMarketSize"],
+                foreign_flow,
                 prepared,
                 materialize,
             )
@@ -288,8 +391,8 @@ def solve_model(
         "pace": pace,
         "objective": options["objective"],
         "foreignObjective": foreign_objective,
-        "policies": policies_at_pace(pace),
-        "foreignPolicies": POLICIES if mode == "strategic" else [],
+        "policies": policies_at_pace(pace, mode),
+        "foreignPolicies": policies_for_mode(mode) if mode == "strategic" else [],
         "baselinePolicy": BASELINE_POLICY,
         "currentPolicy": current_policy(pace),
         "weights": list(CALIBRATION["weights"]),

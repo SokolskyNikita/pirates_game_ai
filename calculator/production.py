@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import math
-
 from .config import CAPACITY_RENEWAL_RATE, YEARS, clamp
 from .types import Calibration, ModelInputs, Policy, Production, TrajectoryState
 
@@ -59,13 +57,23 @@ def produce(
     year: int,
     calibration: Calibration,
     gdp_growth: float,
+    trade_adjustment: float | None = None,
 ) -> Production:
     exposure = ai_exposure(policy["pace"], adoption, foreign_adoption, trade, policy["pace"] * year / YEARS)
     delta = max(0, exposure - old.exposure)
     delta_adoption = max(0, adoption - old.adoption)
-    newly = inputs["displacement"] * delta
-    reemployed = old.unemployment * inputs["reemployment"]
-    unemployment = clamp(old.unemployment - reemployed + newly)
+    newly_ai = inputs["displacement"] * delta
+    reemployed_ai = old.unemployment * inputs["reemployment"]
+    ai_unemployment = clamp(old.unemployment - reemployed_ai + newly_ai)
+    recovered_trade = old.trade_adjustment * (1 - inputs["reemployment"])
+    trade_adjustment = recovered_trade if trade_adjustment is None else trade_adjustment
+    trade_unemployment = (1 - ai_unemployment) * trade_adjustment
+    unemployment = ai_unemployment + trade_unemployment
+    recovered_ai = old.unemployment - reemployed_ai
+    recovered_total = recovered_ai + (1 - recovered_ai) * recovered_trade
+    old_total = old.unemployment + (1 - old.unemployment) * old.trade_adjustment
+    newly = newly_ai if trade_adjustment == 0 else unemployment - recovered_total
+    reemployed = reemployed_ai if old.trade_adjustment == 0 else old_total - recovered_total
     effort = clamp(
         1 - inputs["investmentResponse"] * (policy["laborTax"] - calibration["laborTaxRate"]), 0, 1.5
     )
@@ -77,12 +85,11 @@ def produce(
     potential_growth_rate = gdp_growth * exposure
     growth = old.growth * (1 + potential_growth_rate)
     # Productivity claims redistribute the separately assumed output path.
-    output = capacity * growth * (100 + labor_base * (1 - unemployment) * (effort - 1))
-    raw_claims = (
-        100
-        + labor_base * (1 - unemployment) * (effort - 1)
-        + inputs["productivityGain"] * labor_base * unemployment
+    production_base = (
+        100 + labor_base * (1 - ai_unemployment) * (effort - 1) - labor_base * trade_unemployment * effort
     )
+    output = capacity * growth * production_base
+    raw_claims = production_base + inputs["productivityGain"] * labor_base * ai_unemployment
     allocation = output / raw_claims
     labor = allocation * labor_base * (1 - unemployment) * effort
     passive = allocation * passive_base
@@ -111,18 +118,7 @@ def produce(
         effort=effort,
         burden=burden,
         capacity=capacity,
+        ai_unemployment=ai_unemployment,
+        trade_unemployment=trade_unemployment,
+        trade_adjustment=trade_adjustment,
     )
-
-
-def international_rent_flow(inputs: ModelInputs, us: Production, foreign: Production) -> float:
-    """Return the US inflow in US output-index units; the other bloc pays it."""
-    mobile = 0.6 * inputs["capitalMobility"] * inputs["foreignStrength"]
-    total = mobile * (us.rents + inputs["foreignMarketSize"] * foreign.rents)
-    own = (0.15 + us.adoption) * math.exp(-4 * inputs["capitalMobility"] * us.burden)
-    other = (
-        inputs["foreignMarketSize"]
-        * inputs["foreignStrength"]
-        * (0.15 + foreign.adoption)
-        * math.exp(-4 * inputs["capitalMobility"] * foreign.burden)
-    )
-    return total * own / (own + other) - mobile * us.rents

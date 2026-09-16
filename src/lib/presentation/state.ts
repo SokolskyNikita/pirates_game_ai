@@ -14,11 +14,11 @@ export const objectiveLabels: Record<Objective, string> = {
 };
 export const objectiveHelp: Record<Objective, string> = {
   workers:
-    'Maximize average after-tax income in households whose main source is work, over ten years. Includes benefits and investment income.',
+    'Maximize average after-tax income in households whose main source is work, over ten years. Includes benefits and investment income, adjusted for consumer prices.',
   prosperity:
-    'Maximize average income utility across all adults, including retirees and benefit recipients. Log utility gives more weight to losses when income is low.',
+    'Maximize average income utility across all adults, including retirees and benefit recipients. Income is adjusted for consumer prices. Log utility gives more weight to losses when income is low.',
   output:
-    'Maximize its total production over ten years, before installation and adjustment costs. This objective does not value how income is divided.',
+    'Maximize its total production over ten years, before installation and adjustment costs. This objective does not value cheaper imports or how income is divided.',
 };
 export function defaultState(): ScenarioState {
   return {
@@ -48,7 +48,7 @@ export function scenarioURL(state: ScenarioState, href = location.href): URL {
   const url = new URL(href);
   url.search = '';
   url.hash = 'simulator';
-  url.searchParams.set('v', '11');
+  url.searchParams.set('v', '12');
   url.searchParams.set('world', state.mode);
   url.searchParams.set('pauseUnavailable', state.pauseUnavailable ? '1' : '0');
   if (state.mode === 'strategic') url.searchParams.set('foreignObjective', state.foreignObjective);

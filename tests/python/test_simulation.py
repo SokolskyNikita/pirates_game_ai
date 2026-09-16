@@ -47,7 +47,7 @@ class ScenarioTests(unittest.TestCase):
     def solve(self, **changes):
         with (
             patch.object(simulation, "solve_model", side_effect=fake_model),
-            patch.object(simulation, "POLICIES", MENU),
+            patch.object(simulation, "policies_for_mode", side_effect=lambda mode, pause: [p for p in MENU if not pause or p["pace"] != 0]),
         ):
             return simulation.solve_scenario(
                 {"inputs": {}, "mode": "us-only", "foreignObjective": "workers", **changes}
@@ -88,7 +88,7 @@ class ScenarioTests(unittest.TestCase):
         menu = [{**CURRENT, "id": f"choice-{i:02d}"} for i in range(12)] + [CURRENT]
         with (
             patch.object(simulation, "solve_model", side_effect=fake_model),
-            patch.object(simulation, "POLICIES", menu),
+            patch.object(simulation, "policies_for_mode", return_value=menu),
         ):
             result = simulation.solve_scenario({"inputs": {}, "mode": "us-only"})
         self.assertEqual(result["policyCount"], 13)

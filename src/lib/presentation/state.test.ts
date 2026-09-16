@@ -15,12 +15,12 @@ describe('scenario URL presentation state', () => {
     });
     expect(scenarioRequest(state, 7)).not.toHaveProperty('pace');
   });
-  it('round-trips all assumptions and pause availability in a version 11 shared link', () => {
+  it('round-trips all assumptions and pause availability in a version 12 shared link', () => {
     const state = readScenarioURL(
-      '?world=strategic&foreignObjective=workers&pauseUnavailable=1&usGdpGrowth=.025&foreignMarketSize=3.5',
+      '?world=strategic&foreignObjective=workers&pauseUnavailable=1&usGdpGrowth=.025&foreignMarketSize=3.5&tradableShare=.55&tradeElasticity=6',
     );
     const url = scenarioURL(state, 'https://ai-pirates-game.com/?obsolete=value');
-    expect(url.searchParams.get('v')).toBe('11');
+    expect(url.searchParams.get('v')).toBe('12');
     expect(url.searchParams.has('obsolete')).toBe(false);
     expect(readScenarioURL(url.search)).toEqual(state);
   });

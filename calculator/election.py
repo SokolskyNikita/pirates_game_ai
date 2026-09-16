@@ -122,18 +122,24 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
             for key in ("replacement", "welfareScale", "benefitFormula", "laborTax", "capitalTax")
         )
 
+    # A ban by either party closes the border. Explore both access regimes at
+    # every available AI pace; starting only from open trade can miss a distinct
+    # closed-border fixed point. Legacy/test policies without the flag are open.
     default_seeds = [foreign_policies[current_id]]
-    for pace in (0, 2):
-        seed = next(
-            (
-                policy
-                for policy in model["foreignPolicies"]
-                if policy["pace"] == pace and same_fiscal_policy(policy)
-            ),
-            None,
-        )
-        if seed is not None:
-            default_seeds.append(seed)
+    for free_trade in (True, False):
+        for pace in (1, 0, 2):
+            seed = next(
+                (
+                    policy
+                    for policy in model["foreignPolicies"]
+                    if policy["pace"] == pace
+                    and policy.get("allowFreeTrade", True) == free_trade
+                    and same_fiscal_policy(policy)
+                ),
+                None,
+            )
+            if seed is not None:
+                default_seeds.append(seed)
     seeds = list({policy["id"]: policy for policy in options.get("foreignSeeds", default_seeds)}.values())
     if not seeds or any(seed["id"] not in foreign_policies for seed in seeds):
         raise ValueError("Search seeds must belong to the foreign menu.")

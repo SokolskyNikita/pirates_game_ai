@@ -54,8 +54,10 @@ class EconomicModelTests(unittest.TestCase):
         self.assertEqual([p["id"] for p in POLICIES], FIXTURES["policyIds"])
         self.assertEqual(len(POLICIES), 6480)
 
-    def test_all_reference_profiles_preserve_outputs_and_funding(self):
+    def test_domestic_reference_profiles_preserve_outputs_and_funding(self):
         for case in FIXTURES["profiles"]:
+            if case["mode"] != "us-only":
+                continue
             with self.subTest(name=case["name"]):
                 actual = evaluate_profile(
                     case["inputs"],
@@ -183,7 +185,9 @@ class EconomicModelTests(unittest.TestCase):
         result = evaluate_profile(DEFAULT_INPUTS, policy(pace=0), policy(pace=1, capitalTax=0.2))
         for us, foreign in zip(result["us"], result["foreign"], strict=True):
             self.assertAlmostEqual(
-                us["netRentFlow"] + DEFAULT_INPUTS["foreignMarketSize"] * foreign["netRentFlow"], 0, places=7
+                us["netRentFlow"] * us["consumerPriceIndex"]
+                + DEFAULT_INPUTS["foreignMarketSize"] * us["relativeProducerPrice"]
+                * foreign["netRentFlow"] * foreign["consumerPriceIndex"], 0, places=7
             )
         self.assert_closed(result)
 
@@ -235,7 +239,7 @@ class EconomicModelTests(unittest.TestCase):
         self.assertGreater(high["us"][-1]["capitalIncome"], low["us"][-1]["capitalIncome"])
         self.assertLess(high["us"][-1]["laborIncome"], low["us"][-1]["laborIncome"])
 
-    def test_pause_blocks_imported_displacement_even_when_other_side_accelerates(self):
+    def test_pause_blocks_ai_displacement_but_not_foreign_competition(self):
         assumptions = {
             **DEFAULT_INPUTS,
             "displacement": 1,
@@ -253,8 +257,7 @@ class EconomicModelTests(unittest.TestCase):
                 for key in [
                     "adoption",
                     "exposure",
-                    "unemployment",
-                    "newlyDisplaced",
+                    "aiUnemployment",
                     "investmentCost",
                     "potentialGrowthRate",
                 ]:

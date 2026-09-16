@@ -5,7 +5,7 @@ import unittest
 
 from calculator.artifacts import common_scenarios, presentation_config, scenario_key
 from calculator.config import DEFAULT_INPUTS
-from calculator.policies import POLICIES, current_policy
+from calculator.policies import INTERNATIONAL_POLICIES, POLICIES, current_policy
 from calculator.requests import comparison_request, scenario_request
 
 
@@ -70,11 +70,40 @@ class RequestValidation(unittest.TestCase):
     def test_rendered_options_serialize_exactly_the_policy_menu(self):
         options = presentation_config()["policyOptions"]
         axes = ("pace", "replacement", "welfareScale", "benefitFormula", "laborTax", "capitalTax")
-        rendered = {
+        domestic = {
             "|".join(parts)
             for parts in itertools.product(*([option["idPart"] for option in options[axis]] for axis in axes))
         }
-        self.assertEqual(rendered, {policy["id"] for policy in POLICIES})
+        self.assertEqual(domestic, {policy["id"] for policy in POLICIES})
+        international = {
+            "|".join(part for part in parts if part)
+            for parts in itertools.product(
+                *([option["idPart"] for option in options[axis]] for axis in (*axes, "allowFreeTrade"))
+            )
+        }
+        self.assertEqual(international, {policy["id"] for policy in INTERNATIONAL_POLICIES})
+        self.assertEqual(
+            options["allowFreeTrade"],
+            [{"value": True, "idPart": ""}, {"value": False, "idPart": "closed"}],
+        )
+
+    def test_comparison_validates_trade_choices_for_both_actors(self):
+        current = current_policy()["id"]
+        closed = current + "|closed"
+        request = {
+            "scenario": {"mode": "strategic"},
+            "policyId": closed,
+            "selectedPolicyId": current,
+            "foreignPolicyId": closed,
+        }
+        self.assertEqual(comparison_request(request)["policyId"], closed)
+        self.assertEqual(comparison_request(request)["foreignPolicyId"], closed)
+        domestic = {key: value for key, value in request.items() if key != "foreignPolicyId"}
+        domestic["scenario"] = {"mode": "us-only"}
+        with self.assertRaises(ValueError):
+            comparison_request(domestic)
+        with self.assertRaises(ValueError):
+            comparison_request({**request, "policyId": current + "|open"})
 
 
 if __name__ == "__main__":

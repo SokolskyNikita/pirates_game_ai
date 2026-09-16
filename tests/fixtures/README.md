@@ -14,3 +14,8 @@ cohorts, not individual Census records.
 
 Do not regenerate this fixture merely to make a failing test pass. Intentional
 model changes should explain their expected effect and add separate tests.
+
+The international trade model intentionally changes international trajectories.
+The captured oracle is retained unchanged and still verifies domestic trajectories
+and ballots. International behavior is covered by trade accounting, directional
+response, policy-choice and scalar/batch parity tests.

@@ -15,6 +15,8 @@ export interface ModelInputs {
   foreignMarketSize: number;
   foreignPopulationRatio: number;
   foreignTradeIntensity: number;
+  tradableShare: number;
+  tradeElasticity: number;
 }
 export interface InputSpec {
   key: keyof ModelInputs;
@@ -33,6 +35,7 @@ export interface Policy {
   benefitFormula: BenefitFormula;
   laborTax: number;
   capitalTax: number;
+  allowFreeTrade: boolean;
 }
 export interface Calibration {
   marketIncome: number;
@@ -72,6 +75,13 @@ export interface RegionYear {
   longTermDisplacedIncomeIndex: number;
   cohortIncome: number[];
   unemployment: number;
+  aiUnemployment: number;
+  tradeUnemployment: number;
+  consumerPriceIndex: number;
+  tradeOpen: boolean;
+  importShare: number;
+  exportShare: number;
+  relativeProducerPrice: number;
   newlyDisplaced: number;
   longTermDisplaced: number;
   reemployed: number;
@@ -213,8 +223,8 @@ export interface ElectorateMetadata {
   incomeQuintiles: { quintile: number; grossIncome: number; disposableIncome: number; benefits: number }[];
 }
 export type PolicyAxis =
-  'pace' | 'replacement' | 'welfareScale' | 'benefitFormula' | 'laborTax' | 'capitalTax';
-export type PolicyOptions = Record<PolicyAxis, { value: number | BenefitFormula; idPart: string }[]>;
+  'pace' | 'replacement' | 'welfareScale' | 'benefitFormula' | 'laborTax' | 'capitalTax' | 'allowFreeTrade';
+export type PolicyOptions = Record<PolicyAxis, { value: number | BenefitFormula | boolean; idPart: string }[]>;
 
 export interface CalculatorConfig {
   defaults: ModelInputs;

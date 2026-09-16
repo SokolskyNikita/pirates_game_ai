@@ -206,6 +206,41 @@ class ElectionTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 solve_package_election({**model, **changes})
 
+    def test_search_seeds_include_both_trade_choices_at_every_available_pace(self):
+        open_choices = [{**policy, "allowFreeTrade": True} for policy in (CURRENT, PAUSE, ACCELERATE)]
+        closed_choices = [
+            {**policy, "id": policy["id"] + "|closed", "allowFreeTrade": False}
+            for policy in open_choices
+        ]
+        choices = open_choices + closed_choices
+        model = fixture(lambda us, foreign: [0], policies=choices, foreign=choices)
+        result = solve_package_election(model)
+        self.assertEqual(result["search"]["startsTried"], 6)
+        self.assertEqual(result["search"]["consistentPairsFound"], 6)
+        restricted = [policy for policy in choices if policy["pace"] != 0]
+        result = solve_package_election({**model, "policies": restricted, "foreignPolicies": restricted})
+        self.assertEqual(result["search"]["startsTried"], 4)
+        self.assertEqual(result["search"]["consistentPairsFound"], 4)
+
+    def test_closed_trade_package_is_on_both_actors_complete_best_response_menus(self):
+        opened = {**CURRENT, "allowFreeTrade": True}
+        closed = {**opened, "id": "current|closed", "allowFreeTrade": False}
+        choices = [opened, closed]
+        result = solve_package_election(
+            fixture(
+                lambda us, foreign: [0 if us["allowFreeTrade"] else 1],
+                policies=choices,
+                foreign=choices,
+                score=lambda us, foreign: 0 if foreign["allowFreeTrade"] else 2,
+            )
+        )
+        self.assertFalse(result["usPolicy"]["allowFreeTrade"])
+        self.assertFalse(result["foreignPolicy"]["allowFreeTrade"])
+        self.assertFalse(result["foreignBestPolicy"]["allowFreeTrade"])
+        self.assertEqual(result["ballot"]["topSupportPercent"], 100)
+        self.assertEqual(result["selection"], "verified-consistent")
+        self.assertEqual(result["search"]["startsTried"], 2)
+
     def test_invalid_menus_and_search_limits_are_rejected(self):
         model = fixture(lambda us, foreign: [0], foreign=[CURRENT, PAUSE])
         for changes in (

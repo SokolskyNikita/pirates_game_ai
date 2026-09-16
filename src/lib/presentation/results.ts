@@ -74,17 +74,22 @@ export class ResultsView {
       : 'No package can fund every promise in every year under these assumptions.';
     el('ballot-leading').hidden = passed || !current.leading;
     el('ballot-leading').textContent =
-      current.leading && !passed ? 'Leading package: ' + policyDescription(current.leading.usPolicy) : '';
+      current.leading && !passed
+        ? 'Leading package: ' + policyDescription(current.leading.usPolicy, current.mode === 'strategic')
+        : '';
     el('decision-votes-note').textContent =
       (verified ? '' : 'The two sides’ choices are not yet verified as mutually consistent. ') +
-      'These six terms belong to ' +
+      'These terms belong to ' +
       (passed ? 'the winning package' : 'the current-policy fallback') +
       ' and remain in place for ten years. Each voter chooses one fully funded package that maximizes their own expected income utility.';
     const baselineBenefits = end.baselineBenefits;
     const details: Record<PolicyAxis, string> = {
       pace:
         p.pace === 0
-          ? 'No new AI deployment or AI job replacement for ten years. Existing jobs remain productive, including when the other economy deploys AI.'
+          ? 'No domestic or imported AI use for ten years.' +
+            (current.mode === 'strategic'
+              ? ' Open trade can still displace workers if foreign firms become more competitive.'
+              : ' No AI job replacement occurs.')
           : p.pace === 2
             ? 'AI replacement runs twice as fast. Full domestic deployment and its full annual growth potential arrive by year five.'
             : 'AI replacement proceeds over ten years. Full domestic deployment and its full annual growth potential arrive by year ten.',
@@ -92,7 +97,7 @@ export class ResultsView {
         ? 'Employers fund the retained wages. This is a gross wage target; the modeled take-home payment is ' +
           paymentRange(active) +
           ' of prior wages after tax.'
-        : 'Employers may dismiss workers whose roles become obsolete. Government benefits are shown below.',
+        : 'Employers may dismiss affected workers. Government benefits are shown below.',
       welfareScale:
         'Reference: ' +
         dollars(baselineBenefits) +
@@ -120,6 +125,9 @@ export class ResultsView {
         '. Actual year-ten average: ' +
         pct(end.effectiveLaborTax) +
         '. Covers earnings, pensions and other non-investment income; it preserves income differences in the reference tax profile.',
+      allowFreeTrade: p.allowFreeTrade
+        ? 'The US permits trade. Goods, services and imported AI can cross this border only if the foreign actor also permits it.'
+        : 'The US closes this border even if the foreign actor permits trade. The ban also stops imported AI and the model’s cross-border AI profit payments.',
       capitalTax:
         'Selected benchmark: ' +
         pct(p.capitalTax) +
@@ -131,7 +139,12 @@ export class ResultsView {
         pct(end.effectiveCapitalTax) +
         '. Applies to investment income even when its recipient also works.',
     };
+    el('policy-decisions').setAttribute(
+      'aria-label',
+      current.mode === 'strategic' ? 'Seven terms of the enacted policy' : 'Six terms of the enacted policy',
+    );
     el('policy-decisions').innerHTML = policyAxes
+      .filter((axis) => current.mode === 'strategic' || axis !== 'allowFreeTrade')
       .map((axis, index) => {
         let headline = axisValue(axis, p);
         if (axis === 'laborTax' || axis === 'capitalTax') {
@@ -175,7 +188,9 @@ export class ResultsView {
       )
       .join('');
     el('manual-help').textContent =
-      'Compare another complete US package, including its AI pace. The displayed foreign policy stays fixed. This comparison does not add a second vote.';
+      'Compare another complete US package, including its AI pace.' +
+      (current.mode === 'strategic' ? ' You can also change the US trade choice; the displayed foreign policy stays fixed.' : '') +
+      ' This comparison does not add a second vote.';
     el('policy-meaning').textContent =
       'Benefits include modeled cash payments and consumption support. Health insurance is not counted as cash. Year-ten US AI adoption: ' +
       pct(end.adoption) +
@@ -223,7 +238,7 @@ export class ResultsView {
             '"><th scope="row">' +
             (index + 1) +
             '. ' +
-            policyDescription(profile.usPolicy) +
+            policyDescription(profile.usPolicy, current.mode === 'strategic') +
             (selected ? '<br /><strong>Enacted</strong>' : '') +
             '</th><td>' +
             voteShare(support.get(profile.usPolicy.id) ?? 0) +
@@ -260,7 +275,7 @@ export class ResultsView {
     const end = active.foreign!.at(-1)!;
     el('country-policies').innerHTML =
       '<div class="country-policy"><h4>Rest of the world</h4><p>' +
-      policyDescription(active.foreignPolicy!) +
+      policyDescription(active.foreignPolicy!, true) +
       '</p><p>Year ten: income in work-primary households ' +
       change(end.workerIncomeIndex) +
       '; output index ' +
@@ -275,15 +290,42 @@ export class ResultsView {
       (current.pauseUnavailable
         ? 'Neither side can pause AI. Both choose current pace or acceleration for the ten-year scenario. '
         : 'Both choices stay in place for ten years, so a mutual pause lasts the full decade. ') +
-      'The foreign actor uses the US household distribution and behavioral rules as a modeling assumption, with separate economic size, trade exposure and frontier capability.';
+      'Trade requires both sides’ consent. A domestic AI pause can still leave workers exposed to foreign competition. The foreign actor uses the US household distribution and behavioral rules as a modeling assumption, with separate economic size, trade exposure and frontier capability.';
     const verified = current.selection === 'verified-consistent';
     el('deviation').classList.toggle('unstable', !verified);
-    el('international-heading').textContent = 'The foreign choice';
+    el('international-heading').textContent = 'The foreign choice and trade';
+    this.renderTrade();
     el('deviation').textContent = verified
       ? 'The choices are mutually consistent: this foreign package maximizes its objective among fully funded options given the enacted US package, and the US ballot gives the displayed result given this foreign package.'
       : 'These choices are unverified. ' +
         current.search.reason +
         ' A consistent pair may exist outside the search; this result is not a verified equilibrium.';
+  }
+  private renderTrade() {
+    const active = this.snapshot.selected;
+    const us = last(active);
+    const foreign = active.foreign!.at(-1)!;
+    el('trade-verdict').textContent = us.tradeOpen
+      ? 'Trade stays open: both sides allow it.'
+      : 'Trade is closed: ' +
+        (!active.usPolicy.allowFreeTrade && !active.foreignPolicy!.allowFreeTrade
+          ? 'both sides ban it.'
+          : !active.usPolicy.allowFreeTrade ? 'the US bans it.' : 'the foreign actor bans it.');
+    el('trade-impact').textContent =
+      'Year ten: US consumer prices are ' + pct(us.consumerPriceIndex) +
+      ' of their starting level, relative to US producer prices. ' + pct(us.tradeUnemployment) +
+      ' of workers are still affected by trade adjustment; ' + pct(us.aiUnemployment) +
+      ' by domestic or imported AI. Income figures already include these price and employment effects.';
+    el('trade-price-note').textContent =
+      'Foreign consumer prices: ' + pct(foreign.consumerPriceIndex) +
+      ' of their starting level, relative to foreign producer prices. Lower consumer prices increase what income can buy; they are not extra physical GDP. Trade within the foreign bloc continues even if this border closes.';
+    el('trade-table').innerHTML = active.us.map((point) =>
+      '<tr><th scope="row">' + (point.year === 0 ? 'Today' : 'Year ' + point.year) +
+      '</th><td>' + num(point.consumerPriceIndex * 100) +
+      '</td><td>' + pct(point.importShare) +
+      '</td><td>' + pct(point.exportShare) +
+      '</td><td>' + pct(point.tradeUnemployment) + '</td></tr>',
+    ).join('');
   }
   private renderComparison() {
     const current = this.snapshot;
@@ -327,7 +369,7 @@ export class ResultsView {
       (current.mode === 'strategic'
         ? 'Comparisons hold the foreign choice fixed, except for the no-AI reference. '
         : '') +
-      'Output is a modeled resource index, not a GDP forecast.';
+      'Income indices include changes in consumer purchasing power. Output measures production, before those price effects; it is not a GDP forecast.';
   }
   private renderAccounting() {
     const end = last(this.snapshot.selected);

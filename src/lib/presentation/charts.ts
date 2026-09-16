@@ -39,9 +39,9 @@ export function renderChart(years: RegionYear[]) {
   const end = years[years.length - 1]!;
   const obsolete = end.unemployment > 1e-9,
     productive = end.unemployment < 1 - 1e-9;
-  const workforceSummary = `Year ten: ${pct(end.unemployment)} of workers are in obsolete roles; ${pct(1 - end.unemployment)} have productive work. Workers retained on employers’ payrolls still count as affected.`;
+  const workforceSummary = `Year ten: ${pct(end.unemployment)} of workers are affected; ${pct(1 - end.unemployment)} have productive work. Workers retained on employers’ payrolls still count as affected.`;
   el('workforce-summary').textContent = workforceSummary;
-  const summary = `${workforceSummary} Income in obsolete roles: ${obsolete ? num(end.displacedIncomeIndex) : 'no affected workers'}; income in productive roles: ${productive ? num(end.employedIncomeIndex) : 'no productive roles remain'}; average adult income: ${num(end.allIncomeIndex)}. Pre-AI income equals 100.`;
+  const summary = `${workforceSummary} Income for affected workers: ${obsolete ? num(end.displacedIncomeIndex) : 'no affected workers'}; income in productive roles: ${productive ? num(end.employedIncomeIndex) : 'no productive roles remain'}; average adult income: ${num(end.allIncomeIndex)}. Pre-AI income equals 100.`;
   el('income-chart').setAttribute('aria-label', summary);
   el('income-chart').innerHTML =
     `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true">${ticks.map((tick) => `<line x1="${left}" x2="${width - right}" y1="${y(tick)}" y2="${y(tick)}" stroke="${tick === 100 ? '#acb5a5' : '#deded3'}" stroke-width="1" ${tick === 100 ? '' : 'stroke-dasharray="2 4"'} /><text x="${left - 10}" y="${y(tick) + 4}" text-anchor="end">${tick}</text>`).join('')}${[0, 2, 4, 6, 8, 10].map((year) => `<text x="${x(year)}" y="${height - 13}" text-anchor="middle">${year === 0 ? 'Today' : `Year ${year}`}</text>`).join('')}${paths
@@ -64,7 +64,7 @@ export function renderChart(years: RegionYear[]) {
   el('endpoints').innerHTML = [
     [
       'worker',
-      'Workers in obsolete roles',
+      'Affected workers',
       obsolete ? change(end.displacedIncomeIndex) : '—',
       obsolete ? pct(end.unemployment) + ' of workers in year ten' : 'No workers affected',
     ],

@@ -6,7 +6,7 @@ from typing import Any
 
 from .election import solve_package_election
 from .model import solve_model
-from .policies import BASELINE_POLICY, POLICIES, current_policy
+from .policies import BASELINE_POLICY, current_policy, policies_for_mode
 
 
 def scenario_settings(request: dict[str, Any]) -> tuple[str, str, bool]:
@@ -39,7 +39,7 @@ def solve_scenario(request: dict[str, Any]) -> dict[str, Any]:
             "pace": 1,
         },
     )
-    policies = [policy for policy in POLICIES if not pause_unavailable or policy["pace"] != 0]
+    policies = policies_for_mode(mode, pause_unavailable)
     foreign_policies = [
         policy for policy in model["foreignPolicies"] if not pause_unavailable or policy["pace"] != 0
     ]

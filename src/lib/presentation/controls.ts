@@ -12,6 +12,8 @@ const foreignKeys = new Set<string>([
   'foreignTradeIntensity',
   'foreignMarketSize',
   'foreignPopulationRatio',
+  'tradableShare',
+  'tradeElasticity',
 ]);
 const structuralKeys = new Set<string>(['investmentResponse']);
 const visibleInputSpecs = INPUT_SPECS.filter((spec) => spec.key !== 'foreignPopulationRatio');
@@ -33,13 +35,18 @@ export class ScenarioControls {
   }
   selectedManualPolicyId(): string | undefined {
     // ID parts are opaque canonical tokens supplied by Python, not recalculated in JavaScript.
-    const selected = policyAxes.map((axis) => {
-      const idPart = el<HTMLSelectElement>('manual-' + axis).value;
-      return POLICY_OPTIONS[axis].find((option) => option.idPart === idPart);
-    });
+    const selected = policyAxes
+      .filter((axis) => this.state.mode === 'strategic' || axis !== 'allowFreeTrade')
+      .map((axis) => {
+        const idPart = el<HTMLSelectElement>('manual-' + axis).value;
+        return POLICY_OPTIONS[axis].find((option) => option.idPart === idPart);
+      });
     if (selected.some((option) => !option) || (this.state.pauseUnavailable && selected[0]?.value === 0))
       return;
-    return selected.map((option) => option!.idPart).join('|');
+    return selected
+      .map((option) => option!.idPart)
+      .filter(Boolean)
+      .join('|');
   }
   private buildInputs() {
     for (const spec of visibleInputSpecs) {
@@ -86,6 +93,7 @@ export class ScenarioControls {
       const options = POLICY_OPTIONS[axis];
       const node = document.createElement('div');
       node.className = 'manual-control';
+      node.id = 'manual-control-' + axis;
       node.innerHTML =
         '<label for="manual-' +
         axis +
@@ -121,7 +129,7 @@ export class ScenarioControls {
       (key) => Math.abs(this.state.inputs[key] - DEFAULT_INPUTS[key]) > 1e-8,
     );
     el('calibration-summary').textContent =
-      '2025 reference: rest-of-world GDP 2.85× US. Imports across this border: 14.2% of US GDP and 3.9% of rest-of-world GDP.' +
+      '2025 reference: rest-of-world GDP 2.85× US. US imports: 14.2% of US GDP; foreign imports from the US: 3.9% of foreign GDP. The model balances these flows before calculating trade; see the trade assumptions below.' +
       (custom ? ' This scenario changes at least one reference value; Reset restores the defaults.' : '');
   }
 
@@ -146,7 +154,7 @@ export class ScenarioControls {
     this.updateElectorate();
     this.syncPauseControl();
     for (const spec of visibleInputSpecs) {
-      const step = spec.key === 'foreignMarketSize' ? 0.25 : 0.05;
+      const step = spec.step;
       const values = [spec.min, spec.max, DEFAULT_INPUTS[spec.key], this.state.inputs[spec.key]];
       for (let value = Math.ceil(spec.min / step) * step; value <= spec.max + 1e-9; value += step)
         values.push(Number(value.toFixed(8)));
@@ -163,6 +171,7 @@ export class ScenarioControls {
     el<HTMLSelectElement>('foreign-objective').value = this.state.foreignObjective;
     el('foreign-objective-help').textContent = objectiveHelp[this.state.foreignObjective];
     el('foreign-inputs').hidden = this.state.mode !== 'strategic';
+    el('manual-control-allowFreeTrade').hidden = this.state.mode !== 'strategic';
     this.updateCalibration();
   }
 

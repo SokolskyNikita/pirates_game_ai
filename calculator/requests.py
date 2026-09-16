@@ -6,11 +6,10 @@ import math
 from typing import Any
 
 from .config import INPUT_SPECS, normalize_inputs
-from .policies import POLICIES
+from .policies import policy_by_id
 
 MODES = {"us-only", "strategic"}
 OBJECTIVES = {"workers", "prosperity", "output"}
-POLICIES_BY_ID = {policy["id"]: policy for policy in POLICIES}
 
 
 def scenario_request(value: Any) -> dict:
@@ -75,9 +74,5 @@ def comparison_request(value: Any) -> dict:
     for key in ("policyId", "selectedPolicyId", "foreignPolicyId"):
         if key not in result:
             continue
-        policy = POLICIES_BY_ID.get(result[key])
-        if policy is None:
-            raise ValueError(f"{key} must identify a policy on the complete menu.")
-        if scenario["pauseUnavailable"] and policy["pace"] == 0:
-            raise ValueError("Pause AI is unavailable in this scenario.")
+        policy_by_id(result[key], scenario["mode"], scenario["pauseUnavailable"])
     return result

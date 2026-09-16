@@ -13,11 +13,13 @@ import time
 from pathlib import Path
 
 from .config import DEFAULT_INPUTS, INPUT_SPECS, MODEL_NOTES, normalize_inputs
-from .policies import POLICIES
+from .policies import INTERNATIONAL_POLICIES
 from .population import CALIBRATION, PREPARED, US_ELECTORATE
 
 SCHEMA_VERSION = 3
-POLICY_AXES = ("pace", "replacement", "welfareScale", "benefitFormula", "laborTax", "capitalTax")
+POLICY_AXES = (
+    "pace", "replacement", "welfareScale", "benefitFormula", "laborTax", "capitalTax", "allowFreeTrade"
+)
 
 
 def scenario_key(request: dict) -> str:
@@ -41,8 +43,8 @@ def scenario_key(request: dict) -> str:
 def presentation_config() -> dict:
     """Export choices and baseline displays, never browser-side formulas."""
     options = {axis: {} for axis in POLICY_AXES}
-    for policy in POLICIES:
-        parts = policy["id"].split("|")
+    for policy in INTERNATIONAL_POLICIES:
+        parts = policy["id"].split("|")[:6] + ["" if policy["allowFreeTrade"] else "closed"]
         for axis, part in zip(POLICY_AXES, parts, strict=True):
             options[axis].setdefault(part, {"value": policy[axis], "idPart": part})
     return {

@@ -56,6 +56,9 @@ def make_policy(values: dict[str, Any]) -> Policy:
     formula = values["benefitFormula"]
     labor_tax = values["laborTax"]
     capital_tax = values["capitalTax"]
+    free_trade = values.get("allowFreeTrade", True)
+    if not isinstance(free_trade, bool):
+        raise ValueError("allowFreeTrade must be a boolean.")
     identifier = "|".join(
         [
             _number(pace),
@@ -66,6 +69,8 @@ def make_policy(values: dict[str, Any]) -> Policy:
             _number(capital_tax),
         ]
     )
+    if not free_trade:
+        identifier += "|closed"
     pace_label = PACE_LABELS.get(pace, f"{_number(pace)}× AI pace")
     retention_label = f"Retain at {_rounded_percent(replacement)}%" if replacement else "Allow layoffs"
     label = (
@@ -73,7 +78,9 @@ def make_policy(values: dict[str, Any]) -> Policy:
         f" · noncapital {_rounded_percent(labor_tax, 1)}%"
         f" / investment {_rounded_percent(capital_tax, 1)}% tax"
     )
-    return {**values, "id": identifier, "label": label}
+    if not free_trade:
+        label += " · Ban US–world trade"
+    return {**values, "allowFreeTrade": free_trade, "id": identifier, "label": label}
 
 
 POLICIES = [
@@ -95,6 +102,17 @@ POLICIES = [
         CAPITAL_TAX_CHOICES,
     )
 ]
+# Domestic calculations retain the original menu. International packages add a
+# separate trade vote; open-trade identifiers remain compatible with old links.
+INTERNATIONAL_POLICIES = POLICIES + [
+    make_policy({**policy, "allowFreeTrade": False}) for policy in POLICIES
+]
+_POLICIES_BY_MODE = {
+    "us-only": {policy["id"]: policy for policy in POLICIES},
+    "strategic": {policy["id"]: policy for policy in INTERNATIONAL_POLICIES},
+}
+
+
 BASELINE_POLICY = make_policy(
     {
         "pace": 0,
@@ -107,10 +125,34 @@ BASELINE_POLICY = make_policy(
 )
 
 
-def policies_at_pace(pace: float = 1) -> list[Policy]:
+def policies_for_mode(mode: str, pause_unavailable: bool = False) -> list[Policy]:
+    """Offer a trade choice only when the other region participates in the game."""
+    if mode not in ("us-only", "strategic"):
+        raise ValueError("The scenario mode must be us-only or strategic.")
+    if not isinstance(pause_unavailable, bool):
+        raise ValueError("pauseUnavailable must be a boolean.")
+    menu = POLICIES if mode == "us-only" else INTERNATIONAL_POLICIES
+    return [policy for policy in menu if not pause_unavailable or policy["pace"] != 0]
+
+
+def policy_by_id(identifier: str, mode: str, pause_unavailable: bool = False) -> Policy:
+    """Validate an identifier against the same menu used in that scenario's vote."""
+    if mode not in ("us-only", "strategic"):
+        raise ValueError("The scenario mode must be us-only or strategic.")
+    if not isinstance(identifier, str):
+        raise ValueError("The policy ID must identify a policy on the complete menu.")
+    policy = _POLICIES_BY_MODE[mode].get(identifier)
+    if policy is None:
+        raise ValueError("The policy ID must identify a policy on this scenario's complete menu.")
+    if pause_unavailable and policy["pace"] == 0:
+        raise ValueError("Pause AI is unavailable in this scenario.")
+    return policy
+
+
+def policies_at_pace(pace: float = 1, mode: str = "us-only") -> list[Policy]:
     if not any(abs(candidate - pace) < 1e-9 for candidate in PACE_CHOICES):
         raise ValueError("AI pace must be 0 (pause), 1 (current) or 2 (accelerated).")
-    return [policy for policy in POLICIES if abs(policy["pace"] - pace) < 1e-9]
+    return [policy for policy in policies_for_mode(mode) if abs(policy["pace"] - pace) < 1e-9]
 
 
 def current_policy(pace: float = 1) -> Policy:
@@ -126,5 +168,6 @@ def checked_policy(policy: Policy) -> None:
             for field, (low, high) in zip(fields, limits, strict=True)
         )
         or policy["benefitFormula"] not in BENEFIT_FORMULAS
+        or not isinstance(policy.get("allowFreeTrade", True), bool)
     ):
         raise ValueError("Invalid policy.")

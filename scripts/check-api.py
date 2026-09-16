@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from calculator.config import DEFAULT_INPUTS  # noqa: E402
+from calculator.policies import current_policy, make_policy  # noqa: E402
 from calculator.simulation import solve_scenario  # noqa: E402
 
 
@@ -53,6 +54,14 @@ def check_api(base: str) -> None:
         if "foreignPolicy" in selected:
             comparison["foreignPolicyId"] = selected["foreignPolicy"]["id"]
         assert request("/api/compare", comparison)["voteShare"] == 0
+        if mode == "strategic":
+            closed = make_policy({**current_policy(), "allowFreeTrade": False})
+            closed_result = request("/api/compare", {**comparison, "policyId": closed["id"]})["profile"]
+            for region in ("us", "foreign"):
+                assert all(not p["tradeOpen"] and p["importShare"] == 0 for p in closed_result[region][1:])
+            assert actual["policyCount"] == 12960 and actual["search"]["startsTried"] == 6
+        else:
+            assert actual["policyCount"] == 6480
         print(f"Passed native/runtime ballot parity and manual comparison: {mode}/{objective}", flush=True)
     for payload in ({"inputs": {"usGdpGrowth": 10**400}}, {"pauseUnavailable": 1}, {"mode": []}):
         assert "error" in request("/api/simulate", payload, 400)

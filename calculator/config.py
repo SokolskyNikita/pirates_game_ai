@@ -28,6 +28,8 @@ DEFAULT_INPUTS = {
     "foreignMarketSize": 2.8463217399,
     "foreignPopulationRatio": 23.0368311373,
     "foreignTradeIntensity": 0.03916185,
+    "tradableShare": 0.4,
+    "tradeElasticity": 4,
 }
 
 INPUT_SPECS = [
@@ -110,8 +112,8 @@ INPUT_SPECS = [
         "min": 0,
         "max": 1,
         "step": 0.05,
-        "description": "AI spillover exposure anchored to 2025 US imports / GDP; the spillover "
-        "mechanism is assumed.",
+        "description": "2025 US imports / GDP. Together with exports, this anchors the modeled trade "
+        "basket; imported-AI diffusion is an additional assumption.",
     },
     {
         "key": "foreignMarketSize",
@@ -119,7 +121,7 @@ INPUT_SPECS = [
         "min": 0.25,
         "max": 8,
         "step": 0.25,
-        "description": "2025 nominal GDP ratio, used for international rent accounting.",
+        "description": "2025 nominal GDP ratio, used for bilateral demand, relative prices and AI-return accounting.",
     },
     {
         "key": "foreignPopulationRatio",
@@ -137,6 +139,25 @@ INPUT_SPECS = [
         "step": 0.05,
         "description": "2025 US exports / rest-of-world GDP. Trade within the foreign bloc is internal.",
     },
+    {
+        "key": "tradableShare",
+        "label": "Share exposed to international competition",
+        "min": 0,
+        "max": 1,
+        "step": 0.05,
+        "description": "Assumed share of spending and remaining jobs in goods or services that can "
+        "be purchased abroad. Includes tradable services. The 40% default is illustrative, "
+        "not a measured share of today's US economy.",
+    },
+    {
+        "key": "tradeElasticity",
+        "label": "Response to relative import prices",
+        "min": 1,
+        "max": 8,
+        "step": 1,
+        "description": "How strongly buyers switch between domestic and foreign products as prices "
+        "change. Four is a research-based reference; the same value applies to both blocs.",
+    },
 ]
 
 MODEL_NOTES = [
@@ -149,12 +170,14 @@ MODEL_NOTES = [
         "within a cell.",
     },
     {
-        "title": "Six policy decisions",
+        "title": "The complete policy package",
         "detail": "Every package specifies Pause AI, Allow current AI pace or Accelerate AI, together "
         "with employer retention at 0%, 50%, 100% or 125% of previous gross labor income; a "
         "public benefit budget at 0%, 50%, 100%, 150% or 200% of current modeled benefits; "
         "current allocation, equal payments per adult or payments proportional to prior "
-        "disposable income; and separate noncapital and investment tax rates.",
+        "disposable income; and separate noncapital and investment tax rates. International "
+        "packages also specify whether to allow free trade. Both sides must allow it for "
+        "bilateral trade to continue.",
     },
     {
         "title": "Current benefits and tax credits",
@@ -188,7 +211,7 @@ MODEL_NOTES = [
         "fallback can still show shortfalls; their income figures use actual payments rather "
         "than inventing funds. Household resources plus nontransfer government spending equal "
         "available production after installation costs, adjustment costs and foreign rent "
-        "flows.",
+        "flows, converted to purchasing power at the modeled consumer price index.",
     },
     {
         "title": "Risk and selfish voters",
@@ -223,7 +246,8 @@ MODEL_NOTES = [
         "rather than automatically destroying the production AI replaces. Policy responses "
         "can raise or lower realized GDP relative to this potential path. Growth scales "
         "productive wages, pensions and other passive resources; benefit budgets and "
-        "retained-wage promises remain fixed in real baseline dollars.",
+        "retained-wage promises remain fixed in real baseline dollars. In international "
+        "scenarios, trade adjustment can reduce production even when domestic AI is paused.",
         "equation": "Potential outputₜ = potential outputₜ₋₁ × (1 + annual growth at full AI × exposureₜ)",
     },
     {
@@ -247,17 +271,60 @@ MODEL_NOTES = [
         "assumed annual renewal share is 5%, not an estimated capital-stock model.",
     },
     {
-        "title": "International assumptions",
-        "detail": "The foreign bloc chooses its own full policy and AI deployment pace to maximize "
-        "worker income, average income utility or output. A pause blocks AI use and AI job "
-        "replacement within that region even if the other side deploys, but international "
-        "rent competition can still change income. Where AI is allowed, import diffusion "
-        "scales with the recipient’s pace as well as the supplier’s available AI; "
-        "acceleration cannot import AI before the supplier deploys it. If both pause, neither "
-        "region deploys for the entire ten-year horizon. GDP weights cross-border rent flows. "
-        "For comparability, its household distribution and baseline fiscal system use the "
-        "same US-calibrated cohort structure; this is an explicit simplification, not foreign "
-        "microdata.",
+        "title": "International choices",
+        "detail": "The foreign bloc chooses a complete policy to maximize worker income, average "
+        "income utility or physical output. Each side knows the other's choice. Free trade "
+        "requires both to allow it; a ban by either ends bilateral goods and services trade, "
+        "imported-AI diffusion and the modeled cross-border AI-service profit flows. Trade "
+        "within the foreign bloc continues. This is not a model of tariffs, existing foreign "
+        "assets or separate capital controls. A pause blocks domestic and imported AI use, "
+        "but open trade can still displace workers through foreign competition. If both "
+        "pause, neither deploys AI during the ten years. The foreign bloc uses the US "
+        "household distribution and fiscal reference, not foreign household microdata.",
+    },
+    {
+        "title": "Trade prices and purchasing power",
+        "detail": "An Armington-inspired approximation separates internationally tradable spending "
+        "from local spending. Buyers substitute between domestic and foreign products; "
+        "relative producer prices clear the two regions' goods markets, including net "
+        "AI-service profit income. Foreign growth changes import prices, competition and "
+        "export demand. Household utility uses income divided by the consumer price index. "
+        "Cheaper imports therefore raise purchasing power without being counted again as "
+        "physical GDP. A ban removes foreign varieties without renormalizing preferences, "
+        "raising the cost of the consumption basket. Real wage-retention, benefit and other "
+        "public-spending promises are indexed to that cost before testing funding. The "
+        "model uses one aggregate tradable sector, not detailed industry supply chains.",
+        "equation": "Import share = βa r⁻ᶿ / (1 − a + a r⁻ᶿ); consumer price / domestic producer price = "
+        "(1 − a + a r⁻ᶿ)⁻ᵝ⁄ᶿ",
+    },
+    {
+        "title": "Trade calibration and assumptions",
+        "detail": "The starting data use revised 2025 US goods and services imports of $4.361773 "
+        "trillion and exports of $3.429813 trillion. The model does not track deficit "
+        "financing: it normalizes baseline two-way trade to their geometric mean, about "
+        "$3.868 trillion in each direction. GDP is an approximate spending base here, "
+        "not the gross-expenditure measure used in structural trade estimates. The assumed "
+        "tradable share defaults to 40%; the trade elasticity defaults to four. Both can "
+        "be changed. If custom inputs imply more trade than the tradable sector permits, "
+        "the common flow is capped at 95% of the smaller bloc's tradable spending. This "
+        "calibration illustrates mechanisms; it does not estimate the cost of a real US "
+        "trade embargo.",
+    },
+    {
+        "title": "Jobs affected by trade",
+        "detail": "AI displacement and trade adjustment are separate. At the start of each year, "
+        "trade-affected workers recover at the chosen return-to-work rate. Initial trade "
+        "prices then determine adjustment: each percentage-point increase in import "
+        "spending share, or contraction in export volume divided by prior available output, affects "
+        "one percentage point of remaining productive workers, capped at the tradable "
+        "share. A ban creates an initial export adjustment. This one-for-one response is "
+        "an assumption, not an estimated employment elasticity. Production and trade "
+        "prices are recalculated after adjustment. These workers lose productive income "
+        "and output until they return to work; they do not generate domestic AI output. "
+        "Employer retention protects both AI- and trade-affected workers. Its additional "
+        "trade-related investment burden responds to the previous year’s retained wages, "
+        "so this response has a one-year lag. Export expansion "
+        "limits new losses; recovery occurs at the specified annual rate.",
     },
     {
         "title": "One vote on a complete package",

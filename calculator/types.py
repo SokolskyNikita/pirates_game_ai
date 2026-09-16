@@ -46,6 +46,12 @@ class TrajectoryState:
     adoption: float = 0
     growth: float = 1
     output: float = 100
+    trade_adjustment: float = 0
+    import_share: float = 0
+    export_share: float = 0
+    export_volume: float = 0
+    net_output: float = 100
+    consumer_price_index: float = 1
 
 
 @dataclass(slots=True)
@@ -70,8 +76,31 @@ class Production:
     burden: float
     capacity: float
 
+    ai_unemployment: float = 0
+    trade_unemployment: float = 0
+    trade_adjustment: float = 0
+    consumer_price_index: float = 1
+    trade_open: bool = False
+    import_share: float = 0
+    export_share: float = 0
+    export_volume: float = 0
+    relative_producer_price: float = 1
+    trade_balance_residual: float = 0
+
     def next_state(self) -> TrajectoryState:
-        return TrajectoryState(self.unemployment, self.exposure, self.adoption, self.growth, self.output)
+        return TrajectoryState(
+            self.ai_unemployment,
+            self.exposure,
+            self.adoption,
+            self.growth,
+            self.output,
+            self.trade_adjustment,
+            self.import_share,
+            self.export_share,
+            self.export_volume,
+            self.output - self.investment - self.adjustment,
+            self.consumer_price_index,
+        )
 
 
 @dataclass(slots=True)

@@ -23,7 +23,10 @@ def settle(
     p = production
     c = prepared.calibration
     cells = prepared.cells
-    unit = c["marketIncome"] / 100
+    # Convert producer-currency receipts to baseline purchasing power before
+    # funding promises. Retention, welfare and services stay fixed in real units.
+    price = p.consumer_price_index
+    unit = c["marketIncome"] / 100 / price
     gross_resources = (p.output - p.investment - p.adjustment + flow) * unit
     capital_before = (p.capital + flow) * unit
     required_employer = c["laborIncome"] * p.unemployment * policy["replacement"]
@@ -32,7 +35,7 @@ def settle(
     employer_ratio = employer_pay / obsolete_wages if obsolete_wages > 0 else 0
     capital_after = capital_before - employer_pay
     capital_factor = capital_after / c["capitalIncome"]
-    productive_wage_factor = p.income_allocation_factor * p.effort
+    productive_wage_factor = p.income_allocation_factor * p.effort / price
     employed_net = []
     obsolete_net = []
     labor_tax_revenue = capital_tax_revenue = 0.0
@@ -40,11 +43,11 @@ def settle(
     for cell in cells:
         work = cell.labor * productive_wage_factor
         retained = cell.labor * employer_ratio
-        passive = cell.passive * p.income_allocation_factor
+        passive = cell.passive * p.income_allocation_factor / price
         capital = cell.capital * capital_factor
         labor_rate = tax_rate(cell.labor_rate, policy["laborTax"], c["laborTaxRate"])
         capital_rate = tax_rate(cell.capital_rate, policy["capitalTax"], c["capitalTaxRate"])
-        taxable_passive = cell.taxable_passive * p.income_allocation_factor
+        taxable_passive = cell.taxable_passive * p.income_allocation_factor / price
         tax_employed = max(0, work + taxable_passive) * labor_rate
         tax_obsolete = max(0, retained + taxable_passive) * labor_rate
         tax_capital = max(0, capital) * capital_rate
@@ -135,6 +138,14 @@ def settle(
             else 100,
             "cohortIncome": income,
             "unemployment": p.unemployment,
+            "aiUnemployment": p.ai_unemployment,
+            "tradeUnemployment": p.trade_unemployment,
+            "consumerPriceIndex": price,
+            "tradeOpen": p.trade_open,
+            "importShare": p.import_share,
+            "exportShare": p.export_share,
+            "relativeProducerPrice": p.relative_producer_price,
+            "tradeBalanceResidual": p.trade_balance_residual,
             "newlyDisplaced": p.newly,
             "longTermDisplaced": max(0, p.unemployment - p.newly),
             "reemployed": p.reemployed,

@@ -24,6 +24,7 @@ import numpy as np
 from .config import CAPACITY_RENEWAL_RATE, DISCOUNT_RATE, UTILITY_OFFSET, YEARS
 from .policies import checked_policy
 from .population import PREPARED
+from .trade import baseline_trade, competition_displacement, trade_market, trade_retention_burden
 from .types import Policy, Prepared
 
 # These bounds are much larger than measured float64 disagreement. They only
@@ -45,7 +46,10 @@ def _policy_arrays(policies: Sequence[Policy]) -> dict[str, np.ndarray]:
     return {
         key: np.asarray([p[key] for p in policies], dtype=float)
         for key in ("pace", "replacement", "welfareScale", "laborTax", "capitalTax")
-    } | {"formula": np.asarray([p["benefitFormula"] for p in policies])}
+    } | {
+        "formula": np.asarray([p["benefitFormula"] for p in policies]),
+        "allowFreeTrade": np.asarray([p.get("allowFreeTrade", True) for p in policies], dtype=bool),
+    }
 
 
 def _deployment(target, pace, year, response, burden):
@@ -82,6 +86,9 @@ def _burden(inputs, policy, other_pace, other_strength, strength, trade, calibra
 def _initial_state(count):
     return {
         "u": np.zeros(count),
+        "ai_u": np.zeros(count),
+        "trade_adjustment": np.zeros(count),
+        "consumer_price_index": np.ones(count),
         "exposure": np.zeros(count),
         "adoption": np.zeros(count),
         "growth": np.ones(count),
@@ -89,13 +96,32 @@ def _initial_state(count):
     }
 
 
-def _produce(inputs, policy, old, adoption, other_adoption, burden, trade, year, calibration, growth_rate):
+def _produce(
+    inputs,
+    policy,
+    old,
+    adoption,
+    other_adoption,
+    burden,
+    trade,
+    year,
+    calibration,
+    growth_rate,
+    trade_adjustment=None,
+):
     exposure = _exposure(policy["pace"], adoption, other_adoption, trade, policy["pace"] * year / YEARS)
     delta = np.maximum(0, exposure - old["exposure"])
     delta_adoption = np.maximum(0, adoption - old["adoption"])
     newly = inputs["displacement"] * delta
-    reemployed = old["u"] * inputs["reemployment"]
-    unemployment = np.clip(old["u"] - reemployed + newly, 0, 1)
+    reemployed = old["ai_u"] * inputs["reemployment"]
+    ai_unemployment = np.clip(old["ai_u"] - reemployed + newly, 0, 1)
+    recovered_trade = old["trade_adjustment"] * (1 - inputs["reemployment"])
+    trade_adjustment = recovered_trade if trade_adjustment is None else trade_adjustment
+    trade_unemployment = (1 - ai_unemployment) * trade_adjustment
+    unemployment = ai_unemployment + trade_unemployment
+    recovered_ai = old["ai_u"] - reemployed
+    recovered_total = recovered_ai + (1 - recovered_ai) * recovered_trade
+    newly = np.where(trade_adjustment == 0, newly, unemployment - recovered_total)
     effort = np.clip(
         1 - inputs["investmentResponse"] * (policy["laborTax"] - calibration["laborTaxRate"]), 0, 1.5
     )
@@ -105,12 +131,11 @@ def _produce(inputs, policy, old, adoption, other_adoption, burden, trade, year,
     labor_share = calibration["laborIncome"] / calibration["marketIncome"] * 100
     passive_share = calibration["passiveIncome"] / calibration["marketIncome"] * 100
     growth = old["growth"] * (1 + growth_rate * exposure)
-    output = capacity * growth * (100 + labor_share * (1 - unemployment) * (effort - 1))
-    raw_claims = (
-        100
-        + labor_share * (1 - unemployment) * (effort - 1)
-        + inputs["productivityGain"] * labor_share * unemployment
+    base = (
+        100 + labor_share * (1 - ai_unemployment) * (effort - 1) - labor_share * trade_unemployment * effort
     )
+    output = capacity * growth * base
+    raw_claims = base + inputs["productivityGain"] * labor_share * ai_unemployment
     allocation = output / raw_claims
     labor = allocation * labor_share * (1 - unemployment) * effort
     passive = allocation * passive_share
@@ -123,7 +148,12 @@ def _produce(inputs, policy, old, adoption, other_adoption, burden, trade, year,
         "adoption": adoption,
         "exposure": exposure,
         "u": unemployment,
+        "ai_u": ai_unemployment,
+        "trade_adjustment": trade_adjustment,
         "output": output,
+        "investment": investment,
+        "adjustment": adjustment,
+        "burden": burden,
         "capital": capital,
         "effort": effort,
         "rents": np.maximum(0, capital - (100 - labor_share - passive_share) * allocation),
@@ -175,9 +205,9 @@ def _settlement_arrays(prepared, policy):
     return fields
 
 
-def _settle(policy, production, flow, prepared, arrays):
+def _settle(policy, production, flow, prepared, arrays, price_index=1):
     c = prepared.calibration
-    capital_before = (production["capital"] + flow) * (c["marketIncome"] / 100)
+    capital_before = (production["capital"] + flow) * (c["marketIncome"] / 100 / price_index)
     required_employer = c["laborIncome"] * production["u"] * policy["replacement"]
     employer_pay = np.minimum(required_employer, np.maximum(0, capital_before))
     denominator = c["laborIncome"] * production["u"]
@@ -185,8 +215,9 @@ def _settle(policy, production, flow, prepared, arrays):
         employer_pay, denominator, out=np.zeros_like(employer_pay), where=denominator > 0
     )
     capital_factor = (capital_before - employer_pay) / c["capitalIncome"]
-    allocation = production["allocation"][:, None]
-    productive = production["allocation"] * production["effort"]
+    real_allocation = production["allocation"] / price_index
+    allocation = real_allocation[:, None]
+    productive = real_allocation * production["effort"]
     work = arrays["labor"] * productive[:, None]
     retained = arrays["labor"] * employer_ratio[:, None]
     passive = arrays["passive"] * allocation
@@ -247,40 +278,70 @@ def _evaluate_chunk(inputs, us_policies, foreign_policies, foreign_objective, pr
     up = _policy_arrays(us_policies)
     fp = _policy_arrays(foreign_policies) if foreign_policies is not None else None
     c = prepared.calibration
-    trade = inputs["tradeIntensity"] if fp is not None else 0
+    baseline_us, baseline_foreign, tradable_share = baseline_trade(inputs)
+    trade_open = up["allowFreeTrade"] & fp["allowFreeTrade"] if fp is not None else False
+    trade = baseline_us * trade_open if fp is not None else 0
+    foreign_trade = baseline_foreign * trade_open if fp is not None else 0
     bus = _burden(
         inputs, up, fp["pace"] if fp is not None else np.zeros(count), inputs["foreignStrength"], 1, trade, c
     )
     bf = (
-        _burden(inputs, fp, up["pace"], 1, inputs["foreignStrength"], inputs["foreignTradeIntensity"], c)
+        _burden(inputs, fp, up["pace"], 1, inputs["foreignStrength"], foreign_trade, c)
         if fp is not None
         else None
     )
     us_arrays = _settlement_arrays(prepared, up) if not foreign_only else None
     foreign_arrays = _settlement_arrays(prepared, fp) if fp is not None else None
     us_state, foreign_state = _initial_state(count), _initial_state(count)
+    if fp is not None:
+        for state, reference in ((us_state, baseline_us), (foreign_state, baseline_foreign)):
+            state["import_share"] = np.full(count, reference)
+            state["export_volume"] = np.full(count, reference * 100)
+            state["net_output"] = np.full(count, 100.0)
     utilities = np.zeros((count, len(prepared.cells)))
     us_score, foreign_score = np.zeros(count), np.zeros(count)
     us_funded, foreign_funded = np.ones(count, dtype=bool), np.ones(count, dtype=bool)
     us_boundary, foreign_boundary = np.full(count, np.inf), np.full(count, np.inf)
     weight_total = 0
-    # math.exp matches the scalar reference exactly and is only called once per
-    # policy. The expensive yearly/cohort work remains vectorized.
-    own_attractiveness = np.asarray([math.exp(-4 * inputs["capitalMobility"] * value) for value in bus])
-    foreign_attractiveness = (
-        np.asarray([math.exp(-4 * inputs["capitalMobility"] * value) for value in bf])
-        if fp is not None
-        else None
-    )
     for year in range(1, YEARS + 1):
-        adopt_us = _deployment(1, up["pace"], year, inputs["investmentResponse"], bus)
+        annual_bus = trade_retention_burden(
+            bus,
+            us_state["ai_u"],
+            us_state["trade_adjustment"],
+            us_state["consumer_price_index"],
+            up["replacement"],
+            c,
+            xp=np,
+        )
+        annual_bf = (
+            trade_retention_burden(
+                bf,
+                foreign_state["ai_u"],
+                foreign_state["trade_adjustment"],
+                foreign_state["consumer_price_index"],
+                fp["replacement"],
+                c,
+                xp=np,
+            )
+            if fp is not None
+            else None
+        )
+        adopt_us = np.maximum(
+            us_state["adoption"],
+            _deployment(1, up["pace"], year, inputs["investmentResponse"], annual_bus),
+        )
         adopt_foreign = (
-            _deployment(inputs["foreignStrength"], fp["pace"], year, inputs["investmentResponse"], bf)
+            np.maximum(
+                foreign_state["adoption"],
+                _deployment(
+                    inputs["foreignStrength"], fp["pace"], year, inputs["investmentResponse"], annual_bf
+                ),
+            )
             if fp is not None
             else np.zeros(count)
         )
         us = _produce(
-            inputs, up, us_state, adopt_us, adopt_foreign, bus, trade, year, c, inputs["usGdpGrowth"]
+            inputs, up, us_state, adopt_us, adopt_foreign, annual_bus, trade, year, c, inputs["usGdpGrowth"]
         )
         foreign = (
             _produce(
@@ -289,8 +350,8 @@ def _evaluate_chunk(inputs, us_policies, foreign_policies, foreign_objective, pr
                 foreign_state,
                 adopt_foreign,
                 adopt_us,
-                bf,
-                inputs["foreignTradeIntensity"],
+                annual_bf,
+                foreign_trade,
                 year,
                 c,
                 inputs["foreignGdpGrowth"],
@@ -298,28 +359,81 @@ def _evaluate_chunk(inputs, us_policies, foreign_policies, foreign_objective, pr
             if fp is not None
             else None
         )
-        flow = np.zeros(count)
+        flow = foreign_flow = np.zeros(count)
+        us_price = foreign_price = np.ones(count)
         if foreign is not None:
-            mobile = 0.6 * inputs["capitalMobility"] * inputs["foreignStrength"]
-            total = mobile * (us["rents"] + inputs["foreignMarketSize"] * foreign["rents"])
-            own = (0.15 + adopt_us) * own_attractiveness
-            other = (
-                inputs["foreignMarketSize"]
-                * inputs["foreignStrength"]
-                * (0.15 + adopt_foreign)
-                * foreign_attractiveness
+            first_market = trade_market(inputs, up, fp, us, foreign, xp=np)
+            us_adjustment = competition_displacement(
+                us_state["trade_adjustment"],
+                inputs["reemployment"],
+                first_market["usImportShare"],
+                first_market["usExportVolume"],
+                us_state["import_share"],
+                us_state["export_volume"],
+                us_state["net_output"],
+                tradable_share,
+                xp=np,
             )
-            flow = total * own / (own + other) - mobile * us["rents"]
+            foreign_adjustment = competition_displacement(
+                foreign_state["trade_adjustment"],
+                inputs["reemployment"],
+                first_market["foreignImportShare"],
+                first_market["foreignExportVolume"],
+                foreign_state["import_share"],
+                foreign_state["export_volume"],
+                foreign_state["net_output"],
+                tradable_share,
+                xp=np,
+            )
+            us = _produce(
+                inputs,
+                up,
+                us_state,
+                adopt_us,
+                adopt_foreign,
+                annual_bus,
+                trade,
+                year,
+                c,
+                inputs["usGdpGrowth"],
+                us_adjustment,
+            )
+            foreign = _produce(
+                inputs,
+                fp,
+                foreign_state,
+                adopt_foreign,
+                adopt_us,
+                annual_bf,
+                foreign_trade,
+                year,
+                c,
+                inputs["foreignGdpGrowth"],
+                foreign_adjustment,
+            )
+            market = trade_market(inputs, up, fp, us, foreign, xp=np)
+            flow, foreign_flow = market["usFlow"], market["foreignFlow"]
+            us_price, foreign_price = market["usPriceIndex"], market["foreignPriceIndex"]
+            us["consumer_price_index"] = us_price
+            foreign["consumer_price_index"] = foreign_price
+            us["import_share"], us["export_volume"] = market["usImportShare"], market["usExportVolume"]
+            us["net_output"] = us["output"] - us["investment"] - us["adjustment"]
+            foreign["import_share"], foreign["export_volume"] = (
+                market["foreignImportShare"],
+                market["foreignExportVolume"],
+            )
+            foreign["net_output"] = foreign["output"] - foreign["investment"] - foreign["adjustment"]
+        us.setdefault("consumer_price_index", us_price)
         weight = (1 + DISCOUNT_RATE) ** -year
         weight_total += weight
         if not foreign_only:
-            result = _settle(up, us, flow, prepared, us_arrays)
+            result = _settle(up, us, flow, prepared, us_arrays, us_price)
             utilities += weight * result[0]
             us_score += weight * result[1]
             us_funded &= result[4]
             us_boundary = np.minimum(us_boundary, result[5])
         if foreign is not None:
-            result = _settle(fp, foreign, -flow / inputs["foreignMarketSize"], prepared, foreign_arrays)
+            result = _settle(fp, foreign, foreign_flow, prepared, foreign_arrays, foreign_price)
             score = result[1 if foreign_objective == "workers" else 3 if foreign_objective == "output" else 2]
             foreign_score += weight * score
             foreign_funded &= result[4]
@@ -336,7 +450,9 @@ def _evaluate_chunk(inputs, us_policies, foreign_policies, foreign_objective, pr
             + "::"
             + (foreign_policies[index]["id"] if foreign_policies is not None else "none"),
             "usPolicy": policy,
-            "usUtilities": utilities[index].tolist(),
+            # Internal ballot evaluation retains compact numeric row views.
+            # Public trajectories are scalar-materialized before JSON encoding.
+            "usUtilities": utilities[index],
             "usScore": float(us_score[index]),
             "usAdmissible": bool(us_funded[index]),
         }

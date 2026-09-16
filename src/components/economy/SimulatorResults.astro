@@ -7,7 +7,7 @@
       <p id="ballot-support"></p>
       <p id="ballot-leading" class="small-copy" hidden></p>
     </section>
-    <div id="policy-decisions" class="policy-decisions" role="group" aria-label="Six terms of the enacted policy">
+    <div id="policy-decisions" class="policy-decisions" role="group" aria-label="Terms of the enacted policy">
       <p class="small-copy">Comparing AI pace, job retention, benefit amounts, benefit rules and taxes.</p>
     </div>
     <p id="decision-votes-note" class="decision-summary"></p>
@@ -17,16 +17,24 @@
     <div id="funding-verdict" class="funding-verdict"></div>
 
     <figure class="income-figure">
-      <figcaption><h3>What people take home</h3><p>Income after tax, including pay, government benefits and capital income. Each group’s income before AI = 100.</p><p id="workforce-summary"></p></figcaption>
-      <div class="legend"><span class="worker">Obsolete roles</span><span class="owner">Productive roles</span><span class="output">All adult citizens</span></div>
+      <figcaption><h3>What people take home</h3><p>Income after tax and consumer-price changes, including pay, government benefits and capital income. Each group’s income before AI = 100.</p><p id="workforce-summary"></p></figcaption>
+      <div class="legend"><span class="worker">Affected workers</span><span class="owner">Productive roles</span><span class="output">All adult citizens</span></div>
       <div id="income-chart" class="chart" role="img" aria-label="Ten-year income projection"></div>
       <div id="endpoints" class="endpoints"></div>
-      <details class="chart-data"><summary>Read the chart as a table</summary><div class="table-scroll" tabindex="0" role="region" aria-label="Income by year"><table><caption>Income relative to each group’s starting income</caption><thead><tr><th scope="col">Year</th><th scope="col">Workers affected</th><th scope="col">Income: obsolete roles</th><th scope="col">Income: productive roles</th><th scope="col">All adult citizens</th></tr></thead><tbody id="year-table"></tbody></table></div></details>
+      <details class="chart-data"><summary>Read the chart as a table</summary><div class="table-scroll" tabindex="0" role="region" aria-label="Income by year"><table><caption>Income relative to each group’s starting income</caption><thead><tr><th scope="col">Year</th><th scope="col">Workers affected</th><th scope="col">Income: affected workers</th><th scope="col">Income: productive roles</th><th scope="col">All adult citizens</th></tr></thead><tbody id="year-table"></tbody></table></div></details>
     </figure>
 
     <section id="international-result" class="international-result" hidden aria-labelledby="international-heading">
       <h3 id="international-heading">The foreign response</h3>
       <div id="country-policies" class="country-policies"></div>
+      <h4 id="trade-verdict"></h4>
+      <p id="trade-impact"></p>
+      <details class="chart-data"><summary>How trade affects this result</summary>
+        <p>When trade is open, buyers can substitute foreign goods and services for domestic ones. Cheaper imports raise purchasing power, while changing import competition and export sales can displace workers. Closing the border removes imported varieties and export markets. The model follows affected workers as they return to productive work.</p>
+        <p id="trade-price-note"></p>
+        <div class="table-scroll" tabindex="0" role="region" aria-label="Annual US trade effects"><table><caption>US trade and adjustment. Consumer prices start at 100. Imports are a share of total spending; exports are a share of net output at producer prices.</caption><thead><tr><th scope="col">Year</th><th scope="col">Consumer prices</th><th scope="col">Import share</th><th scope="col">Export share</th><th scope="col">Workers affected by trade</th></tr></thead><tbody id="trade-table"></tbody></table></div>
+        <a href="#trade-assumptions">Trade assumptions and limits</a>
+      </details>
       <p id="equilibrium-explanation"></p>
       <div id="deviation" class="deviation"></div>
     </section>

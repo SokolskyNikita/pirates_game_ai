@@ -1,4 +1,8 @@
-"""Regression oracle captured from the deployed TypeScript engine before removal."""
+"""Domestic regression oracle from the TypeScript engine.
+
+International trajectories deliberately changed with the trade model; their
+accounting, response directions and scalar/batch parity have separate tests.
+"""
 
 import json
 import math
@@ -35,20 +39,24 @@ class MigrationParity(unittest.TestCase):
         self.assertEqual(CALIBRATION, ORACLE["calibration"])
         self.assertEqual([policy["id"] for policy in POLICIES], ORACLE["policyIds"])
 
-    def test_economic_trajectories(self):
+    def test_domestic_economic_trajectories(self):
         for case in ORACLE["profiles"]:
+            if case["mode"] != "us-only":
+                continue
             with self.subTest(case=case["name"]):
                 actual = evaluate_profile(case["inputs"], case["us"], case.get("foreign"), case["mode"])
                 self.assert_structure(actual, case["outcome"], case["name"])
 
-    def test_all_common_scenario_ballots_and_trajectories(self):
+    def test_domestic_common_scenario_ballots_and_trajectories(self):
         for case in ORACLE["snapshots"]:
+            if case["request"]["mode"] != "us-only":
+                continue
             with self.subTest(request=case["request"]):
                 actual = solve_scenario(case["request"])
                 expected = case["expected"]
                 # Vote allocations, not merely outcomes, are an exact migration contract.
                 self.assertEqual(actual["ballot"], expected["ballot"])
-                self.assertEqual(actual["selected"]["usPolicy"], expected["selected"]["usPolicy"])
+                self.assert_structure(actual["selected"]["usPolicy"], expected["selected"]["usPolicy"])
                 self.assert_structure(actual, expected)
 
 

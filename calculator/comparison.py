@@ -8,11 +8,9 @@ from typing import Any
 
 from .config import EQUILIBRIUM_TOLERANCE
 from .model import evaluate_profile
-from .policies import POLICIES
+from .policies import policy_by_id
 from .population import CALIBRATION
 from .simulation import scenario_settings
-
-_POLICY_BY_ID = {policy["id"]: policy for policy in POLICIES}
 
 
 def count_votes(
@@ -59,13 +57,7 @@ def compare_policy(request: dict[str, Any]) -> dict[str, Any]:
     mode, foreign_objective, pause_unavailable = scenario_settings(scenario)
 
     def policy_for(key: str) -> dict[str, Any]:
-        policy_id = request.get(key)
-        if not isinstance(policy_id, str) or policy_id not in _POLICY_BY_ID:
-            raise ValueError(f"{key} must identify a policy on the complete menu.")
-        policy = _POLICY_BY_ID[policy_id]
-        if pause_unavailable and policy["pace"] == 0:
-            raise ValueError("Pause AI is unavailable in this scenario.")
-        return policy
+        return policy_by_id(request.get(key), mode, pause_unavailable)
 
     policy = policy_for("policyId")
     selected = policy_for("selectedPolicyId")
