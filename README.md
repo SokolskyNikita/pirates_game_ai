@@ -17,7 +17,7 @@ npm ci
 npm run dev
 ```
 
-Astro prints the local address. Eight common scenarios are calculated at build time and loaded as exact matches. Other inputs run in a cancellable browser background worker. No account, database, API key or environment file is required.
+Astro prints the local address. Sixteen common scenarios are calculated at build time and loaded as exact matches. Other inputs run in a cancellable browser background worker. No account, database, API key or environment file is required.
 
 ## Validate and build
 
@@ -40,7 +40,7 @@ See [the data definitions and reproduction instructions](docs/us-electorate-data
 
 ## What the model decides
 
-One ballot contains all 6,480 combinations of six policy terms:
+One ballot contains all 6,480 combinations of six policy terms (4,320 when pausing AI is unavailable):
 
 1. Pause AI, allow current AI pace, or accelerate AI.
 2. Allow layoffs or require employers to retain obsolete roles at 50%, 100% or 125% of prior wages.
@@ -48,6 +48,8 @@ One ballot contains all 6,480 combinations of six policy terms:
 4. Preserve the current recipient mix, pay equally to every adult, or pay in proportion to pre-AI disposable household income.
 5. Change the tax benchmark on work, pensions and other non-investment income.
 6. Change the tax benchmark on investment income.
+
+“Pausing AI isn’t possible” is unchecked by default. When checked, it excludes Pause AI from the US ballot and, in international mode, from the foreign actor’s menu. Shared links, downloads and precomputed keys include this setting. Reset restores the unchecked default. The no-AI baseline remains a diagnostic reference, not an available policy.
 
 Tax choices include reductions, the current reference, increases and the 0%/100% endpoints. Each group's tax profile changes toward those endpoints; the page distinguishes the selected benchmark from the resulting average rate after incomes change. References are model allocations of Census-estimated federal/state income taxes and payroll contributions, including self-employment contributions. They are not statutory rates or all US taxes. Negative net tax amounts are represented as benefit payments without double counting.
 
@@ -81,7 +83,7 @@ The page includes expandable equations, accounting, comparisons and survey defin
 
 ## Precomputation coverage
 
-`npm run build` generates eight exact scenario assets: defaults and 100% obsolete roles / zero return to work / 50% employer gain, each in US-only mode and the three international objectives. Their manifest includes a checksum of model sources and population data. The loader rejects stale versions and mismatched assumptions; typed utility arrays are restored for manual comparisons. Generated assets are not committed, and are regenerated for deployment.
+`npm run build` generates sixteen exact scenario assets: defaults and 100% obsolete roles / zero return to work / 50% employer gain, each in US-only mode and the three international objectives, with pausing allowed or unavailable. Their manifest includes a checksum of model sources and population data. The loader rejects stale versions and mismatched assumptions; typed utility arrays are restored for manual comparisons. Generated assets are not committed, and are regenerated for deployment.
 
 Other slider combinations still calculate in the browser. This is **not exhaustive precomputation** of all possible assumptions. Controls use discrete 5-percentage-point increments (GDP size in 0.25 increments), while retaining exact calibrated references and legacy URL values. The policy grid is already coarser than five points on most axes. See [the feasibility and coverage notes](docs/precomputation-options.md) for why a fully precomputed interface would need a smaller declared assumption grid.
 

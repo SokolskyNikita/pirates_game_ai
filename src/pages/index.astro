@@ -63,6 +63,10 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
                 <a href="#population-sources">Data and definitions</a>
               </details>
             </div>
+            <div class="pause-control">
+              <label for="pause-unavailable"><input type="checkbox" id="pause-unavailable" aria-describedby="pause-unavailable-help" /><span>Pausing AI isn’t possible</span></label>
+              <p id="pause-unavailable-help" class="control-help">Remove Pause AI from the US ballot. Current pace and acceleration remain available.</p>
+            </div>
             <p class="control-help">Most sliders move in 5-point steps. Exact reference values and values from shared links are also preserved.</p>
             <div id="domestic-inputs"></div>
 
@@ -75,7 +79,7 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
                 <option value="output">Total economic output</option>
               </select>
               <p id="foreign-objective-help" class="control-help">One foreign actor chooses its own job protections, benefits, taxes and AI deployment.</p>
-              <p class="control-help">Both sides know the other’s choice and select a complete policy for ten years. If both pause AI, that pause lasts the decade.</p>
+              <p class="control-help">Both sides know the other’s choice and select a complete policy for ten years. When pausing is available, a mutual pause lasts the decade.</p>
               <p id="calibration-summary" class="control-help"></p>
               <details class="assumption-details"><summary>International assumptions</summary><div id="international-inputs"></div></details>
             </fieldset>
@@ -147,7 +151,7 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
             <p>Both sides choose once, knowing the other’s choice. Their policies stay in place for ten years. If both pause AI, each expects the pause to last the decade. There is no additional agreement vote, later election or renegotiation.</p>
           </details>
           <details class="method-details"><summary>The six terms on the ballot</summary>
-            <p><strong>1. AI pace.</strong> Pause AI, allow current AI pace, or accelerate AI. A pause prevents new AI exposure and AI job replacement in that economy for ten years. Current pace reaches full deployment in year ten; acceleration runs twice as fast and reaches it in year five. Full annual productivity gains arrive sooner on the accelerated path. Pausing does not eliminate other effects of foreign competition on income.</p>
+            <p><strong>1. AI pace.</strong> Pause AI, allow current AI pace, or accelerate AI. Checking “Pausing AI isn’t possible” removes Pause AI from all players’ choices. A pause prevents new AI exposure and AI job replacement in that economy for ten years. Current pace reaches full deployment in year ten; acceleration runs twice as fast and reaches it in year five. Full annual productivity gains arrive sooner on the accelerated path. Pausing does not eliminate other effects of foreign competition on income.</p>
             <p><strong>2. Job retention.</strong> Employers can lay off workers or retain obsolete roles at 50%, 100% or 125% of their starting wage before tax. These roles add no output. The employer bears the cost, which reduces capital income. Finding new productive work is a separate transition.</p>
             <p><strong>3. Benefit amounts.</strong> Government spending on the modeled benefits can be 0%, 50%, 100%, 150% or 200% of its survey baseline. Higher total spending does not mean every recipient receives more.</p>
             <p><strong>4. The benefit formula.</strong> Keep the current mix, pay every adult an equal amount, or link payments to prior income. “Prior income” means observed disposable income before AI, not lifetime earnings. The current mix preserves the starting distribution of benefits; losing a job does not automatically create a new unemployment-benefit payment.</p>
@@ -164,7 +168,7 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
             <p>Current AI pace reaches full domestic deployment by year ten; accelerated AI reaches it by year five. At full deployment, 100% obsolete roles and no return to productive work means every worker is affected. Taxes and required employer pay can delay rollout within the chosen five- or ten-year schedule and reduce productive effort. They can also erode existing capital capacity through an assumed 5% annual renewal requirement. This rate is a modeling choice, not an estimate from the cited data.</p>
             <p>This is a comparison within a policy menu, not a full model of the world economy. Observed household investment income is not total company profit or wealth. The employer-funding limit and production responses remain modeling assumptions. It does not solve market prices, demand, debt, firms’ investment decisions or individual labor supply. It omits lobbying, monetary policy, AI safety and military outcomes. Changing the policy menu or voting procedure can change the result.</p>
           </details>
-          <details class="method-details"><summary>Equations and calculation method</summary><p>Eight common scenarios are precomputed when the site is built. Other assumptions calculate in your browser using the same model; nearby results are never substituted.</p><div id="model-method"></div></details>
+          <details class="method-details"><summary>Equations and calculation method</summary><p>Sixteen common scenarios, including both settings for whether AI can be paused, are precomputed when the site is built. Other assumptions calculate in your browser using the same model; nearby results are never substituted.</p><div id="model-method"></div></details>
           <details class="method-details"><summary>Why the pirate game?</summary><p>The pirate puzzle asks who can win enough votes to divide a fixed treasure. Automation changes how much is produced and who receives it. This simulator keeps the voting question and adds production, employment and government payments.</p></details>
         </div>
       </section>

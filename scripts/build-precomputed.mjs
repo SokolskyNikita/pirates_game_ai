@@ -27,9 +27,9 @@ const cases = [
   { name: 'default', inputs: DEFAULT_INPUTS },
   { name: 'all-roles-obsolete', inputs: {...DEFAULT_INPUTS, productivityGain: .5, displacement: 1, reemployment: 0} },
 ];
-for (const item of cases) for (const mode of ['us-only','strategic']) {
+for (const item of cases) for (const pauseUnavailable of [false, true]) for (const mode of ['us-only','strategic']) {
   for (const foreignObjective of mode === 'us-only' ? ['workers'] : ['workers','prosperity','output']) {
-    const request = { id: 0, inputs: item.inputs, mode, foreignObjective };
+    const request = { id: 0, inputs: item.inputs, mode, foreignObjective, pauseUnavailable };
     const key = scenarioKey(request);
     const filename = fingerprint + '-' + createHash('sha256').update(key).digest('hex').slice(0,16) + '.json';
     const start = performance.now();
@@ -41,7 +41,7 @@ for (const item of cases) for (const mode of ['us-only','strategic']) {
       ArrayBuffer.isView(value) ? Array.from(value) : value) + '\n');
     scenarios[key] = '/precomputed/' + filename;
     liveFiles.add(filename);
-    console.log(item.name, mode, foreignObjective, snapshot.selection, (performance.now()-start).toFixed(0)+'ms');
+    console.log(item.name, mode, foreignObjective, pauseUnavailable ? 'pause unavailable' : 'pause available', snapshot.selection, (performance.now()-start).toFixed(0)+'ms');
   }
 }
 await writeFile(resolve(sourceDir, 'precomputed-index.json'), JSON.stringify({

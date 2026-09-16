@@ -2,11 +2,11 @@ import index from './precomputed-index.json';
 import { normalizeInputs } from './pirates-model';
 import type { ScenarioRequest, ScenarioSnapshot } from './simulation';
 
-export const PRECOMPUTED_SCHEMA_VERSION = 1;
-/** The legacy rollout setting is deliberately absent: all three paces are on the ballot. */
-export function scenarioKey(request: Pick<ScenarioRequest, 'inputs' | 'mode' | 'foreignObjective'>): string {
+export const PRECOMPUTED_SCHEMA_VERSION = 2;
+/** The legacy rollout setting is deliberately absent: available paces are determined by pauseUnavailable. */
+export function scenarioKey(request: Pick<ScenarioRequest, 'inputs' | 'mode' | 'foreignObjective' | 'pauseUnavailable'>): string {
   const inputs = normalizeInputs(request.inputs);
-  return JSON.stringify([request.mode, request.mode === 'us-only' ? 'workers' : request.foreignObjective,
+  return JSON.stringify([request.mode, request.mode === 'us-only' ? 'workers' : request.foreignObjective, request.pauseUnavailable ?? false,
     Object.keys(inputs).sort().map(key => [key, inputs[key as keyof typeof inputs]])]);
 }
 interface StoredScenario { schemaVersion: number; fingerprint: string; key: string; snapshot: ScenarioSnapshot }

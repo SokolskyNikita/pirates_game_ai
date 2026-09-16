@@ -30,6 +30,7 @@ const objectiveHelp: Record<Objective, string> = {
 let inputs = { ...DEFAULT_INPUTS };
 let mode: ModelMode = 'us-only';
 let foreignObjective: Objective = 'prosperity';
+let pauseUnavailable = false;
 let snapshot: ScenarioSnapshot | undefined;
 let manual: ProfileOutcome | undefined;
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -54,6 +55,7 @@ function readURL() {
   }
   inputs = normalizeInputs(values);
   mode = query.get('world') === 'strategic' ? 'strategic' : 'us-only';
+  pauseUnavailable = query.get('pauseUnavailable') === '1';
   const foreign = query.get('foreignObjective');
   foreignObjective = foreign === 'workers' || foreign === 'output' ? foreign : 'prosperity';
 }
@@ -62,8 +64,9 @@ function scenarioURL() {
   const url = new URL(location.href);
   url.search = '';
   url.hash = 'simulator';
-  url.searchParams.set('v', '9');
+  url.searchParams.set('v', '10');
   url.searchParams.set('world', mode);
+  url.searchParams.set('pauseUnavailable', pauseUnavailable ? '1' : '0');
   if (mode === 'strategic') url.searchParams.set('foreignObjective', foreignObjective);
   // Include the numerical inputs so a shared scenario survives future default revisions.
   for (const spec of INPUT_SPECS) url.searchParams.set(spec.key, String(inputs[spec.key]));
@@ -114,8 +117,21 @@ function updateCalibration() {
   el('calibration-summary').textContent = '2025 reference: rest-of-world GDP 2.85× US. Imports across this border: 14.2% of US GDP and 3.9% of rest-of-world GDP.' + (custom ? ' This scenario changes at least one reference value; Reset restores the defaults.' : '');
 }
 
+function syncPauseControl() {
+  el<HTMLInputElement>('pause-unavailable').checked = pauseUnavailable;
+  el('pause-unavailable-help').textContent = mode === 'strategic'
+    ? 'Remove Pause AI from both the US ballot and the rest of the world’s choices.'
+    : 'Remove Pause AI from the US ballot. Current pace and acceleration remain available.';
+  const pace = el<HTMLSelectElement>('manual-pace');
+  const previous = pace.value;
+  pace.innerHTML = [0, 1, 2].filter(value => !pauseUnavailable || value !== 0)
+    .map(value => '<option value="' + value + '">' + paceName(value) + '</option>').join('');
+  pace.value = pauseUnavailable && previous === '0' ? '1' : previous || '1';
+}
+
 function syncInputs() {
   updateElectorate();
+  syncPauseControl();
   for (const spec of visibleInputSpecs) {
     const step = spec.key === 'foreignMarketSize' ? .25 : .05;
     const values = [spec.min, spec.max, DEFAULT_INPUTS[spec.key], inputs[spec.key]];
@@ -196,7 +212,7 @@ function acceptSnapshot(result: ScenarioSnapshot, precomputed: boolean) {
 }
 
 async function run(id: number) {
-  const request: ScenarioRequest = { id, inputs: { ...inputs }, mode, foreignObjective };
+  const request: ScenarioRequest = { id, inputs: { ...inputs }, mode, foreignObjective, pauseUnavailable };
   const controller = new AbortController();
   preload = controller;
   try {
@@ -345,7 +361,7 @@ function renderInternational() {
   const active = activeProfile();
   const end = active.foreign!.at(-1)!;
   el('country-policies').innerHTML = '<div class="country-policy"><h4>Rest of the world</h4><p>' + policyDescription(active.foreignPolicy!) + '</p><p>Year ten: income in work-primary households ' + change(end.workerIncomeIndex) + '; output index ' + change(end.output) + ', relative to its own starting economy. Benefits funded: ' + pct(end.benefitsScalePaid) + ' of its reference budget.</p></div>';
-  el('equilibrium-explanation').textContent = 'Foreign objective: ' + objectiveLabels[current.foreignObjective].toLowerCase() + '. Each side knows the other’s chosen policy. Both choices stay in place for ten years, so a mutual pause lasts the full decade. The foreign actor uses the US household distribution and behavioral rules as a modeling assumption, with separate economic size, trade exposure and frontier capability.';
+  el('equilibrium-explanation').textContent = 'Foreign objective: ' + objectiveLabels[current.foreignObjective].toLowerCase() + '. Each side knows the other’s chosen policy. ' + (current.pauseUnavailable ? 'Neither side can pause AI. Both choose current pace or acceleration for the ten-year scenario. ' : 'Both choices stay in place for ten years, so a mutual pause lasts the full decade. ') + 'The foreign actor uses the US household distribution and behavioral rules as a modeling assumption, with separate economic size, trade exposure and frontier capability.';
   const verified = current.selection === 'verified-consistent';
   el('deviation').classList.toggle('unstable', !verified);
   el('international-heading').textContent = 'The foreign choice';
@@ -356,7 +372,7 @@ function renderInternational() {
 function renderComparison() {
   const current = snapshot!;
   const rows: [string, ProfileOutcome][] = [
-    ['2025 reference; no new AI', current.baseline],
+    [current.pauseUnavailable ? '2025 reference; pause unavailable' : '2025 reference; no new AI', current.baseline],
     [current.ballot.winnerId ? 'Enacted majority choice' : 'Enacted current-policy fallback', current.selected],
   ];
   if (current.leading && current.leading.usPolicy.id !== current.selected.usPolicy.id) rows.push(['Leading package; no majority', current.leading]);
@@ -418,6 +434,12 @@ document.querySelectorAll<HTMLInputElement>('input[name="world"]').forEach(radio
   syncInputs();
   scheduleSolve();
 }));
+el<HTMLInputElement>('pause-unavailable').addEventListener('change', event => {
+  pauseUnavailable = (event.target as HTMLInputElement).checked;
+  syncPauseControl();
+  clearPreset();
+  scheduleSolve();
+});
 el<HTMLSelectElement>('foreign-objective').addEventListener('change', event => {
   foreignObjective = (event.target as HTMLSelectElement).value as Objective;
   el('foreign-objective-help').textContent = objectiveHelp[foreignObjective];
@@ -425,7 +447,7 @@ el<HTMLSelectElement>('foreign-objective').addEventListener('change', event => {
 });
 el('reset').addEventListener('click', () => {
   inputs = { ...DEFAULT_INPUTS };
-  mode = 'us-only'; foreignObjective = 'prosperity';
+  mode = 'us-only'; foreignObjective = 'prosperity'; pauseUnavailable = false;
   clearPreset(); syncInputs(); scheduleSolve();
 });
 document.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach(button => button.addEventListener('click', () => {
@@ -448,7 +470,7 @@ el('apply-manual').addEventListener('click', () => {
   if (pending || !snapshot) return;
   const values = Object.fromEntries(policyAxes.map(axis => [axis, el<HTMLSelectElement>('manual-' + axis).value]));
   const policy = POLICIES.find(candidate => policyAxes.every(axis => String(candidate[axis]) === values[axis]));
-  if (!policy) return;
+  if (!policy || (snapshot.pauseUnavailable && policy.pace === 0)) return;
   manual = evaluateProfile(snapshot.inputs, policy, activeProfile().foreignPolicy, snapshot.mode, 'workers', snapshot.foreignObjective);
   const votes = votesFor(manual, activeProfile());
   el('manual-result').textContent = (paymentRange(manual) === 'not applicable' ? 'No roles are displaced in this scenario. ' : 'Employer pay after tax: ' + paymentRange(manual) + ' of prior wages. ') + 'Funded government benefits: ' + pct(last(manual).benefitsScalePaid) + ' of the reference budget. ' + voteShare(votes) + ' of adult citizens prefer this entire package to the selected outcome.' + (manual.usAdmissible ? '' : ' This package cannot fully fund retained wages, benefits and other required public spending in every year, so it is ineligible for the ballot.') + ' This pairwise preference is not its first-choice ballot share.' + (snapshot.mode === 'strategic' ? ' The foreign policy is held fixed for this comparison.' : '');
@@ -458,14 +480,14 @@ el('share').addEventListener('click', async () => {
   if (pending) return;
   try {
     await navigator.clipboard.writeText(scenarioURL().href);
-    el('action-status').textContent = 'Scenario link copied, including the foreign objective.';
+    el('action-status').textContent = 'Scenario link copied, including whether AI can be paused.';
   } catch { el('action-status').textContent = 'Copy this page’s address to share the scenario.'; }
 });
 el('download').addEventListener('click', () => {
   if (pending || !snapshot) return;
   const payload = {
-    model: 'pirates-single-ballot-v9', interpretation: 'Finite policy model with illustrative economic responses; not a forecast.',
-    scenario: { inputs: snapshot.inputs, mode: snapshot.mode, foreignObjective: snapshot.foreignObjective },
+    model: 'pirates-single-ballot-v10', interpretation: 'Finite policy model with illustrative economic responses; not a forecast.',
+    scenario: { inputs: snapshot.inputs, mode: snapshot.mode, foreignObjective: snapshot.foreignObjective, pauseUnavailable: snapshot.pauseUnavailable },
     selection: snapshot.selection, selected: activeProfile(), ballot: snapshot.ballot, search: snapshot.search,
     comparison: { noAI: snapshot.baseline, currentPolicy: snapshot.statusQuo, manual },
     electorate: US_ELECTORATE,
