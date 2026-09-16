@@ -19,7 +19,7 @@ export const INPUT_SPECS: readonly InputSpec[] = [
   {key:'usGdpGrowth',label:'US GDP growth/year at max AI proliferation',min:0,max:.2,step:.005,description:'Annual real output growth at full AI exposure, before policy effects. Growth compounds each year and scales with AI exposure during deployment.'},
   {key:'foreignGdpGrowth',label:'Foreign GDP growth/year at max AI proliferation',min:0,max:.2,step:.005,description:'The foreign bloc’s annual real output growth at full AI exposure, before policy effects. Independent of the US growth assumption.'},
   {key:'productivityGain',label:'Employer gain from AI',min:0,max:1,step:.05,description:'Extra employer return per automated role. At 50%, a $100,000 role yields $150,000 from AI or $50,000 after keeping its $100,000 wage, before GDP scaling, taxes and costs.'},
-  {key:'displacement',label:'Roles made obsolete',min:0,max:1,step:.05,description:'Share of work exposed to displacement at full adoption. The same risk applies to household labor income across income bands.'},
+  {key:'displacement',label:'Roles made obsolete',min:0,max:1,step:.05,description:'Share of work made obsolete by year ten at full deployment. At 100% with no return to work, every worker is affected by then. Lower AI exposure can leave some roles productive; the same risk applies across household income bands.'},
   {key:'reemployment',label:'Return to productive work',min:0,max:1,step:.05,description:'Share of affected labor income restored to productive work each year.'},
   {key:'investmentResponse',label:'Response to policy changes',min:0,max:1,step:.05,description:'Strength of investment and labor responses to policy changes relative to current taxes. An assumption, not an estimated elasticity.'},
   {key:'capitalMobility',label:'Mobile AI rents',min:0,max:1,step:.05,description:'Response of mobile AI returns to international differences in adoption and policy burdens.'},
@@ -131,12 +131,20 @@ function checkedPolicy(p:Policy):void {
   if(![p.pace,p.replacement,p.welfareScale,p.laborTax,p.capitalTax].every(Number.isFinite)||p.pace<0||p.pace>1||p.replacement<0||p.replacement>1.25||p.welfareScale<0||p.welfareScale>2||p.laborTax<0||p.laborTax>1||p.capitalTax<0||p.capitalTax>1||!BENEFIT_FORMULAS.includes(p.benefitFormula)) throw new RangeError('Invalid policy.');
 }
 function burden(inputs:ModelInputs,p:Policy,otherPotential:number,strength:number,trade:number,c:Calibration):number {
+  // Advance estimate from the linear target path; actual rollout timing then
+  // responds to this burden without changing the selected year-ten target.
   let affected=0,previous=0;
   for(let y=1;y<=YEARS;y++) {const own=p.pace*strength*y/YEARS;const exposure=own+trade*otherPotential*y/YEARS*(1-own);affected=affected*(1-inputs.reemployment)+inputs.displacement*(exposure-previous);previous=exposure;}
   const retained=clamp(c.laborIncome*affected*p.replacement/c.capitalIncome);
   // Benchmark shifts, not the already-embedded burden of current US taxation.
   const shift=p.capitalTax-c.capitalTaxRate;
   return clamp(shift+(1-Math.max(0,shift))*retained,-1,1);
+}
+function deploymentAtYear(target:number,year:number,response:number,burden:number):number {
+  const t=year/YEARS;
+  // For response × burden in [-1, 1], this path is monotone and reaches
+  // exactly the selected target. Burdens delay adoption; relief advances it.
+  return target*t*(1-response*burden*(1-t));
 }
 function produce(inputs:ModelInputs,p:Policy,old:TrajectoryState,adoption:number,foreignAdoption:number,b:number,trade:number,year:number,c:Calibration,gdpGrowth:number):Production {
   const exposure=adoption+trade*foreignAdoption*(1-adoption);
@@ -250,8 +258,8 @@ function simulate(inputs:ModelInputs,usPolicy:Policy,foreignPolicy:Policy|undefi
   const bUS=burden(inputs,usPolicy,foreignPolicy?foreignPolicy.pace*inputs.foreignStrength:0,1,trade,c);
   const bForeign=foreignPolicy?burden(inputs,foreignPolicy,usPolicy.pace,inputs.foreignStrength,inputs.foreignTradeIntensity,c):0;
   for(let year=1;year<=YEARS;year++) {
-    const adoptUS=clamp(usPolicy.pace*year/YEARS*(1-inputs.investmentResponse*bUS));
-    const adoptForeign=foreignPolicy?clamp(foreignPolicy.pace*year/YEARS*inputs.foreignStrength*(1-inputs.investmentResponse*bForeign)):0;
+    const adoptUS=deploymentAtYear(usPolicy.pace,year,inputs.investmentResponse,bUS);
+    const adoptForeign=foreignPolicy?deploymentAtYear(foreignPolicy.pace*inputs.foreignStrength,year,inputs.investmentResponse,bForeign):0;
     const pUS=produce(inputs,usPolicy,stateUS,adoptUS,adoptForeign,bUS,trade,year,c,inputs.usGdpGrowth);
     const pF=foreignPolicy?produce(inputs,foreignPolicy,stateForeign,adoptForeign,adoptUS,bForeign,inputs.foreignTradeIntensity,year,c,inputs.foreignGdpGrowth):undefined;
     let flow=0;
@@ -303,7 +311,7 @@ export const MODEL_NOTES:readonly {title:string;detail:string;equation?:string}[
   {title:'Risk and selfish voters',detail:'Each citizen compares expected log utility of their own household resources over ten years, discounted at 3%. Productive and obsolete-work states are evaluated separately. The same displacement risk applies across household income bands; there is no claim to forecast which profession disappears first. The 1% utility offset prevents log zero and adds no spendable money.'},
   {title:'Firm returns and fixed GDP',detail:'Before economy-wide adjustment, automating a role claims its former wage plus the employer-gain percentage as investment income. A $100,000 role at a 50% gain therefore claims $150,000; paying its old salary would leave $50,000 before taxes and costs. Aggregate GDP is set separately: productive wages, passive income and gross investment claims receive a common scaling factor so their total equals output. Higher employer gains therefore change income shares, not GDP growth. Real installation and adjustment costs and actual retention payments are then deducted from investment income. Retained wages remain promises in baseline dollars, so actual proceeds can differ from the simple example.',equation:'Raw investment claim = baseline investment income + obsolete wages × (1 + employer gain)'},
   {title:'Annual GDP growth',detail:'US and foreign potential output compound independently at their chosen annual growth rates multiplied by that year’s AI exposure. Exposure includes imported AI. The no-AI reference assumes no growth; deployment ramps over ten years, so a 5% full-AI rate does not mean ten years of 5% growth. Displacement changes who receives production income rather than automatically destroying the production AI replaces. Policy responses can raise or lower realized GDP relative to this potential path. Growth scales productive wages, pensions and other passive resources; benefit budgets and retained-wage promises remain fixed in real baseline dollars.',equation:'Potential outputₜ = potential outputₜ₋₁ × (1 + annual growth at full AI × exposureₜ)'},
-  {title:'Production and policy responses',detail:'The production index starts at 100 and is allocated using observed household income components; it is not a forecast of dollar GDP. Work resources respond to displacement and work incentives. Pension and other resources face aggregate capacity changes but are not directly laid off. Retention costs and tax increases relative to current rates discourage adoption and capacity renewal; tax reductions can improve incentives. The assumed annual renewal share is 5%, not an estimated capital-stock model.'},
+  {title:'Production and policy responses',detail:'The production index starts at 100 and is allocated using observed household income components; it is not a forecast of dollar GDP. Work resources respond to displacement and work incentives. Pension and other resources face aggregate capacity changes but are not directly laid off. Selected deployment targets are reached in year ten. Retention costs and tax increases relative to current rates delay deployment within that horizon and discourage capacity renewal; tax reductions can advance deployment. The policy burden is an advance estimate using the linear target path, before this timing response. Foreign deployment is also limited by frontier capability. The assumed annual renewal share is 5%, not an estimated capital-stock model.'},
   {title:'International assumptions',detail:'The foreign bloc chooses its own full policy and AI deployment pace to maximize worker income, average income utility or output. GDP weights cross-border rent flows. For comparability, its household distribution and baseline fiscal system use the same US-calibrated cohort structure; this is an explicit simplification, not foreign microdata.'},
   {title:'Finding a stable policy',detail:'A change passes only with strictly more than half of adult-citizen population weight. Separate ballots change one decision at a time. A reported stable policy is checked against every US single-decision alternative and every foreign package. The bounded search may miss other equilibria and cannot prove none exist. A combined US package can defeat a policy that is stable under separate ballots.'},
 ];

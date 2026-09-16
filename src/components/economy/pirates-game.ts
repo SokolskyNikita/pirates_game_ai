@@ -63,7 +63,7 @@ function scenarioURL() {
   const url = new URL(location.href);
   url.search = '';
   url.hash = 'simulator';
-  url.searchParams.set('v', '7');
+  url.searchParams.set('v', '8');
   url.searchParams.set('world', mode);
   if (mode === 'strategic') url.searchParams.set('foreignObjective', foreignObjective);
   url.searchParams.set('rollout', String(pace));
@@ -476,7 +476,7 @@ el('share').addEventListener('click', async () => {
 el('download').addEventListener('click', () => {
   if (pending || !snapshot) return;
   const payload = {
-    model: 'pirates-gdp-growth-v7', interpretation: 'Finite policy model with illustrative economic responses; not a forecast.',
+    model: 'pirates-complete-rollout-v8', interpretation: 'Finite policy model with illustrative economic responses; not a forecast.',
     scenario: { inputs: snapshot.inputs, mode: snapshot.mode, foreignObjective: snapshot.foreignObjective, pace: snapshot.pace },
     selection: treatySigned() ? 'signed-treaty' : snapshot.selection, stableCount: snapshot.stableCount, selected: activeProfile(),
     noTreaty: snapshot.selected, treaty: snapshot.treaty,
@@ -517,7 +517,10 @@ function renderChart(years: RegionYear[]) {
     { key: 'allIncomeIndex' as const, color: '#85734c', present: (_point: RegionYear) => true },
   ];
   const end = years[years.length - 1]!;
-  const summary = `Year ten: household income when work is lost ${end.unemployment > 0 ? num(end.displacedIncomeIndex) : "no affected roles"}, household income when work continues ${end.unemployment < 1 - 1e-9 ? num(end.employedIncomeIndex) : "no productive roles"}, average adult income ${num(end.allIncomeIndex)}. Pre-AI income equals 100.`;
+  const obsolete = end.unemployment > 1e-9, productive = end.unemployment < 1 - 1e-9;
+  const workforceSummary = `Year ten: ${pct(end.unemployment)} of workers are in obsolete roles; ${pct(1 - end.unemployment)} have productive work. Workers retained on employers’ payrolls still count as affected.`;
+  el('workforce-summary').textContent = workforceSummary;
+  const summary = `${workforceSummary} Income in obsolete roles: ${obsolete ? num(end.displacedIncomeIndex) : "no affected workers"}; income in productive roles: ${productive ? num(end.employedIncomeIndex) : "no productive roles remain"}; average adult income: ${num(end.allIncomeIndex)}. Pre-AI income equals 100.`;
   el('income-chart').setAttribute('aria-label', summary);
   el('income-chart').innerHTML = `<svg viewBox="0 0 ${width} ${height}" aria-hidden="true">${ticks.map(tick => `<line x1="${left}" x2="${width - right}" y1="${y(tick)}" y2="${y(tick)}" stroke="${tick === 100 ? '#acb5a5' : '#deded3'}" stroke-width="1" ${tick === 100 ? '' : 'stroke-dasharray="2 4"'} /><text x="${left - 10}" y="${y(tick) + 4}" text-anchor="end">${tick}</text>`).join('')}${[0, 2, 4, 6, 8, 10].map(year => `<text x="${x(year)}" y="${height - 13}" text-anchor="middle">${year === 0 ? 'Today' : `Year ${year}`}</text>`).join('')}${paths.map(series => {
     let connected = false;
@@ -530,9 +533,9 @@ function renderChart(years: RegionYear[]) {
     return `<path d="${path}" fill="none" stroke="${series.color}" stroke-width="${series.key === 'allIncomeIndex' ? 2 : 3}" ${series.key === 'allIncomeIndex' ? 'stroke-dasharray="6 5"' : ''} stroke-linejoin="round" stroke-linecap="round"/>${series.present(end) ? `<circle cx="${x(10)}" cy="${y(end[series.key])}" r="4" fill="${series.color}" />` : ''}`;
   }).join('')}</svg>`;
   el('endpoints').innerHTML = [
-    ['worker', 'Households losing work', end.displacedIncomeIndex],
-    ['owner', 'Households keeping work', end.employedIncomeIndex],
-    ['output', 'All adult citizens', end.allIncomeIndex],
-  ].map(([kind, label, value]) => `<div class="endpoint ${kind}"><strong>${(kind === 'worker' && end.unemployment < 1e-9 || kind === 'owner' && end.unemployment > 1 - 1e-9) ? 'N/A' : change(Number(value))}</strong>${label}<br />in year ten</div>`).join('');
-  el('year-table').innerHTML = years.map(point => `<tr><th scope="row">${point.year === 0 ? 'Today' : `Year ${point.year}`}</th><td>${point.unemployment > 1e-9 ? num(point.displacedIncomeIndex) : '—'}</td><td>${point.unemployment < 1 - 1e-9 ? num(point.employedIncomeIndex) : '—'}</td><td>${num(point.allIncomeIndex)}</td></tr>`).join('');
+    ['worker', 'Workers in obsolete roles', obsolete ? change(end.displacedIncomeIndex) : '—', obsolete ? pct(end.unemployment) + ' of workers in year ten' : 'No workers affected'],
+    ['owner', 'Workers in productive roles', productive ? change(end.employedIncomeIndex) : '—', productive ? pct(1 - end.unemployment) + ' of workers in year ten' : 'No productive roles remain'],
+    ['output', 'All adult citizens', change(end.allIncomeIndex), 'Including people without work income'],
+  ].map(([kind, label, value, detail]) => `<div class="endpoint ${kind}"><strong>${value}</strong>${label}<br />${detail}</div>`).join('');
+  el('year-table').innerHTML = years.map(point => `<tr><th scope="row">${point.year === 0 ? 'Today' : `Year ${point.year}`}</th><td>${pct(point.unemployment)}</td><td>${point.unemployment > 1e-9 ? num(point.displacedIncomeIndex) : '—'}</td><td>${point.unemployment < 1 - 1e-9 ? num(point.employedIncomeIndex) : '—'}</td><td>${num(point.allIncomeIndex)}</td></tr>`).join('');
 }

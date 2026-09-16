@@ -82,9 +82,9 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
             <details id="advanced-inputs" class="assumption-details">
               <summary>Economic responses & AI deployment</summary>
               <div id="structural-inputs"></div>
-              <label class="objective-label" for="rollout">US deployment target without a treaty</label>
+              <label class="objective-label" for="rollout">US deployment by year ten without a treaty</label>
               <select id="rollout" aria-describedby="rollout-help"><option value="1">100% · deployment proceeds</option><option value="0.67">67% · limited deployment</option><option value="0.33">33% · limited deployment</option><option value="0">0% · pause US deployment</option></select>
-              <p id="rollout-help" class="control-help">US voters compare domestic policies at this target. A treaty can change either side’s deployment target; the foreign actor otherwise chooses its own.</p>
+              <p id="rollout-help" class="control-help">This target is reached in year ten. Policy costs can delay the rollout and reduce output. A treaty can change either side’s target; the foreign actor otherwise chooses its own.</p>
             </details>
             <details class="assumption-details preset-details"><summary>Example assumptions</summary><fieldset class="presets"><legend class="visually-hidden">Choose an example</legend><button type="button" data-preset="shared">Gains widely shared</button><button type="button" data-preset="displacement">Few replacement jobs</button><button type="button" data-preset="rivalry">Strong foreign rivals</button><button type="button" data-preset="tax-response">Strong tax response</button></fieldset></details>
           </aside>
@@ -114,11 +114,11 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
               <div id="funding-verdict" class="funding-verdict"></div>
 
               <figure class="income-figure">
-                <figcaption><h3>What people take home</h3><p>Income after tax, including pay, government benefits and capital income. Each group’s income before AI = 100.</p></figcaption>
-                <div class="legend"><span class="worker">Lost work</span><span class="owner">Productive work</span><span class="output">All adult citizens</span></div>
+                <figcaption><h3>What people take home</h3><p>Income after tax, including pay, government benefits and capital income. Each group’s income before AI = 100.</p><p id="workforce-summary"></p></figcaption>
+                <div class="legend"><span class="worker">Obsolete roles</span><span class="owner">Productive roles</span><span class="output">All adult citizens</span></div>
                 <div id="income-chart" class="chart" role="img" aria-label="Ten-year income projection"></div>
                 <div id="endpoints" class="endpoints"></div>
-                <details class="chart-data"><summary>Read the chart as a table</summary><div class="table-scroll" tabindex="0" role="region" aria-label="Income by year"><table><caption>Income relative to each group’s starting income</caption><thead><tr><th scope="col">Year</th><th scope="col">Lost work</th><th scope="col">Productive work</th><th scope="col">All adult citizens</th></tr></thead><tbody id="year-table"></tbody></table></div></details>
+                <details class="chart-data"><summary>Read the chart as a table</summary><div class="table-scroll" tabindex="0" role="region" aria-label="Income by year"><table><caption>Income relative to each group’s starting income</caption><thead><tr><th scope="col">Year</th><th scope="col">Workers affected</th><th scope="col">Income: obsolete roles</th><th scope="col">Income: productive roles</th><th scope="col">All adult citizens</th></tr></thead><tbody id="year-table"></tbody></table></div></details>
               </figure>
 
               <section id="international-result" class="international-result" hidden aria-labelledby="international-heading">
@@ -171,7 +171,7 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
             <p>International defaults use relative GDP and bilateral trade exposure. The foreign actor uses the same income distribution as a simplifying assumption; it is not a survey of foreign voters. AI gains, displacement, return to work and responses to taxes remain adjustable assumptions. Zero foreign frontier capability leaves the foreign economy and its imports in place.</p>
             <p><strong>GDP growth and employer gains are separate.</strong> The default assumes 5% annual real GDP growth at full AI exposure. During rollout, the potential growth rate is 5% multiplied by that year’s exposure and compounds each year. There is no separate background-growth assumption. The foreign economy has its own growth setting. Taxes and investment responses can change realized growth.</p>
             <p>The employer-gain parameter divides that output. At a 50% gain, an automated role with a $100,000 prior wage gives the employer a $150,000 income claim. Keeping the employee at $100,000 leaves $50,000 before other adjustments. To keep total income consistent with the separate GDP assumption, all gross income claims are scaled to the available output before costs, taxes and retained wages are paid. This allocation rule can change workers’ and owners’ shares without changing the GDP path for a fixed policy. Changing those shares can change the policy voters choose.</p>
-            <p>Taxes and required employer pay can slow AI investment and reduce productive effort. They can also erode existing capital capacity through an assumed 5% annual renewal requirement. This rate is a modeling choice, not an estimate from the cited data.</p>
+            <p>The selected deployment target is reached by year ten. At full deployment, 100% obsolete roles and no return to productive work means every worker is affected. Taxes and required employer pay can delay rollout within those ten years and reduce productive effort. They can also erode existing capital capacity through an assumed 5% annual renewal requirement. This rate is a modeling choice, not an estimate from the cited data.</p>
             <p>This is a comparison within a policy menu, not a full model of the world economy. Observed household investment income is not total company profit or wealth. The employer-funding limit and production responses remain modeling assumptions. It does not solve market prices, demand, debt, firms’ investment decisions or individual labor supply. It omits lobbying, monetary policy, AI safety and military outcomes. Changing the policy menu or voting procedure can change the result.</p>
           </details>
           <details class="method-details"><summary>Equations and calculation method</summary><div id="model-method"></div></details>
