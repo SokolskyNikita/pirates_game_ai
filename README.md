@@ -10,14 +10,16 @@ The players are idealized: they understand all modeled consequences and maximize
 
 ## Run locally
 
-Use Node.js 22.12 or newer (Node 24 is specified in `.nvmrc`).
+Use Node.js 22.12 or newer (Node 24 is specified in `.nvmrc`), Python 3.13 or newer, and [uv](https://docs.astral.sh/uv/getting-started/installation/).
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Astro prints the local address. Sixteen common scenarios are calculated at build time and loaded as exact matches. Other inputs run in a cancellable browser background worker. No account, database, API key or environment file is required.
+The development command prints the local address (normally `http://localhost:4321`). Set `PIRATES_SITE_PORT` or `PIRATES_API_PORT` if another project uses its default ports. Changes to Python source restage the local Worker automatically; development disables the production precomputed cache. It serves Astro's rendered pages and the Python calculator together. No account, database, API key or environment file is required for local use.
+
+Python commands run through `node scripts/python-tool.mjs`, which uses the pinned uv version and the locked project environment. Python dependencies are declared in `pyproject.toml` and locked in `uv.lock`; JavaScript dependencies are pinned in `package-lock.json`. `PIRATES_UV_EXECUTABLE` can point the launcher to an existing uv executable.
 
 ## Validate and build
 
@@ -28,7 +30,13 @@ npm run build
 npm run preview
 ```
 
-The static output is in `dist/`. The build generates a sitemap for the production domain; `public/robots.txt` identifies it. A custom `404.html` is included. Dependencies are pinned and recorded in `package-lock.json`.
+Checks cover the Astro/TypeScript rendering layer and Python source. Tests cover the economic accounting, voting rules, API validation, and presentation behavior. Migration fixtures preserve results from the previous TypeScript calculator, including complete ballot tallies and international search diagnostics.
+
+The build runs the Python artifact generator, builds Astro into `dist/`, and stages the Python Worker for deployment. It generates sixteen common scenario results and presentation metadata from the same Python model used by the API. `npm run preview` serves the built pages and calculator together; an Astro-only file server cannot answer calculation requests.
+
+To check a running deployment against the native Python calculator, run `npm run test:api -- https://ai-pirates-game.com` (or a local preview URL). It checks complete ballots and manual comparisons in both modes, plus request validation.
+
+The static output includes a sitemap, `robots.txt`, and a custom `404.html`. Build output and generated scenario assets are not committed.
 
 ## Population and reference policy
 
@@ -79,42 +87,55 @@ International size and trade references use 2025 World Bank and BEA data. Invest
 
 This is a finite policy model, not a calibrated general-equilibrium forecast. Its dollar amounts describe household resources, which include pension withdrawals and capital gains; its output index is not observed GDP. It does not solve prices, debt, firm investment decisions, repeated elections, or the value of individual public services.
 
-The page includes expandable equations, accounting, comparisons and survey definitions. Common scenarios load precomputed data; other calculations run in a cancellable background worker. Scenarios and results can be shared or downloaded. See the [earlier calculator audit](docs/calculator-audit.md) for the previous version's changes.
+The page includes expandable equations, accounting, comparisons and survey definitions. Common scenarios use precomputed data; other calculations run in the Python API. The browser requests results and renders them; it does not calculate economic outcomes or votes. Scenarios and results can be shared or downloaded. See the [earlier calculator audit](docs/calculator-audit.md) for the previous version's changes.
 
 ## Precomputation coverage
 
-`npm run build` generates sixteen exact scenario assets: defaults and 100% obsolete roles / zero return to work / 50% employer gain, each in US-only mode and the three international objectives, with pausing allowed or unavailable. Their manifest includes a checksum of model sources and population data. The loader rejects stale versions and mismatched assumptions; typed utility arrays are restored for manual comparisons. Generated assets are not committed, and are regenerated for deployment.
+`npm run build` generates sixteen exact scenario assets: defaults and 100% obsolete roles / zero return to work / 50% employer gain, each in US-only mode and the three international objectives, with pausing allowed or unavailable. Their manifest includes a fingerprint of Python model sources, population data and dependency configuration. The API accepts only the matching version and normalized assumptions; otherwise it calculates the requested scenario with the same Python engine. Results use ordinary JSON arrays.
 
-Other slider combinations still calculate in the browser. This is **not exhaustive precomputation** of all possible assumptions. Controls use discrete 5-percentage-point increments (GDP size in 0.25 increments), while retaining exact calibrated references and legacy URL values. The policy grid is already coarser than five points on most axes. See [the feasibility and coverage notes](docs/precomputation-options.md) for why a fully precomputed interface would need a smaller declared assumption grid.
+Other slider combinations calculate on demand in Python. This is **not exhaustive precomputation** of all possible assumptions. Controls use discrete 5-percentage-point increments (GDP size in 0.25 increments), while retaining exact calibrated references and legacy URL values. The policy grid is already coarser than five points on most axes. See [the feasibility and coverage notes](docs/precomputation-options.md) for why a fully precomputed interface would need a smaller declared assumption grid.
 
-## Source layout
+## Architecture
 
-- `src/pages/index.astro`: interface, explanations and citations.
-- `src/components/economy/pirates-game.ts`: browser controls, charts and results.
-- `src/lib/economy/pirates-model.ts`: economic outcomes and resource accounting.
-- `src/lib/economy/package-ballot.ts`: one personal choice per citizen, full-funding eligibility and majority fallback.
-- `src/lib/economy/package-election.ts`: full US ballots and verified international responses.
-- `src/lib/economy/pirates-voting.ts` and `pirates-treaty.ts`: historical solvers retained for comparison; the live simulator uses only the former’s pairwise preference helper for manual comparisons.
-- `scripts/build-precomputed.mjs` and `src/lib/economy/precomputed.ts`: versioned exact-match scenario generation and loading.
-- `src/lib/economy/simulation.ts` and `simulation.worker.ts`: compact results and cancellable background calculation.
-- `src/lib/economy/us-electorate.ts` and `us-electorate-data.json`: weighted survey groups and reference statistics.
-- `scripts/build-us-electorate.py`: reproducible Census microdata aggregation.
-- `src/lib/economy/*.test.ts`: population, economic and voting checks.
-- `src/styles/pirates-game.css`: responsive page styles.
-- `worker/index.ts`: canonical HTTPS redirects and the static-assets entrypoint.
-- `worker/env.d.ts`: generated Cloudflare bindings and runtime types; refresh with `npm run types` after changing Wrangler configuration.
+All economic calculations, utility comparisons, ballots, international responses and manual policy comparisons live in `calculator/`. Astro creates the page markup. Browser TypeScript handles controls, links, formatting, charts and HTTP requests; it contains no second implementation of the calculator.
+
+| Area | Files and responsibility |
+| --- | --- |
+| Assumptions and population | `calculator/config.py` defines model constants and input metadata. `population.py` prepares the weighted cohorts in `calculator/data/us-electorate-data.json`. |
+| Policy menu | `calculator/policies.py` constructs the complete finite menu and exact current-policy references. |
+| Economic calculation | `calculator/production.py` calculates deployment, displacement, productive capacity and income claims. `settlement.py` pays retained wages, taxes and benefits and checks resource accounting. `model.py` runs the ten-year profiles and computes utilities. |
+| Batch evaluation | `calculator/batch.py` evaluates policy menus with NumPy. Candidates close to utility maxima or funding thresholds are checked with the scalar model before exact ballot comparisons. |
+| Voting | `calculator/ballot.py` counts one favorite-package vote per citizen. `election.py` applies the majority fallback and verifies international responses. |
+| Results and comparisons | `calculator/simulation.py` assembles the selected, reference and leading profiles. `comparison.py` evaluates manual packages and their pairwise preference shares. |
+| API and generated data | `calculator/requests.py` validates request payloads. `artifacts.py` generates presentation metadata and common scenario assets. `worker/entry.py` handles HTTP, canonical redirects, API responses and static assets. |
+| Pages | `src/pages/index.astro` composes the introduction, controls, results, model notes and sources from `src/components/economy/`. |
+| Browser rendering | `src/components/economy/pirates-game.ts` coordinates requests and updates. `src/lib/presentation/` separates state, controls, charts, results, population displays and formatting. `src/lib/api/` holds the HTTP client and response types. |
+| Build and research | `scripts/build-precomputed.py` runs the Python artifact generator. `scripts/stage-worker.py` stages deployable Python source and data. `scripts/build-us-electorate.py` reproduces the Census aggregates. |
+| Tests | `tests/python/` covers the Python calculator and HTTP boundary; `tests/fixtures/` contains migration references. Frontend tests live beside the API and presentation modules. |
+
+Generated `src/generated/calculator-config.json` supplies the interface with Python-owned labels, choices and reference values. The common scenarios live in `public/precomputed/`; `calculator/_generated.py` contains their deployment manifest. Shared Python data structures are in `calculator/types.py`.
+
+## Calculator API
+
+The page and calculator share an origin. Calculation endpoints accept `POST` requests with `Content-Type: application/json` and bodies up to 16 KiB. Invalid assumptions, policy IDs or pause restrictions return a validation error.
+
+- `GET /api/health` returns the engine name and deployed model fingerprint.
+- `POST /api/simulate` accepts `{id, inputs, mode, foreignObjective, pauseUnavailable}` and returns `{id, snapshot, source}`. The source is `precomputed` or `calculated`.
+- `POST /api/compare` accepts `{scenario, policyId, selectedPolicyId, foreignPolicyId?}` and returns `{profile, voteShare}`. International comparisons require the selected foreign policy. The share is a pairwise preference diagnostic, not a new full-package election.
+
+The scenario `mode` is `us-only` or `strategic`; the foreign objective is `workers`, `prosperity` or `output`. `pauseUnavailable` defaults to false. Missing assumptions use model defaults; finite values are normalized to their permitted ranges. Policy IDs come from the published finite menu. Legacy `pace` fields do not restrict the ballot.
 
 This repository is independent of the original personal website. It contains no personal-site APIs or analytics integration. Fonts are requested from Google Fonts, with local fallback fonts.
 
 ## Publication
 
-The site is hosted on Cloudflare Workers Static Assets. `wrangler.jsonc` is the deployment configuration. Run `npm run deploy` with an authenticated Wrangler session to check, test, build and publish it. The GitHub Actions workflow validates pushes and pull requests; it has read-only repository access and does not store Cloudflare credentials.
+The site uses a Python Cloudflare Worker with Workers Static Assets. `wrangler.jsonc` configures the custom domains, Python runtime, static asset binding and resource limits. Run `npm run deploy` with an authenticated Cloudflare deployment session to check, test, build and publish. Python deployment tools run through the pinned uv launcher. The GitHub Actions workflow validates pushes and pull requests; it has read-only repository access and does not store Cloudflare credentials.
 
-The Worker sends HTTP requests on the custom domain and all `www.ai-pirates-game.com` requests to `https://ai-pirates-game.com` with a 308 redirect, preserving the path and query. It serves other requests through the `ASSETS` binding, retaining the static headers, old-path redirects and custom 404 page. The HTTPS `workers.dev` address remains available for troubleshooting.
+The Worker redirects HTTP requests on the custom domain and all `www.ai-pirates-game.com` requests to `https://ai-pirates-game.com` with a 308 response, preserving the path and query. It handles `/api/` in Python and serves page and asset requests through `ASSETS`, retaining static headers, old-path redirects and the custom 404 page. The HTTPS `workers.dev` address remains available for troubleshooting.
 
-Publish the generated `dist/` directory together with the Worker entrypoint. The canonical URL is set in `astro.config.mjs` and the homepage metadata. Hosting and deployment configuration belong to this repository; no files from the original personal site are required.
+Publish the generated `dist/` directory together with the staged Python Worker and its calibration data. The canonical URL is set in `astro.config.mjs` and the homepage metadata. Hosting and deployment configuration belong to this repository; no files from the original personal site are required.
 
-Before publication, run the checks above and verify the homepage, both simulation modes, scenario links, asset loading, robots file, sitemap and a missing URL over HTTPS.
+Before publication, run the checks above and verify the homepage, both simulation modes, manual comparisons, scenario links, API health, asset loading, robots file, sitemap and a missing URL over HTTPS.
 
 ## Inspiration and sources
 

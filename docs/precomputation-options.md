@@ -2,7 +2,7 @@
 
 The deployed build generates **sixteen exact common scenarios**, not the full assumption grid. Default assumptions and the all-obsolete/no-return scenario (50% employer gain) each have eight results, covering both pause-availability settings: US only, or international competition with workers' incomes, prosperity or output as the foreign objective. Each result evaluates all available packages: 6,480 when pausing is allowed, or 4,320 when it is unavailable.
 
-The generator records the source/data fingerprint, normalized assumption key, votes, selected outcome, references, top eight packages and search diagnostics. It refuses mismatched keys or unfunded winners. The browser accepts only an exact matching result and restores typed utility arrays. Other assumptions run the same solver in a cancellable background worker. Build failure prevents publishing a partially generated library.
+The Python generator records the model/data/dependency fingerprint, normalized assumption key, votes, selected outcome, references, top eight packages and search diagnostics. It refuses mismatched keys or unfunded winners. The Python API accepts only an exact matching result from the deployed assets. Other assumptions use the same Python solver on demand. The browser receives ordinary JSON arrays and renders the result. Build failure prevents publishing a partially generated library.
 
 ## Why five-point steps do not make the full grid small
 
@@ -12,7 +12,9 @@ Making every policy percentage a five-point increment would create 26 retained-w
 
 Domestic assumptions alone have 5 growth values (0–20%) × 21 employer gains × 21 obsolescence rates × 21 return-to-work rates × 21 policy-response strengths = **972,405 combinations**. International assumptions add foreign growth, mobile rents, frontier capability, two trade exposures and GDP size. Even with GDP size in 0.25 increments, the Cartesian grid has **30,258,287,488,800 combinations**, before the three foreign objectives. Calibrated reference values and exact legacy URL values are additional exceptions.
 
-The initial scalar model benchmark measured approximately 27 microseconds per domestic policy and 54 microseconds per paired policy on the development machine, before voting/search overhead. At that rate the five-point domestic policy grid alone would take roughly **3.54 CPU-years** across all domestic assumptions. These are brute-force estimates, not lower bounds for redesigned algorithms. The current coarser policy menu and cached international response search are much faster; the sixteen common cases take seconds to generate.
+The initial **TypeScript scalar implementation** measured approximately 27 microseconds per domestic policy and 54 microseconds per paired policy on the development machine, before voting/search overhead. At that historical rate the five-point domestic policy grid alone would take roughly **3.54 CPU-years** across all domestic assumptions. These estimates describe the old implementation, not the Python runtime or a lower bound for redesigned algorithms.
+
+The Python engine evaluates menus in NumPy batches and checks candidates near utility maxima and funding thresholds with its scalar model. A preliminary native Python benchmark of one international, pause-unavailable, all-obsolete scenario took about **1.5 seconds** with approximately **58 MiB peak process memory**. This is a development-machine measurement, not a Cloudflare Workers latency or memory guarantee. The coarser policy menu, cached international responses and sixteen common scenarios reduce routine work; they do not make the entire assumption grid precomputed.
 
 ## A completely precomputed alternative
 

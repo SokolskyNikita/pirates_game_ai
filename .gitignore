@@ -8,3 +8,12 @@ dist/
 *.log
 coverage/
 public/precomputed/
+
+# Python model and staged Cloudflare bundle
+.venv/
+.venv-workers/
+.build/
+python_modules/
+__pycache__/
+*.py[cod]
+calculator/_generated.py

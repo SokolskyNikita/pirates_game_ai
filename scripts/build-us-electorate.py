@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the simulator's weighted adult-citizen cohorts from official CPS ASEC.
 
-Python 3.10+, standard library only. Raw survey files stay in --cache-dir.
+Python 3.13+, standard library only. Raw survey files stay in --cache-dir.
 See docs/us-electorate-data.md for definitions, choices, and limitations.
 """
 import argparse
@@ -239,7 +239,7 @@ def build(cache):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cache-dir', type=pathlib.Path, default=pathlib.Path('/tmp/ai-pirates-cps-2026'))
-    parser.add_argument('--output', type=pathlib.Path, default=pathlib.Path('src/lib/economy/us-electorate-data.json'))
+    parser.add_argument('--output', type=pathlib.Path, default=pathlib.Path('calculator/data/us-electorate-data.json'))
     parser.add_argument('--offline', action='store_true', help='Use previously downloaded official files only.')
     args = parser.parse_args()
     args.cache_dir.mkdir(parents=True, exist_ok=True)

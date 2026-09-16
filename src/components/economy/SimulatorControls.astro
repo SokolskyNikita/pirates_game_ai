@@ -1,0 +1,44 @@
+<aside class="controls" aria-label="Model assumptions">
+  <div class="control-heading"><h2>Your assumptions</h2><button id="reset" type="button" class="text-button">Reset</button></div>
+  <div class="voting-rule">
+    <strong>One vote. More than 50% to pass.</strong>
+    <p id="electorate-description">Every adult citizen votes for one complete package. Without a majority, current policy remains.</p>
+    <p id="population-summary">The electorate follows the US distribution of income and income sources.</p>
+    <details id="population-details" class="population-details">
+      <summary>Who is represented?</summary>
+      <p>The first table classifies each adult by their own largest income source. The voting model uses household resources shared among adults, so it also captures income from a spouse or other household member.</p>
+      <div class="table-scroll" tabindex="0" role="region" aria-label="US adult citizens by main income source"><table><caption>Main income source</caption><thead id="population-table-head"></thead><tbody id="population-table"></tbody></table></div>
+      <p id="population-note"></p>
+      <div class="table-scroll" tabindex="0" role="region" aria-label="US adult citizen income distribution"><table><caption>Annual 2025 dollars per adult; averages within each fifth. Public support is already included in income.</caption><thead id="income-distribution-head"></thead><tbody id="income-distribution"></tbody></table></div>
+      <div id="benefit-receipts"></div>
+      <p>Receiving benefits does not make someone unemployed. Cash benefits and the value of food, housing and energy assistance enter the resource calculation. Medicare and Medicaid coverage is reported separately.</p>
+      <a href="#population-sources">Data and definitions</a>
+    </details>
+  </div>
+  <div class="pause-control">
+    <label for="pause-unavailable"><input type="checkbox" id="pause-unavailable" aria-describedby="pause-unavailable-help" /><span>Pausing AI isn’t possible</span></label>
+    <p id="pause-unavailable-help" class="control-help">Remove Pause AI from the US ballot. Current pace and acceleration remain available.</p>
+  </div>
+  <p class="control-help">Most sliders move in 5-point steps. Exact reference values and values from shared links are also preserved.</p>
+  <div id="domestic-inputs"></div>
+
+  <fieldset id="foreign-inputs" hidden>
+    <legend>The rest of the world</legend>
+    <label class="objective-label" for="foreign-objective">What does it try to maximize?</label>
+    <select id="foreign-objective" aria-describedby="foreign-objective-help">
+      <option value="workers">Workers’ incomes</option>
+      <option value="prosperity" selected>Overall prosperity</option>
+      <option value="output">Total economic output</option>
+    </select>
+    <p id="foreign-objective-help" class="control-help">One foreign actor chooses its own job protections, benefits, taxes and AI deployment.</p>
+    <p class="control-help">Both sides know the other’s choice and select a complete policy for ten years. When pausing is available, a mutual pause lasts the decade.</p>
+    <p id="calibration-summary" class="control-help"></p>
+    <details class="assumption-details"><summary>International assumptions</summary><div id="international-inputs"></div></details>
+  </fieldset>
+
+  <details id="advanced-inputs" class="assumption-details">
+    <summary>Economic responses</summary>
+    <div id="structural-inputs"></div>
+  </details>
+  <details class="assumption-details preset-details"><summary>Example assumptions</summary><fieldset class="presets"><legend class="visually-hidden">Choose an example</legend><button type="button" data-preset="shared">Gains widely shared</button><button type="button" data-preset="displacement">Few replacement jobs</button><button type="button" data-preset="rivalry">Strong foreign rivals</button><button type="button" data-preset="tax-response">Strong tax response</button></fieldset></details>
+</aside>

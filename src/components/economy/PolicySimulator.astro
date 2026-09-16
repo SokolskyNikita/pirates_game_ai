@@ -1,0 +1,17 @@
+---
+import SimulatorControls from './SimulatorControls.astro';
+import SimulatorResults from './SimulatorResults.astro';
+---
+<section id="simulator" aria-label="Automation policy simulator" tabindex="-1">
+  <fieldset class="mode-switch">
+    <legend>Choose the world</legend>
+    <label><input type="radio" name="world" value="us-only" checked /><span><strong>The US on its own</strong><small>Ignore international competition</small></span></label>
+    <label><input type="radio" name="world" value="strategic" /><span><strong>The US in a competing world</strong><small>Both sides anticipate the other’s policy</small></span></label>
+  </fieldset>
+  <noscript><p class="notice">Enable JavaScript to run the simulator. The model notes and sources below are readable without it.</p></noscript>
+  <div class="workbench">
+    <SimulatorControls />
+
+    <SimulatorResults />
+  </div>
+</section>

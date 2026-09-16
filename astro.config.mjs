@@ -8,4 +8,5 @@ export default defineConfig({
   compressHTML: true,
   devToolbar: { enabled: false },
   integrations: [sitemap()],
+  vite: { server: { strictPort: true, proxy: { '/api': { target: `http://localhost:${process.env.PIRATES_API_PORT || 8787}`, changeOrigin: false } } } },
 });

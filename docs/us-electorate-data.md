@@ -6,16 +6,16 @@ The committed file contains 99 weighted cohorts derived from 94,612 adult citize
 
 ## Reproduce the data
 
-From the repository root, with Python 3.10 or later:
+From the repository root, using the project’s Python 3.13+ environment and pinned uv launcher:
 
 ```sh
-python3 scripts/build-us-electorate.py
+node scripts/python-tool.mjs python scripts/build-us-electorate.py
 ```
 
-The script downloads the official archive and record layout to `/tmp/ai-pirates-cps-2026`, then writes `src/lib/economy/us-electorate-data.json`. It uses only the Python standard library. To use an existing download:
+The script downloads the official archive and record layout to `/tmp/ai-pirates-cps-2026`, then writes `calculator/data/us-electorate-data.json`. The aggregation script uses only the Python standard library; the calculator reads this JSON directly. Run `npm run build` after regenerating it to refresh the browser’s descriptive metadata and precomputed scenarios. To use an existing download:
 
 ```sh
-python3 scripts/build-us-electorate.py --cache-dir /path/to/cache --offline
+node scripts/python-tool.mjs python scripts/build-us-electorate.py --cache-dir /path/to/cache --offline
 ```
 
 The generated metadata records the source URLs and SHA-256 hashes. Raw survey records, household identifiers and person identifiers are not committed. The archive contains a fixed-width person, family and household file; the script reads person records (`PRECORD=3`) using the official field offsets in `persfmt.txt`.

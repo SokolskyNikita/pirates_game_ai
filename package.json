@@ -8,14 +8,18 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "astro dev",
-    "build": "npm run precompute && astro build",
-    "check": "astro check && tsc -p worker/tsconfig.json && wrangler types worker/env.d.ts --check",
-    "test": "vitest run",
-    "preview": "astro preview",
-    "deploy": "npm run check && npm test && npm run build && wrangler deploy",
-    "types": "wrangler types worker/env.d.ts",
-    "precompute": "node scripts/build-precomputed.mjs"
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run precompute && astro build && npm run stage",
+    "check": "astro check && node scripts/python-tool.mjs ruff check calculator worker/entry.py scripts/build-precomputed.py scripts/stage-worker.py scripts/check-api.py tests/python",
+    "test": "npm run test:python && npm run test:ui",
+    "test:python": "node scripts/python-tool.mjs python -m unittest discover -s tests/python -v",
+    "test:ui": "vitest run src/lib/api src/lib/presentation",
+    "preview": "node scripts/python-tool.mjs pywrangler dev --port 8787 --local-upstream localhost:8787",
+    "deploy": "npm run check && npm test && npm run build && node scripts/python-tool.mjs pywrangler deploy",
+    "precompute": "node scripts/python-tool.mjs python scripts/build-precomputed.py",
+    "stage": "node scripts/python-tool.mjs python scripts/stage-worker.py",
+    "deploy:dry-run": "node scripts/python-tool.mjs pywrangler deploy --dry-run",
+    "test:api": "node scripts/python-tool.mjs python scripts/check-api.py"
   },
   "dependencies": {
     "@astrojs/sitemap": "3.7.4",
@@ -23,7 +27,6 @@
   },
   "devDependencies": {
     "@astrojs/check": "0.9.10",
-    "esbuild": "0.28.2",
     "typescript": "6.0.3",
     "vitest": "4.1.11",
     "wrangler": "4.132.0"

@@ -1,0 +1,355 @@
+import type { ProfileOutcome, ScenarioSnapshot } from '../api/types';
+import { CALIBRATION, POLICY_OPTIONS } from './config';
+import { el } from './dom';
+import {
+  pct,
+  num,
+  change,
+  last,
+  dollars,
+  voteShare,
+  policyAxes,
+  axisLabels,
+  changeFromReference,
+  axisValue,
+  policyDescription,
+  paymentRange,
+  type PolicyAxis,
+} from './format';
+import { objectiveLabels } from './state';
+import { renderChart } from './charts';
+
+export class ResultsView {
+  private snapshot!: ScenarioSnapshot;
+  private manual: ProfileOutcome | undefined;
+  show(snapshot: ScenarioSnapshot) {
+    this.snapshot = snapshot;
+    this.manual = undefined;
+    this.render();
+  }
+  showComparison(profile: ProfileOutcome, support: number) {
+    this.manual = profile;
+    el('manual-result').textContent =
+      (paymentRange(profile) === 'not applicable'
+        ? 'No roles are displaced in this scenario. '
+        : 'Employer pay after tax: ' + paymentRange(profile) + ' of prior wages. ') +
+      'Funded government benefits: ' +
+      pct(last(profile).benefitsScalePaid) +
+      ' of the reference budget. ' +
+      voteShare(support) +
+      ' of adult citizens prefer this entire package to the selected outcome.' +
+      (profile.usAdmissible
+        ? ''
+        : ' This package cannot fully fund retained wages, benefits and other required public spending in every year, so it is ineligible for the ballot.') +
+      ' This pairwise preference is not its first-choice ballot share.' +
+      (this.snapshot.mode === 'strategic' ? ' The foreign policy is held fixed for this comparison.' : '');
+    this.renderComparison();
+  }
+  private render() {
+    const current = this.snapshot;
+    const active = this.snapshot.selected;
+    const p = active.usPolicy;
+    const end = last(active);
+    const ballot = current.ballot;
+    const verified = current.selection !== 'search-incomplete';
+    el('result-label').textContent = verified
+      ? 'The simulated one-ballot outcome'
+      : 'Unverified international outcome';
+    el('solve-status').textContent = ballot.eligibleCandidateCount.toLocaleString() + ' funded packages';
+    const passed = ballot.winnerId !== null;
+    el('ballot-verdict').textContent = !ballot.leadingPolicyId
+      ? 'No funded package. Current policy remains.'
+      : passed
+        ? ballot.statusQuoReason === 'status-quo-majority'
+          ? 'A majority chooses current policy.'
+          : 'A majority chooses one complete package.'
+        : 'No package wins a majority. Current policy remains.';
+    el('ballot-support').textContent = ballot.leadingPolicyId
+      ? 'The leading package receives ' +
+        voteShare(ballot.topSupportPercent) +
+        ' of all votes. ' +
+        (passed
+          ? 'It passes the required majority.'
+          : 'It needs more than 50% to pass; there is no second vote.')
+      : 'No package can fund every promise in every year under these assumptions.';
+    el('ballot-leading').hidden = passed || !current.leading;
+    el('ballot-leading').textContent =
+      current.leading && !passed ? 'Leading package: ' + policyDescription(current.leading.usPolicy) : '';
+    el('decision-votes-note').textContent =
+      (verified ? '' : 'The two sides’ choices are not yet verified as mutually consistent. ') +
+      'These six terms belong to ' +
+      (passed ? 'the winning package' : 'the current-policy fallback') +
+      ' and remain in place for ten years. Each voter chooses one fully funded package that maximizes their own expected income utility.';
+    const baselineBenefits = end.baselineBenefits;
+    const details: Record<PolicyAxis, string> = {
+      pace:
+        p.pace === 0
+          ? 'No new AI deployment or AI job replacement for ten years. Existing jobs remain productive, including when the other economy deploys AI.'
+          : p.pace === 2
+            ? 'AI replacement runs twice as fast. Full domestic deployment and its full annual growth potential arrive by year five.'
+            : 'AI replacement proceeds over ten years. Full domestic deployment and its full annual growth potential arrive by year ten.',
+      replacement: p.replacement
+        ? 'Employers fund the retained wages. This is a gross wage target; the modeled take-home payment is ' +
+          paymentRange(active) +
+          ' of prior wages after tax.'
+        : 'Employers may dismiss workers whose roles become obsolete. Government benefits are shown below.',
+      welfareScale:
+        'Reference: ' +
+        dollars(baselineBenefits) +
+        ' per adult per year, averaged across the population. Target: ' +
+        dollars(end.benefitsRequired) +
+        '. Funded in year ten: ' +
+        dollars(end.benefitsPaid) +
+        ' (' +
+        pct(end.benefitsScalePaid) +
+        ' of the reference). The same total budget does not preserve each person’s payment.' +
+        (p.welfareScale === 2 ? ' This is the highest budget tested.' : ''),
+      benefitFormula:
+        p.benefitFormula === 'current'
+          ? 'Keep the survey’s relative allocation of cash benefits and consumption support. Recipients’ shares stay fixed as jobs change; this does not simulate future eligibility under every US program.'
+          : p.benefitFormula === 'flat'
+            ? 'Divide the funded budget equally among all adults, including workers, retirees and investors. This replaces the modeled Social Security and assistance payment pattern.'
+            : 'Divide the same budget in proportion to each adult’s pre-AI disposable household income. Higher prior income means a larger payment. This uses prior-year income, not lifetime earnings.',
+      laborTax:
+        'Selected benchmark: ' +
+        pct(p.laborTax) +
+        ', ' +
+        changeFromReference(p.laborTax, CALIBRATION.laborTaxRate) +
+        ' of ' +
+        pct(CALIBRATION.laborTaxRate) +
+        '. Actual year-ten average: ' +
+        pct(end.effectiveLaborTax) +
+        '. Covers earnings, pensions and other non-investment income; it preserves income differences in the reference tax profile.',
+      capitalTax:
+        'Selected benchmark: ' +
+        pct(p.capitalTax) +
+        ', ' +
+        changeFromReference(p.capitalTax, CALIBRATION.capitalTaxRate) +
+        ' of ' +
+        pct(CALIBRATION.capitalTaxRate) +
+        '. Actual year-ten average: ' +
+        pct(end.effectiveCapitalTax) +
+        '. Applies to investment income even when its recipient also works.',
+    };
+    el('policy-decisions').innerHTML = policyAxes
+      .map((axis, index) => {
+        let headline = axisValue(axis, p);
+        if (axis === 'laborTax' || axis === 'capitalTax') {
+          const reference = axis === 'laborTax' ? CALIBRATION.laborTaxRate : CALIBRATION.capitalTaxRate;
+          headline =
+            (Math.abs(p[axis] - reference) < 1e-7
+              ? 'Keep the tax benchmark at '
+              : (p[axis] < reference ? 'Reduce' : 'Increase') + ' the tax benchmark to ') +
+            pct(p[axis]) +
+            '.';
+        }
+        const kind =
+          axis === 'replacement' || axis === 'pace'
+            ? 'employment-decision'
+            : axis.endsWith('Tax')
+              ? 'tax-decision'
+              : 'government-decision';
+        return (
+          '<section class="policy-decision ' +
+          kind +
+          '"><p class="eyebrow">' +
+          (index + 1) +
+          ' · ' +
+          axisLabels[axis] +
+          '</p><div class="decision-answer"><h2>' +
+          headline +
+          '</h2><p>' +
+          details[axis] +
+          '</p></div></section>'
+        );
+      })
+      .join('');
+    el('policy-strip').innerHTML = [
+      [paymentRange(active), 'Employer pay after tax / prior wages'],
+      [pct(end.benefitsScalePaid), 'Funded benefits / current total budget'],
+      [change(end.allIncomeIndex), 'Average adult take-home income in year ten'],
+    ]
+      .map(
+        ([value, label]) =>
+          '<div class="policy-item"><strong>' + value + '</strong><span>' + label + '</span></div>',
+      )
+      .join('');
+    el('manual-help').textContent =
+      'Compare another complete US package, including its AI pace. The displayed foreign policy stays fixed. This comparison does not add a second vote.';
+    el('policy-meaning').textContent =
+      'Benefits include modeled cash payments and consumption support. Health insurance is not counted as cash. Year-ten US AI adoption: ' +
+      pct(end.adoption) +
+      '; productive capacity: ' +
+      pct(end.capacityFactor) +
+      ' of the starting level.';
+    el('growth-summary').textContent =
+      'Year-ten US GDP growth: ' +
+      pct(end.gdpGrowthRate) +
+      '/year, with ' +
+      pct(end.exposure) +
+      ' AI exposure. The full-AI growth assumption is ' +
+      pct(current.inputs.usGdpGrowth) +
+      '/year; investment and work incentives can change the realized rate.';
+    const verdict = el('funding-verdict');
+    const shortfall = !active.usAdmissible;
+    verdict.hidden = !shortfall;
+    verdict.classList.toggle('shortfall', shortfall);
+    verdict.textContent = shortfall
+      ? 'The automatic current-policy fallback cannot fund all commitments in this scenario. It could not receive votes, but remains because no eligible package won a majority. Income figures use actual payments; “Follow the money” shows the shortfalls.'
+      : '';
+    this.renderBallot();
+    renderChart(active.us);
+    this.renderInternational();
+    this.renderComparison();
+    this.renderAccounting();
+    this.renderVotingDetails();
+    for (const axis of policyAxes) {
+      el<HTMLSelectElement>('manual-' + axis).value = POLICY_OPTIONS[axis].find(
+        (option) => option.value === p[axis],
+      )!.idPart;
+    }
+  }
+
+  private renderBallot() {
+    const current = this.snapshot;
+    const support = new Map(current.ballot.tallies.map((row) => [row.policyId, row.supportPercent]));
+    el('ballot-table').innerHTML =
+      current.alternatives
+        .map((profile, index) => {
+          const selected = profile.usPolicy.id === current.ballot.enactedPolicyId;
+          return (
+            '<tr class="' +
+            (selected ? 'selected' : '') +
+            '"><th scope="row">' +
+            (index + 1) +
+            '. ' +
+            policyDescription(profile.usPolicy) +
+            (selected ? '<br /><strong>Enacted</strong>' : '') +
+            '</th><td>' +
+            voteShare(support.get(profile.usPolicy.id) ?? 0) +
+            '</td></tr>'
+          );
+        })
+        .join('') || '<tr><td colspan="2">No fully funded packages.</td></tr>';
+    el('ballot-table-note').textContent =
+      'Up to eight packages with the most first-choice votes, from ' +
+      current.ballot.eligibleCandidateCount.toLocaleString() +
+      ' eligible packages. ' +
+      current.ballot.unfundedCandidateCount.toLocaleString() +
+      ' cannot fund every promise in every year and are excluded. All combinations in the displayed policy menu are tested.';
+  }
+  private renderVotingDetails() {
+    const current = this.snapshot;
+    el('selection-explanation').textContent =
+      'There is one vote over complete packages. Each citizen chooses the fully funded package giving their household the highest ten-year income utility, taking the foreign choice as known. A package passes only with more than 50% of the population-weighted vote. Otherwise the exact current-tax, current-benefit policy with current AI pace remains.';
+    el('agenda-order').textContent =
+      'Exact personal utility ties prefer current policy when eligible, then the first package in a fixed ordering. This specifies how people cast their votes; perfect rationality alone does not select a unique strategic-voting equilibrium. ' +
+      (current.mode === 'strategic'
+        ? 'The search checks whether the foreign actor’s best choice and the US ballot outcome are mutually consistent. ' +
+          current.search.reason +
+          ' '
+        : '') +
+      'Policies are chosen once and held for ten years. There is no runoff or later renegotiation.';
+  }
+  private renderInternational() {
+    const current = this.snapshot;
+    const strategic = current.mode === 'strategic';
+    el('international-result').hidden = !strategic;
+    if (!strategic) return;
+    const active = this.snapshot.selected;
+    const end = active.foreign!.at(-1)!;
+    el('country-policies').innerHTML =
+      '<div class="country-policy"><h4>Rest of the world</h4><p>' +
+      policyDescription(active.foreignPolicy!) +
+      '</p><p>Year ten: income in work-primary households ' +
+      change(end.workerIncomeIndex) +
+      '; output index ' +
+      change(end.output) +
+      ', relative to its own starting economy. Benefits funded: ' +
+      pct(end.benefitsScalePaid) +
+      ' of its reference budget.</p></div>';
+    el('equilibrium-explanation').textContent =
+      'Foreign objective: ' +
+      objectiveLabels[current.foreignObjective].toLowerCase() +
+      '. Each side knows the other’s chosen policy. ' +
+      (current.pauseUnavailable
+        ? 'Neither side can pause AI. Both choose current pace or acceleration for the ten-year scenario. '
+        : 'Both choices stay in place for ten years, so a mutual pause lasts the full decade. ') +
+      'The foreign actor uses the US household distribution and behavioral rules as a modeling assumption, with separate economic size, trade exposure and frontier capability.';
+    const verified = current.selection === 'verified-consistent';
+    el('deviation').classList.toggle('unstable', !verified);
+    el('international-heading').textContent = 'The foreign choice';
+    el('deviation').textContent = verified
+      ? 'The choices are mutually consistent: this foreign package maximizes its objective among fully funded options given the enacted US package, and the US ballot gives the displayed result given this foreign package.'
+      : 'These choices are unverified. ' +
+        current.search.reason +
+        ' A consistent pair may exist outside the search; this result is not a verified equilibrium.';
+  }
+  private renderComparison() {
+    const current = this.snapshot;
+    const rows: [string, ProfileOutcome][] = [
+      [
+        current.pauseUnavailable ? '2025 reference; pause unavailable' : '2025 reference; no new AI',
+        current.baseline,
+      ],
+      [
+        current.ballot.winnerId ? 'Enacted majority choice' : 'Enacted current-policy fallback',
+        current.selected,
+      ],
+    ];
+    if (current.leading && current.leading.usPolicy.id !== current.selected.usPolicy.id)
+      rows.push(['Leading package; no majority', current.leading]);
+    if (current.selected.usPolicy.id !== current.statusQuo.usPolicy.id)
+      rows.push(['Current taxes and benefit mix', current.statusQuo]);
+    if (this.manual) rows.push(['Your policy', this.manual]);
+    el('comparison-table').innerHTML = rows
+      .map(([label, profile]) => {
+        const end = last(profile);
+        return (
+          '<tr class="' +
+          (profile.id === this.snapshot.selected.id ? 'selected' : '') +
+          '"><th scope="row">' +
+          label +
+          '</th><td>' +
+          num(end.allIncomeIndex) +
+          '</td><td>' +
+          num(end.workerIncomeIndex) +
+          '</td><td>' +
+          num(end.ownerIncomeIndex) +
+          '</td><td>' +
+          num(end.output) +
+          '</td></tr>'
+        );
+      })
+      .join('');
+    el('score-help').textContent =
+      'Year-ten indices: each group’s 2025 reference is 100. Household source groups stay fixed. Complete packages can change AI pace as well as protections, benefits and taxes. ' +
+      (current.mode === 'strategic'
+        ? 'Comparisons hold the foreign choice fixed, except for the no-AI reference. '
+        : '') +
+      'Output is a modeled resource index, not a GDP forecast.';
+  }
+  private renderAccounting() {
+    const end = last(this.snapshot.selected);
+    const lines: [string, number][] = [
+      ['Household take-home resources', end.consumption],
+      ['Employer retention pay before tax', end.employerPay],
+      ['Unfunded employer retention pay', end.employerFundingGap],
+      ['Work/pension income tax receipts', end.laborTaxRevenue],
+      ['Investment income tax receipts', end.capitalTaxRevenue],
+      ['Reference benefit budget', end.baselineBenefits],
+      ['Requested benefit budget', end.benefitsRequired],
+      ['Actual benefit payments', end.benefitsPaid],
+      ['Other public spending', end.nonTransferSpending],
+      ['Unfunded benefit target', end.welfareFundingGap],
+      ['Unfunded required public spending', end.governmentFundingGap],
+    ];
+    el('accounting-table').innerHTML = lines
+      .map(([label, value]) => '<tr><th scope="row">' + label + '</th><td>' + dollars(value) + '</td></tr>')
+      .join('');
+    el('ownership-note').textContent =
+      'Annual 2025 dollars per adult, averaged across the modeled population. Payments are transfers of existing resources. Budget identity residual: ' +
+      dollars(Math.abs(end.resourceResidual)) +
+      '. Foreign dollar conversions are illustrative; relative GDP weights international rent flows.';
+  }
+}
