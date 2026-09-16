@@ -2,7 +2,7 @@
 import '../styles/pirates-game.css';
 export const prerender = true;
 const title = 'When AI does the work, how would rational voters respond?';
-const description = 'Simulate how perfectly rational, self-interested voters would choose job protections, benefits and taxes after AI automation, with or without international competition.';
+const description = 'Simulate how perfectly rational, self-interested voters would choose AI pace, job protections, benefits and taxes after AI automation, with or without international competition.';
 const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href;
 ---
 <!doctype html>
@@ -33,7 +33,7 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
         <p class="eyebrow">A game-theory simulation</p>
         <h1>When AI does the work,<br />how would rational voters respond?</h1>
         <div class="intro-bottom">
-          <p class="lede">Suppose mathematicians’ work is automated first. Which job protections, benefits and taxes would <strong>perfectly rational, self-interested voters</strong> choose as other jobs follow?</p>
+          <p class="lede">Suppose mathematicians’ work is automated first. Which AI pace, job protections, benefits and taxes would <strong>perfectly rational, self-interested voters</strong> choose as other jobs follow?</p>
           <p class="model-note">These idealized voters understand all modeled consequences and care only about their own income over ten years. The results describe hypothetical outcomes, not policy recommendations or predictions of real elections.</p>
         </div>
       </header>
@@ -42,15 +42,15 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
         <fieldset class="mode-switch">
           <legend>Choose the world</legend>
           <label><input type="radio" name="world" value="us-only" checked /><span><strong>The US on its own</strong><small>Ignore international competition</small></span></label>
-          <label><input type="radio" name="world" value="strategic" /><span><strong>The US in a competing world</strong><small>Both sides choose policy and can agree on a treaty</small></span></label>
+          <label><input type="radio" name="world" value="strategic" /><span><strong>The US in a competing world</strong><small>Both sides anticipate the other’s policy</small></span></label>
         </fieldset>
         <noscript><p class="notice">Enable JavaScript to run the simulator. The model notes and sources below are readable without it.</p></noscript>
         <div class="workbench">
           <aside class="controls" aria-label="Model assumptions">
             <div class="control-heading"><h2>Your assumptions</h2><button id="reset" type="button" class="text-button">Reset</button></div>
             <div class="voting-rule">
-              <strong>More than 50% to change a decision</strong>
-              <p id="electorate-description">Every adult citizen has an equal vote. A tie keeps the policy in place.</p>
+              <strong>One vote. More than 50% to pass.</strong>
+              <p id="electorate-description">Every adult citizen votes for one complete package. Without a majority, current policy remains.</p>
               <p id="population-summary">The electorate follows the US distribution of income and income sources.</p>
               <details id="population-details" class="population-details">
                 <summary>Who is represented?</summary>
@@ -63,6 +63,7 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
                 <a href="#population-sources">Data and definitions</a>
               </details>
             </div>
+            <p class="control-help">Most sliders move in 5-point steps. Exact reference values and values from shared links are also preserved.</p>
             <div id="domestic-inputs"></div>
 
             <fieldset id="foreign-inputs" hidden>
@@ -74,17 +75,14 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
                 <option value="output">Total economic output</option>
               </select>
               <p id="foreign-objective-help" class="control-help">One foreign actor chooses its own job protections, benefits, taxes and AI deployment.</p>
-              <p class="control-help">A treaty is signed if a US majority and the foreign actor both prefer it to the outcome without an agreement.</p>
+              <p class="control-help">Both sides know the other’s choice and select a complete policy for ten years. If both pause AI, that pause lasts the decade.</p>
               <p id="calibration-summary" class="control-help"></p>
               <details class="assumption-details"><summary>International assumptions</summary><div id="international-inputs"></div></details>
             </fieldset>
 
             <details id="advanced-inputs" class="assumption-details">
-              <summary>Economic responses & AI deployment</summary>
+              <summary>Economic responses</summary>
               <div id="structural-inputs"></div>
-              <label class="objective-label" for="rollout">US deployment by year ten without a treaty</label>
-              <select id="rollout" aria-describedby="rollout-help"><option value="1">100% · deployment proceeds</option><option value="0.67">67% · limited deployment</option><option value="0.33">33% · limited deployment</option><option value="0">0% · pause US deployment</option></select>
-              <p id="rollout-help" class="control-help">This target is reached in year ten. Policy costs can delay the rollout and reduce output. A treaty can change either side’s target; the foreign actor otherwise chooses its own.</p>
             </details>
             <details class="assumption-details preset-details"><summary>Example assumptions</summary><fieldset class="presets"><legend class="visually-hidden">Choose an example</legend><button type="button" data-preset="shared">Gains widely shared</button><button type="button" data-preset="displacement">Few replacement jobs</button><button type="button" data-preset="rivalry">Strong foreign rivals</button><button type="button" data-preset="tax-response">Strong tax response</button></fieldset></details>
           </aside>
@@ -93,19 +91,13 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
             <p id="computation-message" class="computation-message" role="status" aria-live="polite">Calculating…</p>
             <div class="results" id="results" aria-busy="true">
               <div class="result-heading"><p class="eyebrow" id="result-label">The simulated outcome</p><span class="status" id="solve-status"></span></div>
-              <section id="treaty-result" class="treaty-result" hidden aria-labelledby="treaty-heading">
-                <h3 id="treaty-heading">Would they sign a treaty?</h3>
-                <p id="treaty-verdict" class="treaty-verdict"></p>
-                <p id="treaty-vote" class="small-copy"></p>
-                <details><summary>How the agreement is chosen</summary>
-                  <p class="small-copy">The foreign actor makes one offer: its highest-scoring proposal that more than half of US citizens strictly prefer to the verified outcome without a treaty. The foreign actor must also strictly gain; ties keep the outcome without a treaty.</p>
-                  <p class="small-copy">An accepted treaty binds both sides for ten years. It can set different domestic policies and deployment targets, with no cross-border benefit payments. Compliance is assumed; withdrawal and renegotiation are outside this game.</p>
-                  <p id="treaty-menu" class="small-copy"></p>
-                  <p id="treaty-score" class="small-copy"></p>
-                </details>
+              <section class="ballot-result" aria-labelledby="ballot-verdict">
+                <h2 id="ballot-verdict">Counting the votes…</h2>
+                <p id="ballot-support"></p>
+                <p id="ballot-leading" class="small-copy" hidden></p>
               </section>
-              <div id="policy-decisions" class="policy-decisions" role="group" aria-label="Five policy decisions">
-                <p class="small-copy">Comparing job retention, benefit amounts, benefit rules and taxes.</p>
+              <div id="policy-decisions" class="policy-decisions" role="group" aria-label="Six terms of the enacted policy">
+                <p class="small-copy">Comparing AI pace, job retention, benefit amounts, benefit rules and taxes.</p>
               </div>
               <p id="decision-votes-note" class="decision-summary"></p>
               <div id="policy-strip" class="policy-strip"></div>
@@ -130,11 +122,11 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
 
               <details class="result-details alternatives">
                 <summary>Compare alternatives</summary>
-                <section class="decision-votes" aria-labelledby="decision-votes-heading"><h3 id="decision-votes-heading">Would US voters change a decision?</h3><p id="decision-votes-help" class="small-copy">Each row changes one of the five decisions. The others stay fixed. More than 50% of the electorate must prefer the change.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Separate US ballot results"><table><thead><tr><th scope="col">Decision</th><th scope="col">Strongest alternative</th><th scope="col">Prefer the change</th></tr></thead><tbody id="decision-votes"></tbody></table></div></section>
+                <section class="ballot-tallies" aria-labelledby="ballot-table-heading"><h3 id="ballot-table-heading">Which packages get the votes?</h3><p id="ballot-table-note" class="small-copy"></p><div class="table-scroll" tabindex="0" role="region" aria-label="Complete-package ballot results"><table class="ballot-table"><thead><tr><th scope="col">Complete policy package</th><th scope="col">First-choice votes</th></tr></thead><tbody id="ballot-table"></tbody></table></div></section>
                 <section class="comparison-section" aria-labelledby="comparison-heading"><h3 id="comparison-heading">Income and output in year ten</h3><p class="small-copy">Starting values = 100. Policies can change several decisions together.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Compare policy packages"><table class="comparison-table"><thead><tr><th scope="col">Policy</th><th scope="col">All citizens</th><th scope="col">Mainly work income</th><th scope="col">Mainly capital income</th><th scope="col">Output</th></tr></thead><tbody id="comparison-table"></tbody></table></div><p id="score-help" class="small-copy"></p></section>
               </details>
 
-              <details class="result-details manual-policy"><summary>Try your own US policy</summary><p id="manual-help" class="small-copy">Choose job retention, the benefit budget, the benefit formula and both tax rates. US deployment and foreign policy stay fixed.</p><div id="manual-inputs"></div><button type="button" id="apply-manual">Compare with the selected policy</button><p id="manual-result" role="status"></p></details>
+              <details class="result-details manual-policy"><summary>Try your own US policy</summary><p id="manual-help" class="small-copy">Choose AI pace, job retention, the benefit budget, the benefit formula and both tax rates. Foreign policy stays fixed.</p><div id="manual-inputs"></div><button type="button" id="apply-manual">Compare with the selected policy</button><p id="manual-result" role="status"></p></details>
               <details class="result-details accounting"><summary>Follow the money in year ten</summary><p class="small-copy">Year-ten income flows under the selected policy. Transfers change who receives income.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Year ten income accounting"><table><tbody id="accounting-table"></tbody></table></div><p id="ownership-note" class="small-copy"></p></details>
               <details class="result-details vote-audit"><summary>Voting details and tie-breaking</summary><p id="selection-explanation" class="small-copy"></p><div id="agenda-order" class="small-copy"></div></details>
               <div class="result-actions"><button type="button" id="share" class="text-button">Copy scenario link</button><button type="button" id="download" class="text-button">Download results</button><span id="action-status" role="status"></span></div>
@@ -147,34 +139,32 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
         <div class="reading-label"><p class="eyebrow">About the model</p><h2>The rules change<br />the answer.</h2></div>
         <div class="reading-copy">
           <p>Workers keep their vote after losing a job. They vote for the policy that improves their own expected income, including the cost of weaker investment. “Mathematicians first” describes the thought experiment; the model does not predict which profession comes next.</p>
-          <details class="method-details"><summary>Voting and international competition</summary>
-            <p id="voting-rules">Every adult US citizen has an equal vote. Survey weights represent their shares of the population; the model does not use a fixed number of artificial voters. Job retention, benefit amounts, the benefit formula, non-capital taxes and capital taxes are separate decisions. A result is stable when no change to one decision is preferred by more than 50% of the electorate. A package that changes several decisions together may still win.</p>
-            <p>Each voter is perfectly rational and self-interested. They understand all modeled consequences and maximize their own expected household-income utility over ten years, including the effects on investment and production. They place no separate value on anyone else’s welfare. Ties do not count as support for a change. A person keeps their vote when they lose a job. Job retention has no separate value beyond its income.</p>
-            <p>In international mode, the rest of the world acts as one decision-maker. It chooses its own complete policy, including AI deployment, to maximize the objective you select. The outcome without a treaty requires both US ballot stability and a foreign best response. The foreign policy itself does not require a US vote.</p>
-            <p>The search checks candidate policies, then verifies a selected result against every permitted change to one US decision and every foreign policy in the menu. Failure to find a stable result is not proof that none exists. Voting details show any remaining challenge. This verifies the outcome without a treaty, which is the fallback if negotiations fail. Policies are fixed for ten years; repeated elections and renegotiation are outside this model.</p>
+          <details class="method-details"><summary>One ballot and international competition</summary>
+            <p id="voting-rules">Every adult US citizen has one equal vote. Every combination in the policy menu is a complete package on one ballot: AI pace, job retention, benefit amounts, benefit formula and both tax rates. Each person chooses the fully funded package that gives their household the highest expected income utility. The package with the most votes passes only if it has more than 50% of all votes. Otherwise current taxes, benefits and AI pace remain. There is no runoff or second vote.</p>
+            <p>These voters are perfectly rational and self-interested. They understand all modeled consequences over ten years, including losses from weaker investment, and give no separate value to anyone else’s welfare. Survey weights represent equal votes across the adult citizen population; income is never a voting weight. A person keeps their vote after losing a job. Job retention has no separate value beyond its income.</p>
+            <p>The ballot rule requires each person to select their own favorite package. Exact income-utility ties prefer eligible current policy, then a fixed ordering. This is an explicit voting assumption: rationality alone does not uniquely determine how voters coordinate or vote strategically.</p>
+            <p>In international mode, the rest of the world is one actor. It chooses the fully funded package maximizing the objective you select, given the enacted US policy. US voters choose their favorite packages given that foreign policy. The calculator looks for choices that agree with both expectations and checks the full menu for each response. It reports an unverified result if that search fails. This does not establish that a consistent pair is unique, or that none exists when the search fails.</p>
+            <p>Both sides choose once, knowing the other’s choice. Their policies stay in place for ten years. If both pause AI, each expects the pause to last the decade. There is no additional agreement vote, later election or renegotiation.</p>
           </details>
-          <details class="method-details"><summary>Treaty offers and ratification</summary>
-            <p>In international mode, treaty negotiation follows the verified outcome without an agreement. The foreign actor chooses its preferred offer from those a US majority would accept. Each voter compares the entire treaty with the fallback using their own expected income utility. A strict majority and a strict foreign gain sign the treaty automatically. The proposal rule gives the foreign actor bargaining power; rationality alone does not select it.</p>
-            <p>The offer menu includes every common policy package for both sides; every US package with the foreign fallback unchanged; every foreign package with the US fallback unchanged; and pairs where each side changes one fallback decision. Either deployment target can change. Both sides can have different policies. The calculator checks every offer in this menu, but not every possible asymmetric pair of packages. No accepted offer means no treaty in this menu, not that all agreements are impossible.</p>
-            <p>Commitments are binding for ten years and add no output or money by themselves. There are no cross-border side payments. A signed package is ratified as a whole, so its individual terms need not survive separate votes or unilateral foreign changes. The separate-ballot results remain available for the fallback without an agreement.</p>
-          </details>
-          <details class="method-details"><summary>The five decisions</summary>
-            <p><strong>1. Job retention.</strong> Employers can lay off workers or retain obsolete roles at 50%, 100% or 125% of their starting wage before tax. These roles add no output. The employer bears the cost, which reduces capital income. Finding new productive work is a separate transition.</p>
-            <p><strong>2. Benefit amounts.</strong> Government spending on the modeled benefits can be 0%, 50%, 100%, 150% or 200% of its survey baseline. The result states the proposed budget change separately from the amount actually funded. Higher spending does not mean every recipient receives more.</p>
-            <p><strong>3. The benefit formula.</strong> Keep the current mix, pay every adult an equal amount, or link payments to prior income. “Prior income” means observed disposable income before AI, not lifetime earnings. The current mix preserves the starting distribution of benefits; losing a job does not automatically create a new unemployment-benefit payment.</p>
-            <p><strong>4. Non-capital taxes.</strong> The result compares the selected tax benchmark with the survey-based US reference and also shows the actual average after incomes change. A lower rate is a tax reduction. The calculation retains differences in tax burdens across income groups.</p>
-            <p><strong>5. Capital taxes.</strong> The same comparison applies to capital income. These are modeled average burdens, not statutory brackets or official separate rates for “workers” and “capital owners.” A person can receive both labor and capital income.</p>
-            <p>The tax reference covers modeled federal and state income taxes after credits, plus payroll taxes including self-employment contributions. It excludes sales and property taxes, corporate taxes and employers’ contributions for employees. Modeled net tax refunds count as benefits; this does not capture the full value of every refundable credit. A policy must fund the fixed reference commitment to other public spending to enter the vote. Benefits and retained wages may still fall short of their targets; voters compare actual payments. Surplus receipts fund non-transfer public spending rather than an additional dividend.</p>
+          <details class="method-details"><summary>The six terms on the ballot</summary>
+            <p><strong>1. AI pace.</strong> Pause AI, allow current AI pace, or accelerate AI. A pause prevents new AI exposure and AI job replacement in that economy for ten years. Current pace reaches full deployment in year ten; acceleration runs twice as fast and reaches it in year five. Full annual productivity gains arrive sooner on the accelerated path. Pausing does not eliminate other effects of foreign competition on income.</p>
+            <p><strong>2. Job retention.</strong> Employers can lay off workers or retain obsolete roles at 50%, 100% or 125% of their starting wage before tax. These roles add no output. The employer bears the cost, which reduces capital income. Finding new productive work is a separate transition.</p>
+            <p><strong>3. Benefit amounts.</strong> Government spending on the modeled benefits can be 0%, 50%, 100%, 150% or 200% of its survey baseline. Higher total spending does not mean every recipient receives more.</p>
+            <p><strong>4. The benefit formula.</strong> Keep the current mix, pay every adult an equal amount, or link payments to prior income. “Prior income” means observed disposable income before AI, not lifetime earnings. The current mix preserves the starting distribution of benefits; losing a job does not automatically create a new unemployment-benefit payment.</p>
+            <p><strong>5. Non-capital taxes.</strong> The result compares the selected tax benchmark with the survey-based US reference and shows the actual average after incomes change. A lower rate is a tax reduction. The calculation retains differences in tax burdens across income groups.</p>
+            <p><strong>6. Capital taxes.</strong> The same comparison applies to capital income. These are modeled average burdens, not statutory brackets or official separate rates for “workers” and “capital owners.” A person can receive both labor and capital income.</p>
+            <p>A package is eligible only if it fully funds promised retained wages, benefits and other required public spending in every year, after economic responses. No borrowing is modeled. If no eligible package wins a majority, current policy is the automatic fallback even when it becomes underfunded; any shortfall is shown explicitly. Surplus receipts fund non-transfer public spending.</p>
+            <p>The tax reference covers modeled federal and state income taxes after credits, plus payroll taxes including self-employment contributions. It excludes sales and property taxes, corporate taxes and employers’ contributions for employees. Modeled net tax refunds count as benefits; this does not capture the full value of every refundable credit. All combinations in this discrete menu are evaluated. It does not cover every possible percentage.</p>
           </details>
           <details class="method-details"><summary>Economic assumptions and limits</summary>
             <p>The US population and income distribution come from the Census survey. Household income is pooled and divided among adult household members. The model groups citizens by that household’s main income source, income level and their own employment status. Main sources include work, capital, public benefits and pensions. Benefit receipt and employment overlap. These group labels do not determine how anyone votes; their own projected income does.</p>
             <p>International defaults use relative GDP and bilateral trade exposure. The foreign actor uses the same income distribution as a simplifying assumption; it is not a survey of foreign voters. AI gains, displacement, return to work and responses to taxes remain adjustable assumptions. Zero foreign frontier capability leaves the foreign economy and its imports in place.</p>
             <p><strong>GDP growth and employer gains are separate.</strong> The default assumes 5% annual real GDP growth at full AI exposure. During rollout, the potential growth rate is 5% multiplied by that year’s exposure and compounds each year. There is no separate background-growth assumption. The foreign economy has its own growth setting. Taxes and investment responses can change realized growth.</p>
             <p>The employer-gain parameter divides that output. At a 50% gain, an automated role with a $100,000 prior wage gives the employer a $150,000 income claim. Keeping the employee at $100,000 leaves $50,000 before other adjustments. To keep total income consistent with the separate GDP assumption, all gross income claims are scaled to the available output before costs, taxes and retained wages are paid. This allocation rule can change workers’ and owners’ shares without changing the GDP path for a fixed policy. Changing those shares can change the policy voters choose.</p>
-            <p>The selected deployment target is reached by year ten. At full deployment, 100% obsolete roles and no return to productive work means every worker is affected. Taxes and required employer pay can delay rollout within those ten years and reduce productive effort. They can also erode existing capital capacity through an assumed 5% annual renewal requirement. This rate is a modeling choice, not an estimate from the cited data.</p>
+            <p>Current AI pace reaches full domestic deployment by year ten; accelerated AI reaches it by year five. At full deployment, 100% obsolete roles and no return to productive work means every worker is affected. Taxes and required employer pay can delay rollout within the chosen five- or ten-year schedule and reduce productive effort. They can also erode existing capital capacity through an assumed 5% annual renewal requirement. This rate is a modeling choice, not an estimate from the cited data.</p>
             <p>This is a comparison within a policy menu, not a full model of the world economy. Observed household investment income is not total company profit or wealth. The employer-funding limit and production responses remain modeling assumptions. It does not solve market prices, demand, debt, firms’ investment decisions or individual labor supply. It omits lobbying, monetary policy, AI safety and military outcomes. Changing the policy menu or voting procedure can change the result.</p>
           </details>
-          <details class="method-details"><summary>Equations and calculation method</summary><div id="model-method"></div></details>
+          <details class="method-details"><summary>Equations and calculation method</summary><p>Eight common scenarios are precomputed when the site is built. Other assumptions calculate in your browser using the same model; nearby results are never substituted.</p><div id="model-method"></div></details>
           <details class="method-details"><summary>Why the pirate game?</summary><p>The pirate puzzle asks who can win enough votes to divide a fixed treasure. Automation changes how much is produced and who receives it. This simulator keeps the voting question and adds production, employment and government payments.</p></details>
         </div>
       </section>
@@ -199,7 +189,6 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
               <li><a href="https://www.elibrary.imf.org/view/journals/006/2024/002/article-A001-en.xml">IMF, “Broadening the Gains from Generative AI: The Role of Fiscal Policies” (2024)</a><p>Income support, capital taxation and international constraints on taxing mobile profits.</p></li>
               <li><a href="https://www.nber.org/papers/w23806">João Guerreiro, Sergio Rebelo and Pedro Teles, “Should Robots Be Taxed?”</a><p>Tax choices depend on workers’ ability to adjust. This simulator uses household taxes, so its rates cannot be read as the paper’s robot-tax results.</p></li>
               <li><a href="https://www.oecd.org/en/publications/oecd-employment-outlook-2018_empl_outlook-2018-en/full-report/component-8.html">OECD Employment Outlook 2018, chapter 4</a><p>Unemployment support, wage insurance and schemes that preserve employment.</p></li>
-              <li><a href="https://ocw.mit.edu/courses/14-15-networks-spring-2022/mit14_15s22_lec18.pdf#page=15">Alexander Wolitzky, “Bargaining and Intermediation in Networks” (2022), pages 15–17</a><p>How the proposal rule affects a take-it-or-leave-it bargaining game. The treaty menu and majority referendum here are this simulator’s assumptions.</p></li>
               <li><a href="https://omohundro.files.wordpress.com/2009/03/stewart99_a_puzzle_for_pirates.pdf">Ian Stewart, “A Puzzle for Pirates” (1999)</a><p>The voting puzzle behind the analogy.</p></li>
             </ol>
           </details>
@@ -207,7 +196,7 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
         </div>
       </section>
     </main>
-    <footer class="page-width site-footer"><a href="https://sokolsky.me">Nikita Sokolsky</a><span>September 2026 · Calculations run in your browser</span></footer>
+    <footer class="page-width site-footer"><a href="https://sokolsky.me">Nikita Sokolsky</a><span>September 2026 · One ballot, ten years</span></footer>
     <script>import '../components/economy/pirates-game';</script>
   </body>
 </html>

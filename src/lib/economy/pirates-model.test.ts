@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {BASELINE_POLICY,CALIBRATION,DEFAULT_INPUTS,POLICIES,YEARS,currentPolicy,evaluateProfile,makePolicy,normalizeInputs,solveModel,type Policy} from './pirates-model';
+import {BASELINE_POLICY,CALIBRATION,DEFAULT_INPUTS,PACE_CHOICES,PACE_LABELS,POLICIES,YEARS,currentPolicy,evaluateProfile,makePolicy,normalizeInputs,solveModel,type Policy} from './pirates-model';
 import {US_COHORTS} from './us-electorate';
 const policy=(changes:Partial<Policy>={})=>makePolicy({...currentPolicy(1),...changes});
 const final=(p:ReturnType<typeof evaluateProfile>)=>p.us.at(-1)!;
@@ -27,7 +27,7 @@ describe('current adult-citizen calibration',()=>{
   closed(result);expect(result.usAdmissible).toBe(true);
  });
  it('puts the current policy in each fixed-pace menu',()=>{
-  for(const pace of [0,.33,.67,1])expect(POLICIES.some(p=>p.id===currentPolicy(pace).id)).toBe(true);
+  for(const pace of PACE_CHOICES)expect(POLICIES.some(p=>p.id===currentPolicy(pace).id)).toBe(true);
  });
  it('does not change survey weights when old ratio URL fields are supplied',()=>{
   expect(normalizeInputs({...DEFAULT_INPUTS,workerShare:.2} as never)).toEqual(DEFAULT_INPUTS);
@@ -90,7 +90,7 @@ describe('international policies and objectives',()=>{
  it('uses independent deployment and GDP-conserving rent transfers',()=>{
   const p=evaluateProfile(DEFAULT_INPUTS,policy({pace:0}),policy({pace:1,capitalTax:.2}),'strategic');
   for(let i=1;i<=YEARS;i++)expect(p.us[i]!.netRentFlow+DEFAULT_INPUTS.foreignMarketSize*p.foreign![i]!.netRentFlow).toBeCloseTo(0,7);
-  expect(final(p).adoption).toBe(0);expect(p.foreign!.at(-1)!.adoption).toBeGreaterThan(0);expect(final(p).exposure).toBeGreaterThan(0);closed(p);
+  expect(final(p).adoption).toBe(0);expect(p.foreign!.at(-1)!.adoption).toBeGreaterThan(0);expect(final(p).exposure).toBe(0);closed(p);
  });
  it('keeps the foreign economy when frontier capability is zero',()=>{
   const p=evaluateProfile({...DEFAULT_INPUTS,foreignStrength:0},policy(),policy(),'strategic');
@@ -98,7 +98,7 @@ describe('international policies and objectives',()=>{
  });
  it.each(['workers','prosperity','output'] as const)('agrees between light, foreign-only and materialized scoring: %s',objective=>{
   const model=solveModel(DEFAULT_INPUTS,{mode:'strategic',objective:'workers',foreignObjective:objective});
-  const a=policy({laborTax:.4,capitalTax:.5}),b=policy({pace:.67,laborTax:.4,capitalTax:.5,benefitFormula:'flat'});
+  const a=policy({laborTax:.4,capitalTax:.5}),b=policy({pace:2,laborTax:.4,capitalTax:.5,benefitFormula:'flat'});
   const full=model.evaluate(a,b),light=model.evaluateLight(a,b);
   expect(light.foreignScore).toBeCloseTo(full.foreignScore!,11);expect(light.usUtilities).toEqual(full.usUtilities);
   expect(model.evaluateForeign(a,b)).toBeCloseTo(full.foreignScore!,11);
@@ -159,9 +159,10 @@ describe('independent annual GDP growth',()=>{
   closed(result);closed(fasterUS);
  });
  it('lets imported AI contribute to growth without domestic frontier deployment',()=>{
-  const result=evaluateProfile({...DEFAULT_INPUTS,investmentResponse:0},policy({pace:0}),policy(),'strategic');
-  expect(final(result).adoption).toBe(0);expect(final(result).exposure).toBeGreaterThan(0);
-  expect(final(result).potentialOutput).toBeGreaterThan(100);closed(result);
+  const result=evaluateProfile({...DEFAULT_INPUTS,investmentResponse:0,foreignStrength:0},policy(),policy(),'strategic');
+  const foreign=result.foreign!.at(-1)!;
+  expect(foreign.adoption).toBe(0);expect(foreign.exposure).toBeGreaterThan(0);
+  expect(foreign.potentialOutput).toBeGreaterThan(100);closed(result);
  });
 });
 
@@ -219,14 +220,73 @@ describe('deployment endpoints and obsolete work',()=>{
    closed(result);
   }
  });
- it('preserves partial and zero deployment targets without imports',()=>{
-  for(const pace of [0,.33,.67])for(const capitalTax of [0,1]){
-   const result=evaluateProfile({...DEFAULT_INPUTS,displacement:1,reemployment:0,investmentResponse:1},policy({pace,capitalTax}),undefined,'us-only');
-   expect(final(result).adoption).toBe(pace);
-   expect(final(result).unemployment).toBeCloseTo(pace,12);
-   for(const point of result.us)expect(point.adoption).toBeLessThanOrEqual(pace);
+ it('offers exactly pause, current pace and accelerated AI packages',()=>{
+  expect(PACE_CHOICES).toEqual([0,1,2]);
+  for(const pace of PACE_CHOICES){
+   const model=solveModel(DEFAULT_INPUTS,{mode:'us-only',objective:'workers',pace});
+   expect(model.policies.length).toBeGreaterThan(0);
+   expect(model.policies.every(p=>p.pace===pace&&p.label.startsWith(PACE_LABELS[pace]!))).toBe(true);
+  }
+  expect(()=>solveModel(DEFAULT_INPUTS,{mode:'us-only',objective:'workers',pace:.33})).toThrow(RangeError);
+  for(const pace of [-1,2.01,Infinity,NaN])expect(()=>evaluateProfile(DEFAULT_INPUTS,policy({pace}),undefined,'us-only')).toThrow(RangeError);
+ });
+ it('pauses all domestic and imported AI job replacement for the entire horizon',()=>{
+  const assumptions={...DEFAULT_INPUTS,displacement:1,reemployment:0,investmentResponse:1,tradeIntensity:1,foreignTradeIntensity:1};
+  for(const pausedSide of ['us','foreign']){
+   const paused=policy({pace:0}),accelerated=policy({pace:2});
+   const result=evaluateProfile(assumptions,pausedSide==='us'?paused:accelerated,pausedSide==='us'?accelerated:paused,'strategic');
+   const region=pausedSide==='us'?result.us:result.foreign!;
+   const other=pausedSide==='us'?result.foreign!:result.us;
+   for(const point of region){
+    expect(point.adoption).toBe(0);expect(point.exposure).toBe(0);
+    expect(point.unemployment).toBe(0);expect(point.newlyDisplaced).toBe(0);
+    expect(point.investmentCost).toBe(0);expect(point.potentialGrowthRate).toBe(0);
+   }
+   expect(other[5]!.exposure).toBe(1);
+   expect(region.some(point=>point.netRentFlow!==0)).toBe(true);
    closed(result);
   }
+ });
+ it('keeps both-paused regions at their no-AI reference for all ten years',()=>{
+  const result=evaluateProfile({...DEFAULT_INPUTS,displacement:1,reemployment:0,usGdpGrowth:.2,foreignGdpGrowth:.2,tradeIntensity:1,foreignTradeIntensity:1},policy({pace:0}),policy({pace:0}),'strategic');
+  for(const region of [result.us,result.foreign!])for(const point of region){
+   expect(point.adoption).toBe(0);expect(point.exposure).toBe(0);expect(point.unemployment).toBe(0);
+   expect(point.output).toBe(100);expect(point.potentialOutput).toBe(100);expect(point.netRentFlow).toBeCloseTo(0,12);
+  }
+  closed(result);
+ });
+ it('compresses the same rollout curve into five years without exceeding full adoption',()=>{
+  for(const reemployment of [0,.2,.8])for(const capitalTax of [0,CALIBRATION.capitalTaxRate,1]){
+   const assumptions={...DEFAULT_INPUTS,displacement:1,reemployment,investmentResponse:1};
+   const current=evaluateProfile(assumptions,policy({capitalTax,replacement:1}),undefined,'us-only');
+   const accelerated=evaluateProfile(assumptions,policy({pace:2,capitalTax,replacement:1}),undefined,'us-only');
+   for(let year=0;year<=5;year++){
+    expect(accelerated.us[year]!.adoption).toBeCloseTo(current.us[year*2]!.adoption,12);
+    expect(accelerated.us[year]!.exposure).toBeCloseTo(current.us[year*2]!.exposure,12);
+    expect(accelerated.us[year]!.potentialGrowthRate).toBeCloseTo(current.us[year*2]!.potentialGrowthRate,12);
+   }
+   for(const point of accelerated.us){
+    expect(point.adoption).toBeGreaterThanOrEqual(0);expect(point.adoption).toBeLessThanOrEqual(1);
+    expect(point.exposure).toBeGreaterThanOrEqual(0);expect(point.exposure).toBeLessThanOrEqual(1);
+    if(point.year>=5){expect(point.adoption).toBe(1);expect(point.potentialGrowthRate).toBe(.05);}
+   }
+   expect(current.us[10]!.adoption).toBe(1);
+   expect(current.us[10]!.potentialGrowthRate).toBe(.05);
+   if(reemployment===0){expect(accelerated.us[5]!.unemployment).toBeCloseTo(1,12);expect(current.us[5]!.unemployment).toBeLessThan(1);}
+   closed(current);closed(accelerated);
+  }
+ });
+ it('brings output gains forward and charges more for faster installation',()=>{
+  const assumptions={...DEFAULT_INPUTS,investmentResponse:0,displacement:1,reemployment:0};
+  const current=evaluateProfile(assumptions,policy(),undefined,'us-only');
+  const accelerated=evaluateProfile(assumptions,policy({pace:2}),undefined,'us-only');
+  expect(accelerated.us[1]!.investmentCost).toBeGreaterThan(current.us[1]!.investmentCost);
+  expect(accelerated.us[1]!.adjustmentCost).toBeGreaterThan(current.us[1]!.adjustmentCost);
+  expect(accelerated.us.reduce((sum,p)=>sum+p.investmentCost,0)).toBeGreaterThan(current.us.reduce((sum,p)=>sum+p.investmentCost,0));
+  expect(accelerated.us[5]!.potentialOutput).toBeGreaterThan(current.us[5]!.potentialOutput);
+  expect(final(accelerated).potentialOutput).toBeGreaterThan(final(current).potentialOutput);
+  for(let year=6;year<=10;year++)expect(accelerated.us[year]!.investmentCost).toBe(0);
+  closed(current);closed(accelerated);
  });
  it('delays rollout under tax burdens and advances it under relief without changing the endpoint',()=>{
   const assumptions={...DEFAULT_INPUTS,displacement:1,reemployment:0,investmentResponse:1};
@@ -250,29 +310,52 @@ describe('deployment endpoints and obsolete work',()=>{
   const result=evaluateProfile({...DEFAULT_INPUTS,investmentResponse:0},policy({replacement:1.25,capitalTax:1}),undefined,'us-only');
   for(const point of result.us)expect(point.adoption).toBeCloseTo(point.year/YEARS,12);
  });
- it('combines independent partial targets with imported AI and frontier capability',()=>{
+ it('combines independent speeds with imported AI and frontier capability',()=>{
   const assumptions={...DEFAULT_INPUTS,displacement:1,reemployment:0,investmentResponse:1,foreignStrength:.6,tradeIntensity:.2,foreignTradeIntensity:.3};
-  const result=evaluateProfile(assumptions,policy({pace:.33,capitalTax:1}),policy({pace:.67,capitalTax:0}),'strategic');
+  const result=evaluateProfile(assumptions,policy({pace:1,capitalTax:1}),policy({pace:2,capitalTax:0}),'strategic');
   const us=final(result),foreign=result.foreign!.at(-1)!;
-  expect(us.adoption).toBe(.33);expect(foreign.adoption).toBeCloseTo(.67*.6,12);
-  expect(us.exposure).toBeCloseTo(.33+.2*(.67*.6)*(1-.33),12);
-  expect(foreign.exposure).toBeCloseTo(.67*.6+.3*.33*(1-.67*.6),12);
+  expect(us.adoption).toBe(1);expect(foreign.adoption).toBeCloseTo(.6,12);
+  expect(result.foreign![5]!.adoption).toBeCloseTo(.6,12);
+  expect(result.us[5]!.adoption).toBeLessThan(1);
+  expect(us.exposure).toBe(1);
+  expect(foreign.exposure).toBeCloseTo(.6+.3*(1-.6),12);
   for(const point of [...result.us,...result.foreign!]){
    expect(point.unemployment).toBeCloseTo(point.exposure,12);
    expect(point.unemployment).toBeGreaterThanOrEqual(0);expect(point.unemployment).toBeLessThanOrEqual(1);
   }
   closed(result);
  });
- it('allows imported AI with zero domestic deployment or zero foreign frontier capability',()=>{
-  const assumptions={...DEFAULT_INPUTS,displacement:1,reemployment:0,investmentResponse:1};
-  const paused=evaluateProfile(assumptions,policy({pace:0,capitalTax:1}),policy({capitalTax:1}),'strategic');
-  expect(final(paused).adoption).toBe(0);
-  expect(final(paused).unemployment).toBeCloseTo(assumptions.tradeIntensity,12);
-  const noFrontier=evaluateProfile({...assumptions,foreignStrength:0},policy({capitalTax:1}),policy({capitalTax:1}),'strategic');
+ it('allows imported AI with zero frontier capability when the foreign bloc permits deployment',()=>{
+  const assumptions={...DEFAULT_INPUTS,displacement:1,reemployment:0,investmentResponse:1,foreignStrength:0};
+  const noFrontier=evaluateProfile(assumptions,policy({pace:2,capitalTax:1}),policy({capitalTax:1}),'strategic');
   const foreign=noFrontier.foreign!.at(-1)!;
   expect(foreign.adoption).toBe(0);
   expect(foreign.unemployment).toBeCloseTo(assumptions.foreignTradeIntensity,12);
-  closed(paused);closed(noFrontier);
+  const paused=evaluateProfile(assumptions,policy({pace:2}),policy({pace:0}),'strategic');
+  expect(paused.foreign!.at(-1)!.unemployment).toBe(0);
+  closed(noFrontier);closed(paused);
+ });
+ it('accelerates imported AI diffusion even without a domestic frontier',()=>{
+  const assumptions={...DEFAULT_INPUTS,foreignStrength:0,foreignTradeIntensity:1,investmentResponse:0,displacement:1,reemployment:0};
+  const current=evaluateProfile(assumptions,policy(),policy(),'strategic');
+  const accelerated=evaluateProfile(assumptions,policy(),policy({pace:2}),'strategic');
+  const paused=evaluateProfile(assumptions,policy(),policy({pace:0}),'strategic');
+  for(let year=1;year<YEARS;year++){
+   const now=current.foreign![year]!,fast=accelerated.foreign![year]!;
+   const available=accelerated.us[year]!.adoption;
+   expect(now.adoption).toBe(0);expect(fast.adoption).toBe(0);
+   expect(now.exposure).toBeCloseTo((year/YEARS)*available,12);
+   expect(fast.exposure).toBeCloseTo(Math.min(1,2*year/YEARS)*available,12);
+   expect(fast.unemployment).toBeGreaterThan(now.unemployment);
+   expect(fast.potentialGrowthRate).toBeGreaterThan(now.potentialGrowthRate);
+   expect(fast.exposure).toBeLessThanOrEqual(available);
+   expect(paused.foreign![year]!.exposure).toBe(0);
+  }
+  expect(accelerated.foreign![YEARS]!.exposure).toBe(1);
+  expect(current.foreign![YEARS]!.exposure).toBe(1);
+  const noSupplier=evaluateProfile(assumptions,policy({pace:0}),policy({pace:2}),'strategic');
+  for(const point of noSupplier.foreign!)expect(point.exposure).toBe(0);
+  closed(current);closed(accelerated);closed(paused);closed(noSupplier);
  });
  it('restores productive work without reducing the deployment target',()=>{
   const result=evaluateProfile({...DEFAULT_INPUTS,displacement:1,reemployment:.5,investmentResponse:1},policy({capitalTax:1}),undefined,'us-only');
@@ -284,5 +367,46 @@ describe('deployment endpoints and obsolete work',()=>{
   const totalRestored=result.us.reduce((sum,point)=>sum+point.reemployed,0);
   expect(totalNew-totalRestored).toBeCloseTo(end.unemployment,12);
   closed(result);
+ });
+});
+
+
+describe('full funding is required for ballot eligibility',()=>{
+ it('excludes unfunded benefit promises even when existing public services are covered',()=>{
+  const result=evaluateProfile(DEFAULT_INPUTS,policy({pace:0,welfareScale:2}),undefined,'us-only');
+  expect(final(result).governmentFundingGap).toBeCloseTo(0,6);
+  expect(final(result).welfareFundingGap).toBeGreaterThan(0);
+  expect(result.usAdmissible).toBe(false);expect(result.feasible).toBe(false);closed(result);
+ });
+ it('excludes retained-wage promises that employers cannot pay',()=>{
+  const result=evaluateProfile({...DEFAULT_INPUTS,usGdpGrowth:0,productivityGain:0,displacement:1,reemployment:0,investmentResponse:0},policy({replacement:1.25,welfareScale:0,laborTax:1,capitalTax:1}),undefined,'us-only');
+  expect(result.us.some(y=>y.employerFundingGap>1e-7)).toBe(true);
+  expect(result.usAdmissible).toBe(false);expect(result.feasible).toBe(false);closed(result);
+ });
+ it('keeps a fully financed reference policy eligible',()=>{
+  const result=evaluateProfile(DEFAULT_INPUTS,BASELINE_POLICY,undefined,'us-only');
+  expect(result.us.every(y=>y.feasible)).toBe(true);
+  expect(result.usAdmissible).toBe(true);expect(result.feasible).toBe(true);
+ });
+ it('agrees on funding in light, full and foreign-only evaluations',()=>{
+  const model=solveModel({...DEFAULT_INPUTS,displacement:1,reemployment:0},{mode:'strategic',objective:'workers'});
+  for(const us of [policy(),policy({replacement:1.25,welfareScale:2}),policy({laborTax:0,capitalTax:0})]){
+   for(const foreign of [policy({pace:0,welfareScale:2}),policy({pace:0}),policy({replacement:1.25,welfareScale:2})]){
+    const full=model.evaluate(us,foreign),light=model.evaluateLight(us,foreign);
+    expect(light.usAdmissible).toBe(full.feasible);
+    expect(light.foreignAdmissible).toBe(full.foreignFeasible);
+    expect(full.usAdmissible).toBe(full.feasible);
+    expect(full.foreignAdmissible).toBe(full.foreignFeasible);
+    if(!full.foreignFeasible)expect(model.evaluateForeign(us,foreign)).toBe(-Infinity);
+    else expect(model.evaluateForeign(us,foreign)).toBeCloseTo(full.foreignScore!,12);
+    closed(full);
+   }
+  }
+ });
+ it('does not offset an early funding shortfall with a later surplus',()=>{
+  const result=evaluateProfile({...DEFAULT_INPUTS,usGdpGrowth:.2,investmentResponse:0,displacement:1,reemployment:0},policy({welfareScale:1.5}),undefined,'us-only');
+  expect(result.us.some(y=>y.welfareFundingGap>1e-7)).toBe(true);
+  expect(final(result).feasible).toBe(true);
+  expect(result.usAdmissible).toBe(false);
  });
 });

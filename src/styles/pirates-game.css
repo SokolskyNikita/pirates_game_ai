@@ -114,7 +114,6 @@ details summary:hover { color: var(--green); }
 .decision-answer { min-width: 0; }
 .decision-answer > h2 { font-size: clamp(25px, 2.3vw, 33px); line-height: 1.15; letter-spacing: -.45px; }
 .decision-answer > p { margin-top: 9px; font-size: 13px; color: var(--muted); line-height: 1.55; }
-.decision-answer > .decision-ballot { margin-top: 8px; font-size: 11px; color: var(--green); }
 .government-decision > .eyebrow { color: var(--rust); }
 .tax-decision > .eyebrow { color: var(--gold); }
 .decision-baseline { font-variant-numeric: tabular-nums; }
@@ -155,10 +154,10 @@ th:first-child, td:first-child { min-width: 145px; padding-left: 0; text-align: 
 td:first-child { font-size: 12px; }
 tr.selected { background: var(--soft-green); }
 tr.selected th, tr.selected td { color: var(--green); font-weight: 650; }
-.decision-votes th:first-child { color: var(--ink); font-size: 12px; }
-.decision-votes td:last-child { font-weight: 600; }
+.ballot-table th:first-child { color: var(--ink); font-size: 12px; line-height: 1.6; min-width: 210px; }
+.ballot-table td:last-child { font-weight: 600; vertical-align: top; }
 .comparison-section { margin-top: 28px; }
-.comparison-section > p, .decision-votes > p { margin-top: 9px; }
+.comparison-section > p, .ballot-tallies > p { margin-top: 9px; }
 .comparison-section h3 { margin-bottom: 8px; }
 #score-help { margin-top: 12px; }
 
@@ -290,10 +289,11 @@ tr.selected th, tr.selected td { color: var(--green); font-weight: 650; }
   button, a { transition: color .15s, background-color .15s, border-color .15s; }
 }
 
-/* Treaty ratification is an outcome, not an input switch. */
-.treaty-result { margin: 18px 0 28px; padding-block: 18px; border-block: 1px solid var(--line); }
-.treaty-verdict { margin-top: 8px; font-size: 18px; font-weight: 600; color: var(--green); }
-.treaty-result > .small-copy, .treaty-result details p + p { margin-top: 9px; }
-.treaty-result details { margin-top: 4px; }
+/* The whole-package result precedes its six policy terms. */
+.ballot-result { margin: 0 0 22px; }
+.ballot-result h2 { font-size: clamp(28px, 3vw, 39px); line-height: 1.15; letter-spacing: -.6px; }
+.ballot-result > p { margin-top: 10px; font-size: 14px; }
+.ballot-result > .small-copy { font-size: 12px; }
+.ballot-table { margin-top: 12px; }
 
 #growth-summary { margin-top: 10px; }

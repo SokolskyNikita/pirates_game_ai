@@ -4,7 +4,7 @@
 
 A game-theory simulation of automation and majority voting at [ai-pirates-game.com](https://ai-pirates-game.com/), by [Nikita Sokolsky](https://sokolsky.me).
 
-When AI makes jobs obsolete, which job protections, benefits and taxes would perfectly rational, self-interested voters choose? This model compares separate majority votes on those decisions. It includes a US-only scenario and a scenario with international AI competition.
+When AI makes jobs obsolete, which job protections, benefits and taxes would perfectly rational, self-interested voters choose? This model puts every complete policy package on one ballot, including AI deployment pace. It includes a US-only scenario and a scenario with international AI competition.
 
 The players are idealized: they understand all modeled consequences and maximize only their own objective. Each US voter maximizes expected household-income utility over ten years, with no separate concern for anyone else’s welfare. The results describe hypothetical outcomes under these assumptions; they are not policy recommendations or predictions of real elections.
 
@@ -17,7 +17,7 @@ npm ci
 npm run dev
 ```
 
-Astro prints the local address. All simulation calculations run in a browser background worker, so changing a control can cancel an unfinished calculation. No account, database, API key or environment file is required.
+Astro prints the local address. Eight common scenarios are calculated at build time and loaded as exact matches. Other inputs run in a cancellable browser background worker. No account, database, API key or environment file is required.
 
 ## Validate and build
 
@@ -40,35 +40,34 @@ See [the data definitions and reproduction instructions](docs/us-electorate-data
 
 ## What the model decides
 
-Without a treaty, five separate majority ballots choose:
+One ballot contains all 6,480 combinations of six policy terms:
 
-1. Allow layoffs or require employers to retain obsolete roles at 50%, 100% or 125% of prior wages.
-2. Set the modeled benefit budget to 0%, 50%, 100%, 150% or 200% of its 2025 reference.
-3. Preserve the current recipient mix, pay equally to every adult, or pay in proportion to pre-AI disposable household income.
-4. Change the tax benchmark on work, pensions and other non-investment income.
-5. Change the tax benchmark on investment income.
+1. Pause AI, allow current AI pace, or accelerate AI.
+2. Allow layoffs or require employers to retain obsolete roles at 50%, 100% or 125% of prior wages.
+3. Set the modeled benefit budget to 0%, 50%, 100%, 150% or 200% of its 2025 reference.
+4. Preserve the current recipient mix, pay equally to every adult, or pay in proportion to pre-AI disposable household income.
+5. Change the tax benchmark on work, pensions and other non-investment income.
+6. Change the tax benchmark on investment income.
 
 Tax choices include reductions, the current reference, increases and the 0%/100% endpoints. Each group's tax profile changes toward those endpoints; the page distinguishes the selected benchmark from the resulting average rate after incomes change. References are model allocations of Census-estimated federal/state income taxes and payroll contributions, including self-employment contributions. They are not statutory rates or all US taxes. Negative net tax amounts are represented as benefit payments without double counting.
 
 The benefit reference includes cash benefits, valued food/housing/energy assistance and those net tax refunds. Medicare and Medicaid coverage is shown descriptively but is not converted into cash. The flat and prior-income formulas redesign the entire modeled benefit allocation. Keeping the same total budget does not keep every person's benefit unchanged. The current mix freezes observed recipient shares; it does not simulate each program's future eligibility rules.
 
-Employer retention is paid from capital resources and creates no extra production. Taxes must fund the fixed reference commitment to other public spending. Policies that cannot fund it are excluded from majority selection. Promised retention or welfare above the remaining budget is shown as a shortfall; voters compare actual payments. Extra tax receipts become non-transfer public spending, not an unrequested dividend.
+Employer retention is paid from capital resources and creates no extra production. A package is eligible only when employers can pay promised retained wages and taxes can pay all promised benefits plus the fixed commitment to other public spending in every year. Later surpluses cannot finance earlier deficits; borrowing is not modeled. Eligibility is checked after behavioral responses. Underfunded packages cannot receive votes. Current policy remains the automatic fallback if no eligible package wins a majority, even if it becomes underfunded; the result then shows the shortfall. Extra tax receipts become non-transfer public spending, not an unrequested dividend.
 
 ## Voting and international competition
 
-A change passes only when **more than half** of the weighted population strictly prefers it. Voters compare ten years of their own expected household-income utility, discounted at 3%, with a logarithm and a small offset at zero income. Displacement risk is assumed equal across labor-income groups. The model computes expected utility across work/no-work states, not utility of average income.
+Every citizen selects the fully funded package with the greatest ten-year expected household-income utility. The package with the most votes passes only if **more than half** the population chooses it; otherwise the exact current-tax/current-benefit package with current AI pace remains. There is one vote, with no runoff. Utility uses a 3% discount rate, a logarithm and a small offset at zero income. Displacement risk is equal across labor-income groups. The model computes expected utility across work/no-work states, not utility of average income.
 
-The solver searches from several starting policies. A reported stable result is then checked against every single-decision US amendment. Stability does not mean everyone prefers the outcome or that it beats every joint package. Failure to find a verified result does not prove that no equilibrium exists.
+Exact personal-utility ties prefer current policy when eligible, then a fixed policy-ID order. This is a specified favorite-package ballot rule. Perfect rationality alone does not uniquely select sincere voting over tactical coordination. A majority failure can result from votes splitting across similar packages.
 
-In international mode the rest of the world is one actor choosing its own complete policy and deployment pace. Its objective is worker-household income, population-weighted income utility, or modeled output. Verification checks its full policy menu at the selected US policy. The foreign economy uses the US household structure as an explicit simplifying assumption; its GDP size, trade exposure and frontier capability differ.
+In international mode the rest of the world is one actor choosing its own complete funded package. Its objective is worker-household income, population-weighted income utility, or modeled output. Both sides take the other's choice as known. A reported consistent pair passes a complete US ballot at the foreign choice and a full foreign best-response check at the **enacted** US policy, including its status-quo fallback. There is no treaty stage or second vote. Chosen policies remain in place for ten years, including a mutual pause.
 
-Treaty negotiation runs automatically in international mode after a verified outcome without an agreement. The foreign actor makes one offer and US citizens vote on the whole package. It is signed only if more than 50% strictly prefer it and the foreign objective strictly improves relative to that fallback. Ties keep the outcome without a treaty. The foreign actor selects its highest-scoring ratifiable offer, breaking equal scores by US support then fixed menu order. This proposal rule determines bargaining power; it is a modeling assumption, not a consequence of rationality alone.
+The search starts from current fiscal policy with each of the three foreign AI paces and follows at most eight response steps per start. These are computational search steps, not repeated elections. Ballots and foreign responses are cached by the other side's policy. Only verified pairs are labeled consistent; an unsuccessful search is explicitly unverified and does not prove no pair exists. If several pairs are found, the first verified pair in the fixed search order is displayed and the count is reported. The search does not enumerate every equilibrium.
 
-The treaty menu contains every common policy package, every package for either side with the other side's fallback policy unchanged, and all pairs of single-decision changes from the fallback. Both AI deployment targets are negotiable. Every offer in this finite menu is checked, but it does not contain all asymmetric combinations of two policy packages. A failure to find an agreement does not establish that none exists outside this menu. Without a verified fallback, treaty negotiation is marked unevaluated.
+The foreign economy uses the US household structure as a simplifying assumption; its GDP size, trade exposure and frontier capability differ. It must fund its own commitments without cross-border payments.
 
-Treaties bind both sides for ten years, with no withdrawal, renegotiation or cross-border side payments. They create no resources themselves. The displayed policies, income chart and accounting use the signed agreement when there is one. Separate US ballots and foreign unilateral deviations describe only the fallback; individual treaty terms need not survive those tests. See [Wolitzky's bargaining lecture, pages 15–17](https://ocw.mit.edu/courses/14-15-networks-spring-2022/mit14_15s22_lec18.pdf#page=15) for the role of proposal rules in a take-it-or-leave-it bargaining game. The majority referendum and finite policy menu are this simulator's assumptions.
-
-Deployment targets are year-ten endpoints. Taxes and employer retention costs can delay deployment along the way, and still reduce productive capacity, but do not silently lower the selected endpoint. With full deployment, 100% obsolescence and zero return to work, every worker is affected by year ten. Limited deployment or a treaty that chooses a lower target can leave productive roles; imported AI can add exposure. The chart reports the affected share and omits income for work states with no remaining workers. Its all-adult average includes people without labor income.
+A pause prevents AI exposure and job replacement for the whole decade, including imported AI. Foreign competition can still change rents and income. Current pace completes domestic deployment in year ten; acceleration compresses that deployment curve into five years. Imported exposure also depends on the other side's AI availability. Policy burdens can delay rollout within the chosen schedule and reduce productive capacity, but cannot silently lower the domestic endpoint. The rollout-delay burden is measured against a common ten-year reference so the pace choice changes timing consistently. With full exposure, 100% obsolescence and no return to work, every worker is affected. Retained employees still count as having obsolete roles. The chart omits income for states with no remaining workers.
 
 The GDP controls set **annual real growth at full AI exposure**, defaulting to 5% separately for the US and foreign economy. The potential index compounds by `1 + growthRate × AIExposure` each year. Under the ten-year rollout, 5% is reached at full exposure; it is not a one-off 5% output gain or ten years of immediate full-adoption growth. A no-AI baseline stays flat. Capacity and work-incentive responses can change realized growth, which is shown in the result.
 
@@ -78,15 +77,23 @@ International size and trade references use 2025 World Bank and BEA data. Invest
 
 This is a finite policy model, not a calibrated general-equilibrium forecast. Its dollar amounts describe household resources, which include pension withdrawals and capital gains; its output index is not observed GDP. It does not solve prices, debt, firm investment decisions, repeated elections, or the value of individual public services.
 
-The page includes expandable equations, accounting, comparisons and survey definitions. Calculations run in a cancellable background worker. Scenarios and results can be shared or downloaded. See the [earlier calculator audit](docs/calculator-audit.md) for the previous version's changes.
+The page includes expandable equations, accounting, comparisons and survey definitions. Common scenarios load precomputed data; other calculations run in a cancellable background worker. Scenarios and results can be shared or downloaded. See the [earlier calculator audit](docs/calculator-audit.md) for the previous version's changes.
+
+## Precomputation coverage
+
+`npm run build` generates eight exact scenario assets: defaults and 100% obsolete roles / zero return to work / 50% employer gain, each in US-only mode and the three international objectives. Their manifest includes a checksum of model sources and population data. The loader rejects stale versions and mismatched assumptions; typed utility arrays are restored for manual comparisons. Generated assets are not committed, and are regenerated for deployment.
+
+Other slider combinations still calculate in the browser. This is **not exhaustive precomputation** of all possible assumptions. Controls use discrete 5-percentage-point increments (GDP size in 0.25 increments), while retaining exact calibrated references and legacy URL values. The policy grid is already coarser than five points on most axes. See [the feasibility and coverage notes](docs/precomputation-options.md) for why a fully precomputed interface would need a smaller declared assumption grid.
 
 ## Source layout
 
 - `src/pages/index.astro`: interface, explanations and citations.
 - `src/components/economy/pirates-game.ts`: browser controls, charts and results.
 - `src/lib/economy/pirates-model.ts`: economic outcomes and resource accounting.
-- `src/lib/economy/pirates-voting.ts`: individual preferences and majority voting.
-- `src/lib/economy/pirates-treaty.ts`: binding offers, majority ratification and foreign acceptance.
+- `src/lib/economy/package-ballot.ts`: one personal choice per citizen, full-funding eligibility and majority fallback.
+- `src/lib/economy/package-election.ts`: full US ballots and verified international responses.
+- `src/lib/economy/pirates-voting.ts` and `pirates-treaty.ts`: historical solvers retained for comparison; the live simulator uses only the former’s pairwise preference helper for manual comparisons.
+- `scripts/build-precomputed.mjs` and `src/lib/economy/precomputed.ts`: versioned exact-match scenario generation and loading.
 - `src/lib/economy/simulation.ts` and `simulation.worker.ts`: compact results and cancellable background calculation.
 - `src/lib/economy/us-electorate.ts` and `us-electorate-data.json`: weighted survey groups and reference statistics.
 - `scripts/build-us-electorate.py`: reproducible Census microdata aggregation.

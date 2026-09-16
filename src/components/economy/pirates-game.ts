@@ -1,10 +1,11 @@
-import { countVotes, VOTING_NOTES } from '../../lib/economy/pirates-voting';
+import { countVotes } from '../../lib/economy/pirates-voting';
 import {
-  DEFAULT_INPUTS, INPUT_SPECS, MODEL_NOTES, EQUILIBRIUM_TOLERANCE,
+  DEFAULT_INPUTS, INPUT_SPECS, MODEL_NOTES,
   normalizeInputs, POLICIES, evaluateProfile, CALIBRATION,
   type ModelInputs, type ModelMode, type Objective, type Policy, type ProfileOutcome, type RegionYear,
 } from '../../lib/economy/pirates-model';
 import { US_COHORTS, US_ELECTORATE } from '../../lib/economy/us-electorate';
+import { loadPrecomputedScenario } from '../../lib/economy/precomputed';
 import type { ScenarioSnapshot, ScenarioResponse, ScenarioRequest } from '../../lib/economy/simulation';
 
 const el = <T extends HTMLElement = HTMLElement>(id: string) => {
@@ -18,7 +19,7 @@ const change = (index: number) => (index >= 100 ? '+' : '−') + Math.abs(index 
 const last = (profile: ProfileOutcome) => profile.us[profile.us.length - 1]!;
 const foreignKeys = new Set<string>(['foreignGdpGrowth', 'capitalMobility', 'foreignStrength', 'tradeIntensity', 'foreignTradeIntensity', 'foreignMarketSize', 'foreignPopulationRatio']);
 const visibleInputSpecs = INPUT_SPECS.filter(spec => spec.key !== 'foreignPopulationRatio');
-const calibratedKeys = new Set<string>(['foreignMarketSize', 'tradeIntensity', 'foreignTradeIntensity']);
+const sliderValues = new Map<keyof ModelInputs, number[]>();
 const structuralKeys = new Set<string>(['investmentResponse']);
 const objectiveLabels: Record<Objective, string> = { workers: 'Workers’ incomes', prosperity: 'Overall prosperity', output: 'Total economic output' };
 const objectiveHelp: Record<Objective, string> = {
@@ -29,11 +30,11 @@ const objectiveHelp: Record<Objective, string> = {
 let inputs = { ...DEFAULT_INPUTS };
 let mode: ModelMode = 'us-only';
 let foreignObjective: Objective = 'prosperity';
-let pace = 1;
 let snapshot: ScenarioSnapshot | undefined;
 let manual: ProfileOutcome | undefined;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let computation: Worker | undefined;
+let preload: AbortController | undefined;
 let revision = 0;
 let pending = true;
 
@@ -55,18 +56,15 @@ function readURL() {
   mode = query.get('world') === 'strategic' ? 'strategic' : 'us-only';
   const foreign = query.get('foreignObjective');
   foreignObjective = foreign === 'workers' || foreign === 'output' ? foreign : 'prosperity';
-  const rollout = query.get('rollout');
-  pace = ['0', '0.33', '0.67', '1'].includes(rollout ?? '') ? Number(rollout) : 1;
 }
 
 function scenarioURL() {
   const url = new URL(location.href);
   url.search = '';
   url.hash = 'simulator';
-  url.searchParams.set('v', '8');
+  url.searchParams.set('v', '9');
   url.searchParams.set('world', mode);
   if (mode === 'strategic') url.searchParams.set('foreignObjective', foreignObjective);
-  url.searchParams.set('rollout', String(pace));
   // Include the numerical inputs so a shared scenario survives future default revisions.
   for (const spec of INPUT_SPECS) url.searchParams.set(spec.key, String(inputs[spec.key]));
   return url;
@@ -77,10 +75,10 @@ function buildInputs() {
     const target = foreignKeys.has(spec.key) ? 'international-inputs' : structuralKeys.has(spec.key) ? 'structural-inputs' : 'domestic-inputs';
     const node = document.createElement('div');
     node.className = 'input-control';
-    node.innerHTML = '<label class="input-label" for="input-' + spec.key + '"><span>' + spec.label + '</span><output id="value-' + spec.key + '" for="input-' + spec.key + '"></output></label><input id="input-' + spec.key + '" name="' + spec.key + '" type="range" min="' + spec.min + '" max="' + spec.max + '" step="' + (calibratedKeys.has(spec.key) ? 'any' : spec.step) + '" aria-describedby="help-' + spec.key + '" /><p id="help-' + spec.key + '">' + spec.description + '</p>';
+    node.innerHTML = '<label class="input-label" for="input-' + spec.key + '"><span>' + spec.label + '</span><output id="value-' + spec.key + '" for="input-' + spec.key + '"></output></label><input id="input-' + spec.key + '" name="' + spec.key + '" type="range" min="0" max="1" step="1" aria-describedby="help-' + spec.key + '" /><p id="help-' + spec.key + '">' + spec.description + '</p>';
     el(target).append(node);
     el<HTMLInputElement>('input-' + spec.key).addEventListener('input', event => {
-      inputs[spec.key] = Number((event.target as HTMLInputElement).value);
+      inputs[spec.key] = sliderValues.get(spec.key)![Number((event.target as HTMLInputElement).value)]!;
       updateInputLabel(spec.key);
       updateElectorate();
       updateCalibration();
@@ -107,7 +105,7 @@ function updateInputLabel(key: keyof ModelInputs) {
 }
 
 function updateElectorate() {
-  el('electorate-description').textContent = 'Every adult US citizen has an equal vote. A change needs more than 50%; income never determines voting weight.';
+  el('electorate-description').textContent = 'Every adult US citizen casts one vote for their preferred complete package. More than 50% must choose the same package for it to pass; otherwise current policy remains.';
 }
 
 function updateCalibration() {
@@ -119,11 +117,17 @@ function updateCalibration() {
 function syncInputs() {
   updateElectorate();
   for (const spec of visibleInputSpecs) {
-    el<HTMLInputElement>('input-' + spec.key).value = String(inputs[spec.key]);
+    const step = spec.key === 'foreignMarketSize' ? .25 : .05;
+    const values = [spec.min, spec.max, DEFAULT_INPUTS[spec.key], inputs[spec.key]];
+    for (let value = Math.ceil(spec.min / step) * step; value <= spec.max + 1e-9; value += step) values.push(Number(value.toFixed(8)));
+    const choices = [...new Set(values)].sort((a, b) => a - b);
+    sliderValues.set(spec.key, choices);
+    const slider = el<HTMLInputElement>('input-' + spec.key);
+    slider.max = String(choices.length - 1);
+    slider.value = String(choices.indexOf(inputs[spec.key]));
     updateInputLabel(spec.key);
   }
   document.querySelectorAll<HTMLInputElement>('input[name="world"]').forEach(radio => { radio.checked = radio.value === mode; });
-  el<HTMLSelectElement>('rollout').value = String(pace);
   el<HTMLSelectElement>('foreign-objective').value = foreignObjective;
   el('foreign-objective-help').textContent = objectiveHelp[foreignObjective];
   el('foreign-inputs').hidden = mode !== 'strategic';
@@ -163,18 +167,48 @@ function scheduleSolve() {
   revision++;
   if (timer) clearTimeout(timer);
   // Cancelling work also prevents an old, slower request from replacing a newer result.
+  preload?.abort();
   computation?.terminate();
   computation = undefined;
   setBusy(true);
   el('solve-status').textContent = 'Calculating…';
   el('computation-message').textContent = snapshot
     ? 'Recalculating. The previous result stays visible until the new one is ready.'
-    : mode === 'strategic' ? 'Calculating the outcome without a treaty, then checking treaty offers…' : 'Comparing policy choices…';
+    : mode === 'strategic' ? 'Comparing funded packages and checking both sides’ choices…' : 'Comparing fully funded packages and counting one vote per citizen…';
   const id = revision;
   timer = setTimeout(() => run(id), 180);
 }
 
-function run(id: number) {
+function acceptSnapshot(result: ScenarioSnapshot, precomputed: boolean) {
+  snapshot = result;
+  manual = undefined;
+  setBusy(false);
+  el('computation-message').textContent = '';
+  el('manual-result').textContent = '';
+  el('action-status').textContent = '';
+  try {
+    render();
+    el('solve-status').title = precomputed ? 'Precomputed for these exact assumptions.' : 'Calculated in your browser for these assumptions.';
+    const url = scenarioURL();
+    url.hash = location.hash;
+    history.replaceState(null, '', url);
+  } catch (error) { failCalculation(String(error), true); }
+}
+
+async function run(id: number) {
+  const request: ScenarioRequest = { id, inputs: { ...inputs }, mode, foreignObjective };
+  const controller = new AbortController();
+  preload = controller;
+  try {
+    const precomputed = await loadPrecomputedScenario(request, controller.signal);
+    if (id !== revision || controller.signal.aborted) return;
+    preload = undefined;
+    if (precomputed) { acceptSnapshot(precomputed, true); return; }
+  } catch {
+    if (id !== revision || controller.signal.aborted) return;
+    preload = undefined;
+    // A missing or unavailable static result never prevents a fresh calculation.
+  }
   try {
     const worker = new Worker(new URL('../../lib/economy/simulation.worker.ts', import.meta.url), { type: 'module' });
     computation = worker;
@@ -184,18 +218,7 @@ function run(id: number) {
       computation = undefined;
       if (event.data.error) { failCalculation(event.data.error); return; }
       if (!event.data.snapshot) { failCalculation('Missing calculation result.'); return; }
-      snapshot = event.data.snapshot;
-      manual = undefined;
-      setBusy(false);
-      el('computation-message').textContent = '';
-      el('manual-result').textContent = '';
-      el('action-status').textContent = '';
-      try {
-        render();
-        const url = scenarioURL();
-        url.hash = location.hash;
-        history.replaceState(null, '', url);
-      } catch (error) { failCalculation(String(error), true); }
+      acceptSnapshot(event.data.snapshot, false);
     };
     worker.onerror = event => {
       if (id !== revision) return;
@@ -203,7 +226,6 @@ function run(id: number) {
       computation = undefined;
       failCalculation(event.message);
     };
-    const request: ScenarioRequest = { id, inputs: { ...inputs }, mode, foreignObjective, pace };
     worker.postMessage(request);
   } catch (error) { failCalculation(String(error)); }
 }
@@ -211,9 +233,10 @@ function run(id: number) {
 const replacementName = (r: number) => r === 0 ? 'Allow layoffs' : 'Retain at ' + pct(r) + ' of prior wages';
 const dollars = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
 const voteShare = (value: number) => value.toFixed(2) + '%';
-const policyAxes = ['replacement', 'welfareScale', 'benefitFormula', 'laborTax', 'capitalTax'] as const;
+const paceName = (value: number) => value === 0 ? 'Pause AI' : value === 2 ? 'Accelerate AI' : 'Allow current AI pace';
+const policyAxes = ['pace', 'replacement', 'welfareScale', 'benefitFormula', 'laborTax', 'capitalTax'] as const;
 type PolicyAxis = typeof policyAxes[number];
-const axisLabels: Record<PolicyAxis, string> = { replacement: 'Employer retention', welfareScale: 'Government redistribution', benefitFormula: 'Who receives the benefits', laborTax: 'Tax on work and pension income', capitalTax: 'Tax on investment income' };
+const axisLabels: Record<PolicyAxis, string> = { pace: 'AI pace', replacement: 'Employer retention', welfareScale: 'Government redistribution', benefitFormula: 'Who receives the benefits', laborTax: 'Tax on work and pension income', capitalTax: 'Tax on investment income' };
 const formulaNames: Record<Policy['benefitFormula'], string> = { current: 'Keep the current recipient mix', flat: 'Equal payment to every adult', 'prior-income': 'Payments proportional to prior income' };
 function changeFromReference(rate: number, reference: number) {
   const difference = (rate - reference) * 100;
@@ -223,6 +246,7 @@ function welfareName(scale: number) {
   return scale === 1 ? 'Keep the current total budget' : scale === 0 ? 'End the modeled benefit payments' : (scale < 1 ? 'Reduce' : 'Increase') + ' the total budget by ' + pct(Math.abs(scale - 1));
 }
 function axisValue(axis: PolicyAxis, policy: Policy) {
+  if (axis === 'pace') return paceName(policy.pace);
   if (axis === 'replacement') return replacementName(policy.replacement);
   if (axis === 'welfareScale') return welfareName(policy.welfareScale);
   if (axis === 'benefitFormula') return formulaNames[policy.benefitFormula];
@@ -230,7 +254,7 @@ function axisValue(axis: PolicyAxis, policy: Policy) {
   return pct(policy[axis]) + ' benchmark (' + changeFromReference(policy[axis], reference) + ')';
 }
 function policyDescription(policy: Policy) {
-  return replacementName(policy.replacement) + '; benefit budget target ' + pct(policy.welfareScale) + ' of the reference budget; ' + formulaNames[policy.benefitFormula].toLowerCase() + '; work/pension tax benchmark ' + pct(policy.laborTax) + ', investment tax ' + pct(policy.capitalTax) + '; ' + pct(policy.pace) + ' AI deployment target.';
+  return paceName(policy.pace) + '; ' + replacementName(policy.replacement) + '; benefit budget target ' + pct(policy.welfareScale) + ' of the reference budget; ' + formulaNames[policy.benefitFormula].toLowerCase() + '; work/pension tax benchmark ' + pct(policy.laborTax) + ', investment tax ' + pct(policy.capitalTax) + '.';
 }
 function paymentRange(profile: ProfileOutcome) {
   const affected = profile.us.filter(y => y.year > 0 && y.unemployment > 1e-9);
@@ -242,106 +266,76 @@ function paymentRange(profile: ProfileOutcome) {
 function votesFor(challenger: ProfileOutcome, incumbent: ProfileOutcome) {
   return countVotes(challenger.usUtilities, incumbent.usUtilities);
 }
-function axisAlternatives(axis: PolicyAxis) {
-  const current = snapshot!.selected.usPolicy;
-  return snapshot!.alternatives.filter(({ usPolicy: candidate, usAdmissible }) => usAdmissible && candidate[axis] !== current[axis]
-    && policyAxes.every(key => key === axis || candidate[key] === current[key]));
-}
-function strongestChallenge(candidates: ProfileOutcome[]) {
-  let profile: ProfileOutcome | undefined, votes = 0;
-  for (const candidate of candidates) {
-    const count = votesFor(candidate, snapshot!.selected);
-    if (!profile || count > votes) { profile = candidate; votes = count; }
-  }
-  return { profile, votes };
-}
-
-function activeProfile(): ProfileOutcome {
-  const current = snapshot!;
-  return current.treaty?.status === 'signed' ? current.treaty.proposal! : current.selected;
-}
-function treatySigned() { return snapshot?.treaty?.status === 'signed'; }
+function activeProfile(): ProfileOutcome { return snapshot!.selected; }
 
 function render() {
   const current = snapshot!;
   const active = activeProfile();
   const p = active.usPolicy;
   const end = last(active);
-  const stable = current.selection === 'verified-stable';
-  el('result-label').textContent = treatySigned() ? 'Simulated outcome: treaty signed' : stable ? 'Simulated outcome: majority-stable policy' : 'No verified stable outcome found';
-  el('solve-status').textContent = current.treaty && current.treaty.status !== 'not-evaluated' ? current.treaty.evaluatedOfferCount.toLocaleString() + ' treaty offers checked' : current.policyCount.toLocaleString() + ' US policy choices';
-  renderTreaty();
+  const ballot = current.ballot;
+  const verified = current.selection !== 'search-incomplete';
+  el('result-label').textContent = verified ? 'The simulated one-ballot outcome' : 'Unverified international outcome';
+  el('solve-status').textContent = ballot.eligibleCandidateCount.toLocaleString() + ' funded packages';
+  const passed = ballot.winnerId !== null;
+  el('ballot-verdict').textContent = !ballot.leadingPolicyId ? 'No funded package. Current policy remains.'
+    : passed ? ballot.statusQuoReason === 'status-quo-majority' ? 'A majority chooses current policy.' : 'A majority chooses one complete package.'
+    : 'No package wins a majority. Current policy remains.';
+  el('ballot-support').textContent = ballot.leadingPolicyId
+    ? 'The leading package receives ' + voteShare(ballot.topSupportPercent) + ' of all votes. ' + (passed ? 'It passes the required majority.' : 'It needs more than 50% to pass; there is no second vote.')
+    : 'No package can fund every promise in every year under these assumptions.';
+  el('ballot-leading').hidden = passed || !current.leading;
+  el('ballot-leading').textContent = current.leading && !passed ? 'Leading package: ' + policyDescription(current.leading.usPolicy) : '';
+  el('decision-votes-note').textContent = (verified ? '' : 'The two sides’ choices are not yet verified as mutually consistent. ') + 'These six terms belong to ' + (passed ? 'the winning package' : 'the current-policy fallback') + ' and remain in place for ten years. Each voter chooses one fully funded package that maximizes their own expected income utility.';
   const baselineBenefits = end.baselineBenefits;
   const referenceIncome = US_COHORTS.reduce((sum, cohort) => sum + cohort.weight * cohort.disposableIncome, 0);
   const details: Record<PolicyAxis, string> = {
+    pace: p.pace === 0 ? 'No new AI deployment or AI job replacement for ten years. Existing jobs remain productive, including when the other economy deploys AI.' : p.pace === 2 ? 'AI replacement runs twice as fast. Full domestic deployment and its full annual growth potential arrive by year five.' : 'AI replacement proceeds over ten years. Full domestic deployment and its full annual growth potential arrive by year ten.',
     replacement: p.replacement ? 'Employers fund the retained wages. This is a gross wage target; the modeled take-home payment is ' + paymentRange(active) + ' of prior wages after tax.' : 'Employers may dismiss workers whose roles become obsolete. Government benefits are shown below.',
-    welfareScale: 'Reference: ' + dollars(baselineBenefits) + ' per adult per year, averaged across the population. Target: ' + dollars(end.benefitsRequired) + '. Actually funded in year ten: ' + dollars(end.benefitsPaid) + ' (' + pct(end.benefitsScalePaid) + ' of the reference). The same total budget does not preserve each person’s payment.' + (p.welfareScale === 2 ? ' This is the highest budget tested.' : ''),
+    welfareScale: 'Reference: ' + dollars(baselineBenefits) + ' per adult per year, averaged across the population. Target: ' + dollars(end.benefitsRequired) + '. Funded in year ten: ' + dollars(end.benefitsPaid) + ' (' + pct(end.benefitsScalePaid) + ' of the reference). The same total budget does not preserve each person’s payment.' + (p.welfareScale === 2 ? ' This is the highest budget tested.' : ''),
     benefitFormula: p.benefitFormula === 'current' ? 'Keep the survey’s relative allocation of cash benefits and consumption support. Recipients’ shares stay fixed as jobs change; this does not simulate future eligibility under every US program.' : p.benefitFormula === 'flat' ? 'Divide the funded budget equally among all adults, including workers, retirees and investors. This replaces the modeled Social Security and assistance payment pattern.' : 'Divide the same budget in proportion to each adult’s pre-AI disposable household income. Higher prior income means a larger payment. This uses prior-year income, not lifetime earnings.',
     laborTax: 'Selected benchmark: ' + pct(p.laborTax) + ', ' + changeFromReference(p.laborTax, CALIBRATION.laborTaxRate) + ' of ' + pct(CALIBRATION.laborTaxRate) + '. Actual year-ten average: ' + pct(end.effectiveLaborTax) + '. Covers earnings, pensions and other non-investment income; it preserves income differences in the reference tax profile.',
     capitalTax: 'Selected benchmark: ' + pct(p.capitalTax) + ', ' + changeFromReference(p.capitalTax, CALIBRATION.capitalTaxRate) + ' of ' + pct(CALIBRATION.capitalTaxRate) + '. Actual year-ten average: ' + pct(end.effectiveCapitalTax) + '. Applies to investment income even when its recipient also works.',
   };
   el('policy-decisions').innerHTML = policyAxes.map((axis, index) => {
-    const challenge = strongestChallenge(axisAlternatives(axis));
     let headline = axisValue(axis, p);
     if (axis === 'laborTax' || axis === 'capitalTax') {
       const reference = axis === 'laborTax' ? CALIBRATION.laborTaxRate : CALIBRATION.capitalTaxRate;
       headline = (Math.abs(p[axis] - reference) < 1e-7 ? 'Keep the tax benchmark at ' : (p[axis] < reference ? 'Reduce' : 'Increase') + ' the tax benchmark to ') + pct(p[axis]) + '.';
     }
-    const ballot = 'Strongest eligible alternative: ' + (challenge.profile ? axisValue(axis, challenge.profile.usPolicy) + '. ' + voteShare(challenge.votes) + ' prefer that change' : 'none') + (challenge.votes > 50 + EQUILIBRIUM_TOLERANCE ? ' — enough to pass.' : '; a change needs more than 50%.');
-    const kind = axis === 'replacement' ? 'employment-decision' : axis.endsWith('Tax') ? 'tax-decision' : 'government-decision';
-    return '<section class="policy-decision ' + kind + '"><p class="eyebrow">' + (index + 1) + ' · ' + axisLabels[axis] + '</p><div class="decision-answer"><h2>' + headline + '</h2><p>' + details[axis] + '</p>' + (treatySigned() ? '' : '<p class="decision-ballot">' + ballot + '</p>') + '</div></section>';
+    const kind = axis === 'replacement' || axis === 'pace' ? 'employment-decision' : axis.endsWith('Tax') ? 'tax-decision' : 'government-decision';
+    return '<section class="policy-decision ' + kind + '"><p class="eyebrow">' + (index + 1) + ' · ' + axisLabels[axis] + '</p><div class="decision-answer"><h2>' + headline + '</h2><p>' + details[axis] + '</p></div></section>';
   }).join('');
-  el('decision-votes-note').textContent = treatySigned()
-    ? voteShare(current.treaty!.support) + ' of US citizens prefer this entire agreement to the outcome without a treaty. These are the US terms of the binding ten-year package. US deployment target: ' + pct(p.pace) + '; without the treaty: ' + pct(current.pace) + '.'
-    : stable
-    ? 'No change to any one of these five decisions wins more than half the weighted vote while the others' + (current.mode === 'strategic' ? ' and the foreign policy' : '') + ' stay fixed. This does not mean a majority ranks the whole package first.'
-    : 'This is an unverified candidate. The search did not settle on a policy that survives every separate ballot and foreign response; it has not proved that no equilibrium exists.';
   el('policy-strip').innerHTML = [
     [paymentRange(active), 'Employer pay after tax / prior wages'],
     [pct(end.benefitsScalePaid), 'Funded benefits / current total budget'],
     [change(100 * end.consumption / referenceIncome), 'Average adult take-home income in year ten'],
   ].map(([value, label]) => '<div class="policy-item"><strong>' + value + '</strong><span>' + label + '</span></div>').join('');
-  el('manual-help').textContent = treatySigned() ? 'Explore another US policy while holding the treaty’s deployment target and foreign terms fixed. This is a counterfactual comparison; it does not amend the binding agreement.' : 'Choose job retention, the benefit budget, the benefit formula and both tax rates. US deployment and foreign policy stay fixed.';
+  el('manual-help').textContent = 'Compare another complete US package, including its AI pace. The displayed foreign policy stays fixed. This comparison does not add a second vote.';
   el('policy-meaning').textContent = 'Benefits include modeled cash payments and consumption support. Health insurance is not counted as cash. Year-ten US AI adoption: ' + pct(end.adoption) + '; productive capacity: ' + pct(end.capacityFactor) + ' of the starting level.';
   el('growth-summary').textContent = 'Year-ten US GDP growth: ' + pct(end.gdpGrowthRate) + '/year, with ' + pct(end.exposure) + ' AI exposure. The full-AI growth assumption is ' + pct(current.inputs.usGdpGrowth) + '/year; investment and work incentives can change the realized rate.';
   const verdict = el('funding-verdict');
-  const shortfall = active.us.some(point => point.governmentFundingGap > 1e-6 || point.welfareFundingGap > 1e-6 || point.employerFundingGap > 1e-6);
+  const shortfall = !active.usAdmissible;
   verdict.hidden = !shortfall;
   verdict.classList.toggle('shortfall', shortfall);
-  verdict.textContent = shortfall ? 'Some employer or government payments cannot be fully funded. The income figures and votes use actual payments, not the targets. Expand “Follow the money” for the shortfall.' : '';
-  renderDecisionVotes(); renderChart(active.us); renderInternational(); renderComparison(); renderAccounting(); renderVotingDetails();
+  verdict.textContent = shortfall ? 'The automatic current-policy fallback cannot fund all commitments in this scenario. It could not receive votes, but remains because no eligible package won a majority. Income figures use actual payments; “Follow the money” shows the shortfalls.' : '';
+  renderBallot(); renderChart(active.us); renderInternational(); renderComparison(); renderAccounting(); renderVotingDetails();
   for (const axis of policyAxes) el<HTMLSelectElement>('manual-' + axis).value = String(p[axis]);
 }
 
-function renderTreaty() {
-  const treaty = snapshot!.treaty;
-  el('treaty-result').hidden = !treaty;
-  if (!treaty) return;
-  const signed = treaty.status === 'signed';
-  el('treaty-verdict').textContent = signed ? 'Both sides agree. The treaty is signed.' : treaty.status === 'no-agreement' ? 'No treaty in the tested menu.' : 'Treaty decision not verified.';
-  el('treaty-vote').textContent = signed
-    ? voteShare(treaty.support) + ' of US citizens vote for the agreement. The foreign actor also improves its chosen objective. The policies and income chart below include the treaty.'
-    : treaty.status === 'no-agreement'
-    ? 'No tested offer both wins more than 50% of US votes and improves the foreign objective. Both sides keep the policies below.'
-    : 'The solver did not verify the outcome without a treaty, so it has no verified fallback against which to judge agreement.';
-  el('treaty-menu').textContent = treaty.menuDescription + ' Checked ' + treaty.evaluatedOfferCount.toLocaleString() + ' offers; ' + treaty.acceptableOfferCount.toLocaleString() + ' satisfy both acceptance rules.' + (signed ? ' The selected offer maximizes the foreign objective within this menu.' : '') + ' Other bargaining rules or offers can change the outcome.';
-  el('treaty-score').textContent = signed
-    ? 'Foreign objective score: ' + treaty.noTreaty.foreignScore!.toFixed(5) + ' without an agreement → ' + treaty.proposal!.foreignScore!.toFixed(5) + ' with it. ' + (snapshot!.foreignObjective === 'prosperity' ? 'This is average discounted log-income utility.' : 'This is the discounted average change from starting ' + (snapshot!.foreignObjective === 'workers' ? 'worker-household income' : 'output') + ', expressed as a fraction.') + ' Equal foreign scores favor the offer with more US support, then the first in the fixed menu.'
-    : '';
-}
-
-function renderDecisionVotes() {
-  el('decision-votes-heading').textContent = treatySigned() ? 'Separate US ballots without a treaty' : 'Would US voters change a decision?';
-  el('decision-votes-help').textContent = treatySigned() ? 'These votes describe the fallback without an agreement. The treaty itself is accepted as one binding package.' : 'Each row changes one of the five decisions. The others stay fixed. More than 50% of the electorate must prefer the change.';
-  el('decision-votes').innerHTML = policyAxes.map(axis => {
-    const challenger = strongestChallenge(axisAlternatives(axis));
-    return '<tr><th scope="row">' + axisLabels[axis] + '<br /><span class="small-copy">Selected: ' + axisValue(axis, snapshot!.selected.usPolicy) + '</span></th><td>' + (challenger.profile ? axisValue(axis, challenger.profile.usPolicy) : 'No alternative') + '</td><td>' + voteShare(challenger.votes) + '</td></tr>';
-  }).join('');
+function renderBallot() {
+  const current = snapshot!;
+  const support = new Map(current.ballot.tallies.map(row => [row.policyId, row.supportPercent]));
+  el('ballot-table').innerHTML = current.alternatives.map((profile, index) => {
+    const selected = profile.usPolicy.id === current.ballot.enactedPolicyId;
+    return '<tr class="' + (selected ? 'selected' : '') + '"><th scope="row">' + (index + 1) + '. ' + policyDescription(profile.usPolicy) + (selected ? '<br /><strong>Enacted</strong>' : '') + '</th><td>' + voteShare(support.get(profile.usPolicy.id) ?? 0) + '</td></tr>';
+  }).join('') || '<tr><td colspan="2">No fully funded packages.</td></tr>';
+  el('ballot-table-note').textContent = 'Up to eight packages with the most first-choice votes, from ' + current.ballot.eligibleCandidateCount.toLocaleString() + ' eligible packages. ' + current.ballot.unfundedCandidateCount.toLocaleString() + ' cannot fund every promise in every year and are excluded. All combinations in the displayed policy menu are tested.';
 }
 function renderVotingDetails() {
   const current = snapshot!;
-  el('selection-explanation').textContent = (treatySigned() ? 'For the outcome without a treaty, the solver searches' : 'The solver searches') + ' from several starting policies, then verifies the selected candidate against every available change to one US decision' + (current.mode === 'strategic' ? ' and every foreign policy package, including deployment.' : '.') + ' Votes use Census population weights and personal household-income utility. Income is never a voting weight. Indifference retains the existing choice.';
-  el('agenda-order').textContent = (treatySigned() ? 'The treaty uses a separate whole-package vote against that fallback and binds both sides. ' : '') + 'More than half must strictly prefer a change. Search order can choose between stable outcomes; the search does not prove uniqueness or check every international pair. A package that changes several US decisions together may still win. The model does not solve repeated elections or mixed strategies.';
+  el('selection-explanation').textContent = 'There is one vote over complete packages. Each citizen chooses the fully funded package giving their household the highest ten-year income utility, taking the foreign choice as known. A package passes only with more than 50% of the population-weighted vote. Otherwise the exact current-tax, current-benefit policy with current AI pace remains.';
+  el('agenda-order').textContent = 'Exact personal utility ties prefer current policy when eligible, then the first package in a fixed ordering. This specifies how people cast their votes; perfect rationality alone does not select a unique strategic-voting equilibrium. ' + (current.mode === 'strategic' ? 'The search checks whether the foreign actor’s best choice and the US ballot outcome are mutually consistent. ' + current.search.reason + ' ' : '') + 'Policies are chosen once and held for ten years. There is no runoff or later renegotiation.';
 }
 function renderInternational() {
   const current = snapshot!;
@@ -350,32 +344,30 @@ function renderInternational() {
   if (!strategic) return;
   const active = activeProfile();
   const end = active.foreign!.at(-1)!;
-  el('country-policies').innerHTML = '<div class="country-policy"><h4>Rest of the world</h4><p>' + policyDescription(active.foreignPolicy!) + '</p><p>Year ten: income in work-primary households ' + change(end.workerIncomeIndex) + '; output index ' + change(end.output) + ', relative to its own starting economy. Benefits actually funded: ' + pct(end.benefitsScalePaid) + ' of its reference budget.</p></div>';
-  el('equilibrium-explanation').textContent = 'Foreign objective: ' + objectiveLabels[current.foreignObjective].toLowerCase() + '. The foreign actor uses the same household distribution and behavioral rules as the US as a modeling assumption, with separate economic size, trade exposure and frontier capability.';
-  const gain = current.selected.foreignBestResponseGain;
-  el('deviation').classList.toggle('unstable', current.selection !== 'verified-stable');
-  el('international-heading').textContent = treatySigned() ? 'The foreign treaty terms' : 'The foreign response';
-  el('deviation').textContent = treatySigned()
-    ? 'The foreign actor chooses this agreement over the outcome without a treaty. It is its highest-scoring ratifiable offer in the tested menu; compliance with the signed terms is assumed.'
-    : gain <= EQUILIBRIUM_TOLERANCE
-    ? 'No other policy in the full foreign menu improves its objective while the US policy stays fixed.'
-    : 'The foreign actor still has a profitable policy change. This candidate is not an equilibrium.';
+  el('country-policies').innerHTML = '<div class="country-policy"><h4>Rest of the world</h4><p>' + policyDescription(active.foreignPolicy!) + '</p><p>Year ten: income in work-primary households ' + change(end.workerIncomeIndex) + '; output index ' + change(end.output) + ', relative to its own starting economy. Benefits funded: ' + pct(end.benefitsScalePaid) + ' of its reference budget.</p></div>';
+  el('equilibrium-explanation').textContent = 'Foreign objective: ' + objectiveLabels[current.foreignObjective].toLowerCase() + '. Each side knows the other’s chosen policy. Both choices stay in place for ten years, so a mutual pause lasts the full decade. The foreign actor uses the US household distribution and behavioral rules as a modeling assumption, with separate economic size, trade exposure and frontier capability.';
+  const verified = current.selection === 'verified-consistent';
+  el('deviation').classList.toggle('unstable', !verified);
+  el('international-heading').textContent = 'The foreign choice';
+  el('deviation').textContent = verified
+    ? 'The choices are mutually consistent: this foreign package maximizes its objective among fully funded options given the enacted US package, and the US ballot gives the displayed result given this foreign package.'
+    : 'These choices are unverified. ' + current.search.reason + ' A consistent pair may exist outside the search; this result is not a verified equilibrium.';
 }
 function renderComparison() {
   const current = snapshot!;
   const rows: [string, ProfileOutcome][] = [
     ['2025 reference; no new AI', current.baseline],
-    [current.selection === 'verified-stable' ? (current.mode === 'strategic' ? 'Without a treaty' : 'Selected stable policy') : 'Unverified candidate', current.selected],
-    ['Current taxes and benefit mix', current.statusQuo],
+    [current.ballot.winnerId ? 'Enacted majority choice' : 'Enacted current-policy fallback', current.selected],
   ];
-  if (treatySigned()) rows.splice(2, 0, ['Signed treaty', activeProfile()]);
+  if (current.leading && current.leading.usPolicy.id !== current.selected.usPolicy.id) rows.push(['Leading package; no majority', current.leading]);
+  if (current.selected.usPolicy.id !== current.statusQuo.usPolicy.id) rows.push(['Current taxes and benefit mix', current.statusQuo]);
   if (manual) rows.push(['Your policy', manual]);
   const referenceIncome = US_COHORTS.reduce((sum, cohort) => sum + cohort.weight * cohort.disposableIncome, 0);
   el('comparison-table').innerHTML = rows.map(([label, profile]) => {
     const end = last(profile);
     return '<tr class="' + (profile.id === activeProfile().id ? 'selected' : '') + '"><th scope="row">' + label + '</th><td>' + num(100 * end.consumption / referenceIncome) + '</td><td>' + num(end.workerIncomeIndex) + '</td><td>' + num(end.ownerIncomeIndex) + '</td><td>' + num(end.output) + '</td></tr>';
   }).join('');
-  el('score-help').textContent = 'Year-ten indices: each group’s 2025 reference is 100. Household source groups stay fixed. ' + (current.mode === 'strategic' ? 'The treaty can change both sides’ policies and deployment. The current-tax comparison holds US deployment and foreign policy at their values without a treaty. Your policy holds the displayed outcome’s foreign policy and US deployment fixed. ' : 'Comparisons hold US deployment fixed, except for the no-AI reference. ') + 'Output is a modeled resource index, not a GDP forecast.';
+  el('score-help').textContent = 'Year-ten indices: each group’s 2025 reference is 100. Household source groups stay fixed. Complete packages can change AI pace as well as protections, benefits and taxes. ' + (current.mode === 'strategic' ? 'Comparisons hold the foreign choice fixed, except for the no-AI reference. ' : '') + 'Output is a modeled resource index, not a GDP forecast.';
 }
 function renderAccounting() {
   const end = last(activeProfile());
@@ -412,7 +404,7 @@ function renderPopulation() {
 }
 
 function renderMethod() {
-  el('model-method').innerHTML = '<h4>Voting and policy selection</h4>' + VOTING_NOTES.map(note => '<p>' + note + '</p>').join('')
+  el('model-method').innerHTML = '<h4>Voting and policy selection</h4>' + '<p>Each citizen chooses one fully funded complete package maximizing their personal ten-year income utility. Strictly more than half must choose the same package; otherwise current policy remains. Exact ties prefer eligible current policy, then a fixed policy ordering. In international mode, each side’s choice must be consistent with the other’s known choice.</p>'
     + MODEL_NOTES.map(note => '<h4>' + note.title + '</h4><p>' + note.detail + '</p>' + (note.equation ? '<p class="equation">' + note.equation + '</p>' : '')).join('');
 }
 
@@ -431,13 +423,9 @@ el<HTMLSelectElement>('foreign-objective').addEventListener('change', event => {
   el('foreign-objective-help').textContent = objectiveHelp[foreignObjective];
   scheduleSolve();
 });
-el<HTMLSelectElement>('rollout').addEventListener('change', event => {
-  pace = Number((event.target as HTMLSelectElement).value);
-  scheduleSolve();
-});
 el('reset').addEventListener('click', () => {
   inputs = { ...DEFAULT_INPUTS };
-  mode = 'us-only'; foreignObjective = 'prosperity'; pace = 1;
+  mode = 'us-only'; foreignObjective = 'prosperity';
   clearPreset(); syncInputs(); scheduleSolve();
 });
 document.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach(button => button.addEventListener('click', () => {
@@ -445,7 +433,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach(button => 
   if (button.dataset.preset === 'shared') Object.assign(inputs, { usGdpGrowth: .06, foreignGdpGrowth: .06, productivityGain: .1, displacement: .3, reemployment: .5, investmentResponse: .1 });
   if (button.dataset.preset === 'displacement') Object.assign(inputs, { usGdpGrowth: .025, foreignGdpGrowth: .025, productivityGain: .25, displacement: .7, reemployment: .05 });
   if (button.dataset.preset === 'tax-response') {
-    mode = 'us-only'; pace = 1;
+    mode = 'us-only';
     Object.assign(inputs, { investmentResponse: 1, usGdpGrowth: .1, foreignGdpGrowth: .1, productivityGain: .4, displacement: .35 });
   }
   if (button.dataset.preset === 'rivalry') {
@@ -459,11 +447,11 @@ document.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach(button => 
 el('apply-manual').addEventListener('click', () => {
   if (pending || !snapshot) return;
   const values = Object.fromEntries(policyAxes.map(axis => [axis, el<HTMLSelectElement>('manual-' + axis).value]));
-  const policy = POLICIES.find(candidate => candidate.pace === activeProfile().usPolicy.pace && policyAxes.every(axis => String(candidate[axis]) === values[axis]));
+  const policy = POLICIES.find(candidate => policyAxes.every(axis => String(candidate[axis]) === values[axis]));
   if (!policy) return;
   manual = evaluateProfile(snapshot.inputs, policy, activeProfile().foreignPolicy, snapshot.mode, 'workers', snapshot.foreignObjective);
   const votes = votesFor(manual, activeProfile());
-  el('manual-result').textContent = (paymentRange(manual) === 'not applicable' ? 'No roles are displaced in this scenario. ' : 'Employer pay after tax: ' + paymentRange(manual) + ' of prior wages. ') + 'Funded government benefits: ' + pct(last(manual).benefitsScalePaid) + ' of the reference budget. ' + voteShare(votes) + ' of adult citizens prefer this entire package to the selected outcome.' + (manual.usAdmissible ? '' : ' This policy cannot fund required public spending and is excluded from the vote. This preference comparison does not make it an eligible alternative.') + (treatySigned() ? ' The treaty remains binding; this comparison cannot change its terms.' : snapshot.mode === 'strategic' ? ' The foreign policy is held fixed here; it may respond to your change.' : '');
+  el('manual-result').textContent = (paymentRange(manual) === 'not applicable' ? 'No roles are displaced in this scenario. ' : 'Employer pay after tax: ' + paymentRange(manual) + ' of prior wages. ') + 'Funded government benefits: ' + pct(last(manual).benefitsScalePaid) + ' of the reference budget. ' + voteShare(votes) + ' of adult citizens prefer this entire package to the selected outcome.' + (manual.usAdmissible ? '' : ' This package cannot fully fund retained wages, benefits and other required public spending in every year, so it is ineligible for the ballot.') + ' This pairwise preference is not its first-choice ballot share.' + (snapshot.mode === 'strategic' ? ' The foreign policy is held fixed for this comparison.' : '');
   renderComparison();
 });
 el('share').addEventListener('click', async () => {
@@ -476,10 +464,9 @@ el('share').addEventListener('click', async () => {
 el('download').addEventListener('click', () => {
   if (pending || !snapshot) return;
   const payload = {
-    model: 'pirates-complete-rollout-v8', interpretation: 'Finite policy model with illustrative economic responses; not a forecast.',
-    scenario: { inputs: snapshot.inputs, mode: snapshot.mode, foreignObjective: snapshot.foreignObjective, pace: snapshot.pace },
-    selection: treatySigned() ? 'signed-treaty' : snapshot.selection, stableCount: snapshot.stableCount, selected: activeProfile(),
-    noTreaty: snapshot.selected, treaty: snapshot.treaty,
+    model: 'pirates-single-ballot-v9', interpretation: 'Finite policy model with illustrative economic responses; not a forecast.',
+    scenario: { inputs: snapshot.inputs, mode: snapshot.mode, foreignObjective: snapshot.foreignObjective },
+    selection: snapshot.selection, selected: activeProfile(), ballot: snapshot.ballot, search: snapshot.search,
     comparison: { noAI: snapshot.baseline, currentPolicy: snapshot.statusQuo, manual },
     electorate: US_ELECTORATE,
   };
