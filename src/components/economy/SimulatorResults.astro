@@ -26,9 +26,15 @@
     </figure>
 
     <section id="international-result" class="international-result" hidden aria-labelledby="international-heading">
-      <h3 id="international-heading">The foreign choice and trade</h3>
-      <div id="country-policies" class="country-policies"></div>
-      <h4 id="trade-verdict"></h4>
+      <div class="result-heading"><p class="eyebrow">The rest of the world</p></div>
+      <div class="ballot-result">
+        <h2 id="international-heading">The foreign choice</h2>
+        <p id="foreign-policy-objective"></p>
+      </div>
+      <div id="foreign-policy-decisions" class="policy-decisions" role="group" aria-label="Seven terms of foreign policy"></div>
+      <div id="foreign-policy-strip" class="policy-strip"></div>
+      <p id="foreign-reference-note" class="small-copy"></p>
+      <h3 id="trade-verdict"></h3>
       <p id="trade-impact"></p>
       <details class="chart-data"><summary>How trade affects this result</summary>
         <p>When trade is open, buyers can substitute foreign goods and services for domestic ones. Cheaper imports raise purchasing power, while changing import competition and export sales can displace workers. Closing the border removes imported varieties and export markets. The model follows affected workers as they return to productive work.</p>
@@ -36,8 +42,10 @@
         <div class="table-scroll" tabindex="0" role="region" aria-label="Annual US trade effects"><table><caption>US trade and adjustment. Consumer prices start at 100. Imports are a share of total spending; exports are a share of net output at producer prices.</caption><thead><tr><th scope="col">Year</th><th scope="col">Consumer prices</th><th scope="col">Import share</th><th scope="col">Export share</th><th scope="col">Workers affected by trade</th></tr></thead><tbody id="trade-table"></tbody></table></div>
         <a href="#trade-assumptions">Trade assumptions and limits</a>
       </details>
-      <p id="equilibrium-explanation"></p>
       <div id="deviation" class="deviation"></div>
+      <details class="chart-data"><summary>How the two choices are related</summary>
+        <p id="equilibrium-explanation" class="small-copy"></p>
+      </details>
     </section>
 
     <details class="result-details alternatives">

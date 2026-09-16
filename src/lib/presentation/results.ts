@@ -1,5 +1,5 @@
 import type { ProfileOutcome, ScenarioSnapshot } from '../api/types';
-import { CALIBRATION, POLICY_OPTIONS } from './config';
+import { POLICY_OPTIONS } from './config';
 import { el } from './dom';
 import {
   pct,
@@ -9,15 +9,12 @@ import {
   dollars,
   voteShare,
   policyAxes,
-  axisLabels,
-  changeFromReference,
-  axisValue,
   policyDescription,
   paymentRange,
-  type PolicyAxis,
 } from './format';
 import { objectiveLabels } from './state';
 import { renderChart } from './charts';
+import { policyDecisions } from './policy-decisions';
 
 export class ResultsView {
   private snapshot!: ScenarioSnapshot;
@@ -92,101 +89,13 @@ export class ResultsView {
       'These terms belong to ' +
       (passed ? 'the winning package' : 'the current-policy fallback') +
       ' and remain in place for ten years. Each voter chooses one fully funded package that maximizes their own expected income utility. Everyone knows the voting rule before making their choice.';
-    const baselineBenefits = end.baselineBenefits;
-    const details: Record<PolicyAxis, string> = {
-      pace:
-        p.pace === 0
-          ? 'No domestic or imported AI use for ten years.' +
-            (current.mode === 'strategic'
-              ? ' Open trade can still displace workers if foreign firms become more competitive.'
-              : ' No AI job replacement occurs.')
-          : p.pace === 2
-            ? 'AI replacement runs twice as fast. Full domestic deployment and its full annual growth potential arrive by year five.'
-            : 'AI replacement proceeds over ten years. Full domestic deployment and its full annual growth potential arrive by year ten.',
-      replacement: p.replacement
-        ? 'Employers fund the retained wages. This is a gross wage target; the modeled take-home payment is ' +
-          paymentRange(active) +
-          ' of prior wages after tax.'
-        : 'Employers may dismiss affected workers. Government benefits are shown below.',
-      welfareScale:
-        'Reference: ' +
-        dollars(baselineBenefits) +
-        ' per adult per year, averaged across the population. Target: ' +
-        dollars(end.benefitsRequired) +
-        '. Funded in year ten: ' +
-        dollars(end.benefitsPaid) +
-        ' (' +
-        pct(end.benefitsScalePaid) +
-        ' of the reference). The same total budget does not preserve each person’s payment.' +
-        (p.welfareScale === 2 ? ' This is the highest budget tested.' : ''),
-      benefitFormula:
-        p.benefitFormula === 'current'
-          ? 'Keep the survey’s relative allocation of cash benefits and consumption support. Recipients’ shares stay fixed as jobs change; this does not simulate future eligibility under every US program.'
-          : p.benefitFormula === 'flat'
-            ? 'Divide the funded budget equally among all adults, including workers, retirees and investors. This replaces the modeled Social Security and assistance payment pattern.'
-            : 'Divide the same budget in proportion to each adult’s pre-AI disposable household income. Higher prior income means a larger payment. This uses prior-year income, not lifetime earnings.',
-      laborTax:
-        'Selected benchmark: ' +
-        pct(p.laborTax) +
-        ', ' +
-        changeFromReference(p.laborTax, CALIBRATION.laborTaxRate) +
-        ' of ' +
-        pct(CALIBRATION.laborTaxRate) +
-        '. Actual year-ten average: ' +
-        pct(end.effectiveLaborTax) +
-        '. Covers earnings, pensions and other non-investment income; it preserves income differences in the reference tax profile.',
-      allowFreeTrade: p.allowFreeTrade
-        ? 'The US permits trade. Goods, services and imported AI can cross this border only if the foreign actor also permits it.'
-        : 'The US closes this border even if the foreign actor permits trade. The ban also stops imported AI and the model’s cross-border AI profit payments.',
-      capitalTax:
-        'Selected benchmark: ' +
-        pct(p.capitalTax) +
-        ', ' +
-        changeFromReference(p.capitalTax, CALIBRATION.capitalTaxRate) +
-        ' of ' +
-        pct(CALIBRATION.capitalTaxRate) +
-        '. Actual year-ten average: ' +
-        pct(end.effectiveCapitalTax) +
-        '. Applies to investment income even when its recipient also works.',
-    };
     el('policy-decisions').setAttribute(
       'aria-label',
-      current.mode === 'strategic' ? 'Seven terms of the enacted policy' : 'Six terms of the enacted policy',
+      current.mode === 'strategic' ? 'Seven terms of the enacted US policy' : 'Six terms of the enacted US policy',
     );
-    el('policy-decisions').innerHTML = policyAxes
-      .filter((axis) => current.mode === 'strategic' || axis !== 'allowFreeTrade')
-      .map((axis, index) => {
-        let headline = axisValue(axis, p);
-        if (axis === 'laborTax' || axis === 'capitalTax') {
-          const reference = axis === 'laborTax' ? CALIBRATION.laborTaxRate : CALIBRATION.capitalTaxRate;
-          headline =
-            (Math.abs(p[axis] - reference) < 1e-7
-              ? 'Keep the tax benchmark at '
-              : (p[axis] < reference ? 'Reduce' : 'Increase') + ' the tax benchmark to ') +
-            pct(p[axis]) +
-            '.';
-        }
-        const kind =
-          axis === 'replacement' || axis === 'pace'
-            ? 'employment-decision'
-            : axis.endsWith('Tax')
-              ? 'tax-decision'
-              : 'government-decision';
-        return (
-          '<section class="policy-decision ' +
-          kind +
-          '"><p class="eyebrow">' +
-          (index + 1) +
-          ' · ' +
-          axisLabels[axis] +
-          '</p><div class="decision-answer"><h2>' +
-          headline +
-          '</h2><p>' +
-          details[axis] +
-          '</p></div></section>'
-        );
-      })
-      .join('');
+    el('policy-decisions').innerHTML = policyDecisions(p, end, {
+      region: 'us', mode: current.mode, employerPayment: paymentRange(active),
+    });
     el('policy-strip').innerHTML = [
       [paymentRange(active), 'Employer pay after tax / prior wages'],
       [pct(end.benefitsScalePaid), 'Funded benefits / current total budget'],
@@ -292,16 +201,18 @@ export class ResultsView {
     if (!strategic) return;
     const active = this.snapshot.selected;
     const end = active.foreign!.at(-1)!;
-    el('country-policies').innerHTML =
-      '<div class="country-policy"><h4>Rest of the world</h4><p>' +
-      policyDescription(active.foreignPolicy!, true) +
-      '</p><p>Year ten: income in work-primary households ' +
-      change(end.workerIncomeIndex) +
-      '; output index ' +
-      change(end.output) +
-      ', relative to its own starting economy. Benefits funded: ' +
-      pct(end.benefitsScalePaid) +
-      ' of its reference budget.</p></div>';
+    el('foreign-policy-objective').textContent = 'One actor chooses a fully funded package to maximize ' +
+      objectiveLabels[current.foreignObjective].toLowerCase() + ' over ten years, given the US choice.';
+    el('foreign-policy-decisions').innerHTML = policyDecisions(active.foreignPolicy!, end, {
+      region: 'foreign', mode: current.mode,
+    });
+    el('foreign-policy-strip').innerHTML = [
+      [change(end.workerIncomeIndex), 'Year-ten income · mainly work income'],
+      [change(end.allIncomeIndex), 'Year-ten income · all adults'],
+      [change(end.output), 'Year-ten economic output'],
+    ].map(([value, label]) => '<div class="policy-item"><strong>' + value +
+      '</strong><span>' + label + '</span></div>').join('');
+    el('foreign-reference-note').textContent = 'Changes are relative to the foreign economy’s own starting values. Benefit shares and tax benchmarks use the US-based model reference, not measured foreign welfare systems or tax rates.';
     el('equilibrium-explanation').textContent =
       'Foreign objective: ' +
       objectiveLabels[current.foreignObjective].toLowerCase() +
@@ -316,7 +227,6 @@ export class ResultsView {
       'Trade stays open only when both independently allow it. A domestic AI pause can still leave workers exposed to foreign competition. The foreign actor uses the US household distribution and behavioral rules as a modeling assumption, with separate economic size, trade exposure and frontier capability.';
     const verified = current.selection === 'verified-consistent';
     el('deviation').classList.toggle('unstable', !verified);
-    el('international-heading').textContent = 'The foreign choice and trade';
     this.renderTrade();
     el('deviation').textContent = verified
       ? 'The choices are mutually consistent: this foreign package maximizes its objective among fully funded options given the enacted US package, and the US ballot gives the displayed result given this foreign package.'

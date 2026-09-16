@@ -112,7 +112,7 @@ details summary:hover { color: var(--green); }
 .policy-decision { display: grid; grid-template-columns: 145px minmax(0, 1fr); gap: 23px; min-width: 0; padding: 21px 0 22px; border-bottom: 1px solid var(--line); }
 .policy-decision > .eyebrow { padding-top: 5px; color: var(--green); font-size: 10px; line-height: 1.65; }
 .decision-answer { min-width: 0; }
-.decision-answer > h2 { font-size: clamp(25px, 2.3vw, 33px); line-height: 1.15; letter-spacing: -.45px; }
+.decision-title { font-family: 'Newsreader', Georgia, serif; font-weight: 400; font-size: clamp(25px, 2.3vw, 33px); line-height: 1.15; letter-spacing: -.45px; }
 .decision-answer > p { margin-top: 9px; font-size: 13px; color: var(--muted); line-height: 1.55; }
 .government-decision > .eyebrow { color: var(--rust); }
 .tax-decision > .eyebrow { color: var(--gold); }
@@ -190,11 +190,10 @@ tr.selected th, tr.selected td { color: var(--green); font-weight: 650; }
 #score-help { margin-top: 12px; }
 
 .international-result { margin-top: 27px; padding: 25px 0 10px; border-top: 1px solid var(--line); }
-.country-policies { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 15px; }
-.country-policy { padding: 12px 0; border-top: 1px solid var(--line); }
-.country-policy h4 { margin: 0 0 8px; font-size: 13px; }
-.country-policy p, .international-result > p { color: var(--muted); font-size: 13px; }
-.international-result > p { margin-top: 10px; }
+#trade-verdict { margin-top: 24px; }
+#trade-impact { margin-top: 10px; color: var(--muted); font-size: 13px; }
+.international-result > .chart-data { margin-top: 18px; }
+.international-result > .chart-data > p { margin-bottom: 14px; color: var(--muted); font-size: 13px; }
 .deviation { margin-top: 13px; font-size: 12px; line-height: 1.6; color: var(--green); }
 .deviation.unstable { color: var(--rust); }
 
@@ -276,7 +275,7 @@ tr.selected th, tr.selected td { color: var(--green); font-weight: 650; }
   #domestic-inputs { display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; }
   .input-control { margin: 16px 0; }
   .policy-decision { grid-template-columns: 135px minmax(0, 1fr); gap: 21px; }
-  .decision-answer > h2 { font-size: 29px; }
+  .decision-title { font-size: 29px; }
   .policy-strip { gap: 16px; }
   .policy-item strong { font-size: 24px; }
   .policy-item span { font-size: 11px; }
@@ -300,10 +299,9 @@ tr.selected th, tr.selected td { color: var(--green); font-weight: 650; }
   .mode-switch small { margin-top: 5px; }
   .policy-decision { grid-template-columns: 1fr; gap: 7px; padding-block: 19px; }
   .policy-decision > .eyebrow { padding-top: 0; }
-  .decision-answer > h2 { font-size: 29px; }
+  .decision-title { font-size: 29px; }
   .policy-strip { gap: 11px; }
   .policy-item strong { font-size: 21px; }
-  .country-policies { grid-template-columns: 1fr; gap: 5px; }
   #manual-inputs { grid-template-columns: 1fr; }
   #manual-inputs .input-control { margin-block: 10px; }
 }
@@ -312,7 +310,7 @@ tr.selected th, tr.selected td { color: var(--green); font-weight: 650; }
   button, a { transition: color .15s, background-color .15s, border-color .15s; }
 }
 
-/* The whole-package result precedes its six policy terms. */
+/* The whole-package result precedes its policy terms. */
 .ballot-result { margin: 0 0 22px; }
 .ballot-result h2 { font-size: clamp(28px, 3vw, 39px); line-height: 1.15; letter-spacing: -.6px; }
 .ballot-result > p { margin-top: 10px; font-size: 14px; }
