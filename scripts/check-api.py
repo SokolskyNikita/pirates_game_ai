@@ -16,7 +16,11 @@ from calculator.simulation import solve_scenario  # noqa: E402
 def check_api(base: str) -> None:
     def request(path: str, value=None, expected_status=200):
         body = json.dumps(value).encode() if value is not None else None
-        req = Request(base.rstrip("/") + path, data=body, headers={"Content-Type": "application/json"})
+        req = Request(
+            base.rstrip("/") + path,
+            data=body,
+            headers={"Content-Type": "application/json", "User-Agent": "AI-Pirates-Game-API-Check/1.0"},
+        )
         try:
             response = urlopen(req, timeout=60)
         except HTTPError as error:
