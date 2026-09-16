@@ -38,6 +38,9 @@ export class ResultsView {
       ' of the reference budget. ' +
       voteShare(support) +
       ' of adult citizens prefer this entire package to the selected outcome.' +
+      (this.snapshot.statusQuoUnavailable && profile.usPolicy.id === this.snapshot.statusQuo.usPolicy.id
+        ? ' Current policy is excluded from this ballot; it is shown only as a counterfactual comparison.'
+        : '') +
       (profile.usAdmissible
         ? ''
         : ' This package cannot fully fund retained wages, benefits and other required public spending in every year, so it is ineligible for the ballot.') +
@@ -57,21 +60,28 @@ export class ResultsView {
       : 'Unverified international outcome';
     el('solve-status').textContent = ballot.eligibleCandidateCount.toLocaleString() + ' funded packages';
     const passed = ballot.winnerId !== null;
+    const plurality = current.statusQuoUnavailable;
     el('ballot-verdict').textContent = !ballot.leadingPolicyId
-      ? 'No funded package. Current policy remains.'
+      ? plurality
+        ? 'No fully funded package is available.'
+        : 'No funded package. Current policy remains.'
       : passed
-        ? ballot.statusQuoReason === 'status-quo-majority'
-          ? 'A majority chooses current policy.'
-          : 'A majority chooses one complete package.'
+        ? plurality
+          ? 'The package with the most votes wins.'
+          : ballot.statusQuoReason === 'status-quo-majority'
+            ? 'A majority chooses current policy.'
+            : 'A majority chooses one complete package.'
         : 'No package wins a majority. Current policy remains.';
     el('ballot-support').textContent = ballot.leadingPolicyId
       ? 'The leading package receives ' +
         voteShare(ballot.topSupportPercent) +
         ' of all votes. ' +
-        (passed
-          ? 'It passes the required majority.'
-          : 'It needs more than 50% to pass; there is no second vote.')
-      : 'No package can fund every promise in every year under these assumptions.';
+        (plurality
+          ? 'It wins without a majority threshold. Current policy is excluded from the ballot and cannot remain as a fallback.'
+          : passed
+            ? 'It passes the required majority.'
+            : 'It needs more than 50% to pass; there is no second vote.')
+      : 'No available package can fund every promise in every year under these assumptions.';
     el('ballot-leading').hidden = passed || !current.leading;
     el('ballot-leading').textContent =
       current.leading && !passed
@@ -81,7 +91,7 @@ export class ResultsView {
       (verified ? '' : 'The two sides’ choices are not yet verified as mutually consistent. ') +
       'These terms belong to ' +
       (passed ? 'the winning package' : 'the current-policy fallback') +
-      ' and remain in place for ten years. Each voter chooses one fully funded package that maximizes their own expected income utility.';
+      ' and remain in place for ten years. Each voter chooses one fully funded package that maximizes their own expected income utility. Everyone knows the voting rule before making their choice.';
     const baselineBenefits = end.baselineBenefits;
     const details: Record<PolicyAxis, string> = {
       pace:
@@ -207,9 +217,9 @@ export class ResultsView {
       '/year; investment and work incentives can change the realized rate.';
     const verdict = el('funding-verdict');
     const shortfall = !active.usAdmissible;
-    verdict.hidden = !shortfall;
+    verdict.hidden = !shortfall || plurality;
     verdict.classList.toggle('shortfall', shortfall);
-    verdict.textContent = shortfall
+    verdict.textContent = shortfall && !plurality
       ? 'The automatic current-policy fallback cannot fund all commitments in this scenario. It could not receive votes, but remains because no eligible package won a majority. Income figures use actual payments; “Follow the money” shows the shortfalls.'
       : '';
     this.renderBallot();
@@ -251,14 +261,23 @@ export class ResultsView {
       current.ballot.eligibleCandidateCount.toLocaleString() +
       ' eligible packages. ' +
       current.ballot.unfundedCandidateCount.toLocaleString() +
-      ' cannot fund every promise in every year and are excluded. All combinations in the displayed policy menu are tested.';
+      ' cannot fund every promise in every year and are excluded. ' +
+      (current.statusQuoUnavailable
+        ? 'The exact current-policy package is separately excluded by the voting rule. All other combinations in the displayed policy menu are tested.'
+        : 'All combinations in the displayed policy menu are tested.');
   }
   private renderVotingDetails() {
     const current = this.snapshot;
     el('selection-explanation').textContent =
-      'There is one vote over complete packages. Each citizen chooses the fully funded package giving their household the highest ten-year income utility, taking the foreign choice as known. A package passes only with more than 50% of the population-weighted vote. Otherwise the exact current-tax, current-benefit policy with current AI pace remains.';
+      'There is one vote over complete packages. Each citizen chooses the fully funded package giving their household the highest ten-year income utility, taking the voting rule and the foreign choice as known. ' +
+      (current.statusQuoUnavailable
+        ? 'The exact current-policy package is excluded. The remaining fully funded package with the most population-weighted votes wins at any vote share. There is no current-policy fallback.'
+        : 'A package passes only with more than 50% of the population-weighted vote. Otherwise the exact current-tax, current-benefit policy with current AI pace remains.');
     el('agenda-order').textContent =
-      'Exact personal utility ties prefer current policy when eligible, then the first package in a fixed ordering. This specifies how people cast their votes; perfect rationality alone does not select a unique strategic-voting equilibrium. ' +
+      (current.statusQuoUnavailable
+        ? 'Exact personal utility ties use a fixed policy-ID ordering. If packages tie for the most votes, the same ordering selects the winner. '
+        : 'Exact personal utility ties prefer current policy when eligible, then the first package in a fixed policy-ID ordering. ') +
+      'This specifies how people cast their votes; perfect rationality alone does not select a unique strategic-voting equilibrium. ' +
       (current.mode === 'strategic'
         ? 'The search checks whether the foreign actor’s best choice and the US ballot outcome are mutually consistent. ' +
           current.search.reason +
@@ -286,7 +305,11 @@ export class ResultsView {
     el('equilibrium-explanation').textContent =
       'Foreign objective: ' +
       objectiveLabels[current.foreignObjective].toLowerCase() +
-      '. US voters and the foreign actor choose independently, each knowing the other’s chosen policy. AI pace, job retention, benefits, benefit rules, both tax rates and trade permission can all differ between them. ' +
+      '. US voters and the foreign actor choose independently, each knowing the other’s chosen policy and the US voting rule. ' +
+      (current.statusQuoUnavailable
+        ? 'The foreign actor anticipates the most-voted available US package, even below 50%. Only the US current-policy package is excluded; the foreign actor can still choose its own current policy if fully funded. '
+        : 'The foreign actor anticipates current US policy if no package wins a majority. ') +
+      'AI pace, job retention, benefits, benefit rules, both tax rates and trade permission can all differ between them. ' +
       (current.pauseUnavailable
         ? 'Neither side can pause AI. Both choose current pace or acceleration for the ten-year scenario. '
         : 'Each policy stays in place for ten years. If both independently choose to pause, both pauses last the decade. ') +
@@ -335,15 +358,27 @@ export class ResultsView {
         current.baseline,
       ],
       [
-        current.ballot.winnerId ? 'Enacted majority choice' : 'Enacted current-policy fallback',
+        current.ballot.winnerId
+          ? current.statusQuoUnavailable
+            ? 'Enacted most-votes choice'
+            : 'Enacted majority choice'
+          : 'Enacted current-policy fallback',
         current.selected,
       ],
     ];
     if (current.leading && current.leading.usPolicy.id !== current.selected.usPolicy.id)
       rows.push(['Leading package; no majority', current.leading]);
     if (current.selected.usPolicy.id !== current.statusQuo.usPolicy.id)
-      rows.push(['Current taxes and benefit mix', current.statusQuo]);
-    if (this.manual) rows.push(['Your policy', this.manual]);
+      rows.push([
+        current.statusQuoUnavailable ? 'Current policy; not on the ballot' : 'Current taxes and benefit mix',
+        current.statusQuo,
+      ]);
+    if (this.manual) rows.push([
+      current.statusQuoUnavailable && this.manual.usPolicy.id === current.statusQuo.usPolicy.id
+        ? 'Your comparison; current policy is not on the ballot'
+        : 'Your policy',
+      this.manual,
+    ]);
     el('comparison-table').innerHTML = rows
       .map(([label, profile]) => {
         const end = last(profile);

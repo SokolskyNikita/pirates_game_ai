@@ -6,6 +6,7 @@ export interface ScenarioState {
   mode: ModelMode;
   foreignObjective: Objective;
   pauseUnavailable: boolean;
+  statusQuoUnavailable: boolean;
 }
 export const objectiveLabels: Record<Objective, string> = {
   workers: 'Workers’ incomes',
@@ -26,6 +27,7 @@ export function defaultState(): ScenarioState {
     mode: 'us-only',
     foreignObjective: 'prosperity',
     pauseUnavailable: false,
+    statusQuoUnavailable: false,
   };
 }
 /** Parse and validate form state only. Economic normalization happens in Python. */
@@ -40,6 +42,7 @@ export function readScenarioURL(search: string): ScenarioState {
   }
   state.mode = query.get('world') === 'strategic' ? 'strategic' : 'us-only';
   state.pauseUnavailable = query.get('pauseUnavailable') === '1';
+  state.statusQuoUnavailable = query.get('statusQuoUnavailable') === '1';
   const foreign = query.get('foreignObjective');
   state.foreignObjective = foreign === 'workers' || foreign === 'output' ? foreign : 'prosperity';
   return state;
@@ -48,9 +51,10 @@ export function scenarioURL(state: ScenarioState, href = location.href): URL {
   const url = new URL(href);
   url.search = '';
   url.hash = 'simulator';
-  url.searchParams.set('v', '12');
+  url.searchParams.set('v', '13');
   url.searchParams.set('world', state.mode);
   url.searchParams.set('pauseUnavailable', state.pauseUnavailable ? '1' : '0');
+  url.searchParams.set('statusQuoUnavailable', state.statusQuoUnavailable ? '1' : '0');
   if (state.mode === 'strategic') url.searchParams.set('foreignObjective', state.foreignObjective);
   for (const spec of INPUT_SPECS) url.searchParams.set(spec.key, String(state.inputs[spec.key]));
   return url;

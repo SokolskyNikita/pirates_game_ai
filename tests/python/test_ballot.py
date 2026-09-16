@@ -4,7 +4,7 @@ import itertools
 import math
 import unittest
 
-from calculator.ballot import package_has_majority, tally_package_ballot
+from calculator.ballot import NoFundedPoliciesError, package_has_majority, tally_package_ballot
 
 
 def candidate(policy_id, utilities, funded=True):
@@ -43,6 +43,63 @@ class BallotTests(unittest.TestCase):
             self.assertIsNone(result["winnerId"])
             self.assertEqual(result["enactedPolicyId"], "current")
             self.assertEqual(result["statusQuoReason"], "no-majority")
+
+    def test_plurality_enacts_funded_leader_below_half_without_fallback(self):
+        menu = [
+            candidate("current", [100, 100, 100], False),
+            candidate("a", [3, 0, 0]),
+            candidate("b", [0, 3, 0]),
+            candidate("c", [0, 0, 3]),
+        ]
+        result = tally_package_ballot(menu, [40, 35, 25], "current", True)
+        self.assertEqual(result["votingRule"], "plurality")
+        self.assertEqual(result["topSupportPercent"], 40)
+        self.assertEqual(result["winnerId"], "a")
+        self.assertEqual(result["enactedPolicyId"], "a")
+        self.assertIsNone(result["statusQuoReason"])
+        self.assertNotIn("current", result["voterChoices"])
+        self.assertFalse(result["statusQuoFullyFunded"])
+        self.assertEqual(result["eligibleCandidateCount"], 3)
+        self.assertEqual(result["excludedCandidateCount"], 1)
+        self.assertEqual(result["unfundedCandidateCount"], 0)
+
+    def test_plurality_support_ties_choose_canonical_id_independent_of_order(self):
+        menu = [candidate("current", [0, 0]), candidate("z", [2, 0]), candidate("a", [0, 2])]
+        for order in itertools.permutations(menu):
+            result = tally_package_ballot(order, [1, 1], "current", True)
+            self.assertEqual(result["winnerId"], "a")
+            self.assertEqual(result["topSupportPercent"], 50)
+
+    def test_plurality_excludes_even_funded_current_package_and_selects_alternative(self):
+        result = tally_package_ballot(
+            [candidate("current", [3, 0, 0]), candidate("a", [0, 3, 0]), candidate("b", [0, 0, 3])],
+            [40, 35, 25], "current", True,
+        )
+        self.assertEqual(result["winnerId"], "a")
+        self.assertEqual(result["topSupportPercent"], 75)
+        self.assertTrue(result["statusQuoExcluded"])
+        self.assertTrue(result["statusQuoFullyFunded"])
+        self.assertEqual(result["excludedCandidateCount"], 1)
+        self.assertEqual(result["unfundedCandidateCount"], 0)
+        self.assertEqual(result["eligibleCandidateCount"], 2)
+        self.assertEqual(result["candidateCount"], 3)
+        self.assertIsNone(result["statusQuoReason"])
+
+    def test_plurality_without_funded_candidates_raises_instead_of_fabricating_fallback(self):
+        with self.assertRaisesRegex(NoFundedPoliciesError, "No alternative policy is fully funded"):
+            tally_package_ballot([candidate("current", [0], False)], [1], "current", True)
+        with self.assertRaises(NoFundedPoliciesError):
+            tally_package_ballot([candidate("current", [1]), candidate("a", [0], False)], [1], "current", True)
+
+    def test_default_rule_matches_explicit_majority_and_rejects_non_boolean_flag(self):
+        menu = [candidate("current", [0, 0]), candidate("a", [2, 0]), candidate("b", [0, 2])]
+        self.assertEqual(
+            tally_package_ballot(menu, [1, 1], "current"),
+            tally_package_ballot(menu, [1, 1], "current", False),
+        )
+        for invalid in (None, 1, "true"):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                tally_package_ballot(menu, [1, 1], "current", invalid)
 
     def test_exact_ties_prefer_current_then_canonical_id_in_any_order(self):
         menu = [candidate("current", [1, 0]), candidate("z", [1, 2]), candidate("a", [1, 2])]

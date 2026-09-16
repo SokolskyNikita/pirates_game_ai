@@ -1,7 +1,7 @@
 """Generate presentation metadata and versioned, exact common-scenario assets.
 
 Python owns both economic calculations and the values offered by the interface.
-Asset keys include every assumption, the voting mode, and pause availability.
+Asset keys include every assumption, the voting rule, mode, and pause availability.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 from .config import DEFAULT_INPUTS, INPUT_SPECS, MODEL_NOTES, normalize_inputs
-from .policies import INTERNATIONAL_POLICIES
+from .policies import INTERNATIONAL_POLICIES, current_policy
 from .population import CALIBRATION, PREPARED, US_ELECTORATE
 
 SCHEMA_VERSION = 3
@@ -33,6 +33,7 @@ def scenario_key(request: dict) -> str:
             if mode == "strategic"
             else None,
             "pauseUnavailable": request.get("pauseUnavailable", False),
+            "statusQuoUnavailable": request.get("statusQuoUnavailable", False),
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -88,16 +89,18 @@ def common_scenarios():
         for pause in (False, True):
             for mode in ("us-only", "strategic"):
                 for objective in ("workers",) if mode == "us-only" else ("workers", "prosperity", "output"):
-                    yield (
-                        name,
-                        {
-                            "id": 0,
-                            "inputs": inputs,
-                            "mode": mode,
-                            "foreignObjective": objective,
-                            "pauseUnavailable": pause,
-                        },
-                    )
+                    for status_quo_unavailable in (False, True):
+                        yield (
+                            name,
+                            {
+                                "id": 0,
+                                "inputs": inputs,
+                                "mode": mode,
+                                "foreignObjective": objective,
+                                "pauseUnavailable": pause,
+                                "statusQuoUnavailable": status_quo_unavailable,
+                            },
+                        )
 
 
 def write_json(path: Path, value: object) -> None:
@@ -126,6 +129,11 @@ def build_artifacts(root: Path, *, metadata_only: bool = False) -> None:
             raise ValueError("Precomputed inputs differ from the request.")
         if snapshot["ballot"]["winnerId"] and not snapshot["selected"]["usAdmissible"]:
             raise ValueError("A ballot winner must be fully funded.")
+        if request["statusQuoUnavailable"] and (
+            not snapshot["ballot"]["winnerId"]
+            or snapshot["selected"]["usPolicy"]["id"] == current_policy(1)["id"]
+        ):
+            raise ValueError("A plurality election must elect a funded alternative to current US policy.")
         write_json(
             output / filename,
             {"schemaVersion": SCHEMA_VERSION, "fingerprint": fingerprint, "key": key, "snapshot": snapshot},
@@ -134,7 +142,8 @@ def build_artifacts(root: Path, *, metadata_only: bool = False) -> None:
         live_files.add(filename)
         print(
             f"{name}: {request['mode']} / {request['foreignObjective']}, "
-            f"pause {'unavailable' if request['pauseUnavailable'] else 'available'}: "
+            f"pause {'unavailable' if request['pauseUnavailable'] else 'available'}, "
+            f"{'plurality' if request['statusQuoUnavailable'] else 'majority'}: "
             f"{snapshot['selection']} ({time.perf_counter() - started:.2f}s)",
             flush=True,
         )

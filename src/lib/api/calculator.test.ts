@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { comparePolicy, simulateScenario } from './calculator';
+import { CalculationError, comparePolicy, simulateScenario } from './calculator';
 import { defaultState, scenarioRequest } from '../presentation/state';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -42,6 +42,15 @@ describe('Python calculation API boundary', () => {
     await expect(simulateScenario(request, new AbortController().signal)).rejects.toThrow(
       'unreadable response',
     );
+  });
+  it('preserves a no-funded-policy response so the page can explain the voting constraint', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: 'No fully funded policy is available.' }), { status: 422 }),
+    ));
+    const request = scenarioRequest({ ...defaultState(), statusQuoUnavailable: true }, 5);
+    await expect(simulateScenario(request, new AbortController().signal)).rejects.toMatchObject({
+      name: 'CalculationError', status: 422, message: 'No fully funded policy is available.',
+    } satisfies Partial<CalculationError>);
   });
   it('sends manual comparison to Python rather than deriving votes locally', async () => {
     const response = { profile: { id: 'alternative' }, voteShare: 61.25 };

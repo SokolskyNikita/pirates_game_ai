@@ -25,6 +25,9 @@ def scenario_request(value: Any) -> dict:
     pause = value.get("pauseUnavailable", False)
     if not isinstance(pause, bool):
         raise ValueError("pauseUnavailable must be true or false.")
+    status_quo_unavailable = value.get("statusQuoUnavailable", False)
+    if not isinstance(status_quo_unavailable, bool):
+        raise ValueError("statusQuoUnavailable must be true or false.")
     supplied = value.get("inputs", {})
     if not isinstance(supplied, dict):
         raise ValueError("inputs must be an object.")
@@ -49,6 +52,7 @@ def scenario_request(value: Any) -> dict:
         "mode": mode,
         "foreignObjective": objective,
         "pauseUnavailable": pause,
+        "statusQuoUnavailable": status_quo_unavailable,
     }
 
 

@@ -331,7 +331,12 @@ MODEL_NOTES = [
         "detail": "Each citizen chooses the fully funded package that maximizes their own expected "
         "household-resource utility. The package with the largest support wins only if it "
         "receives strictly more than half of adult-citizen population weight; otherwise "
-        "current US policy continues. There is no second ballot. In international scenarios, "
+        "current US policy continues. If the status-quo fallback is disabled, the funded "
+        "alternative package with the most votes wins at any vote share, and the exact "
+        "current-policy package is excluded from US voting. The foreign menu is unchanged. "
+        "Exact personal utility ties favor current policy when eligible, "
+        "then the lowest canonical policy ID; an exact tie for the largest vote share also "
+        "uses the lowest canonical policy ID. There is no second ballot. In international scenarios, "
         "each side evaluates its choice knowing the other side’s policy; a reported mutually "
         "consistent outcome must reproduce those choices. All policies last for the modeled "
         "ten years.",

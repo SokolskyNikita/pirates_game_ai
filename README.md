@@ -2,7 +2,7 @@
 
 [Live simulator](https://ai-pirates-game.com) · [Source repository](https://github.com/SokolskyNikita/pirates_game_ai)
 
-A game-theory simulation of automation and majority voting at [ai-pirates-game.com](https://ai-pirates-game.com/), by [Nikita Sokolsky](https://sokolsky.me).
+A game-theory simulation of automation and voting at [ai-pirates-game.com](https://ai-pirates-game.com/), by [Nikita Sokolsky](https://sokolsky.me).
 
 When AI makes jobs obsolete, which job protections, benefits and taxes would perfectly rational, self-interested voters choose? This model puts every complete policy package on one ballot, including AI deployment pace. It includes a US-only scenario and a scenario with international AI competition.
 
@@ -32,7 +32,7 @@ npm run preview
 
 Checks cover the Astro/TypeScript rendering layer and Python source. Tests cover the economic accounting, voting rules, API validation, and presentation behavior. Migration fixtures preserve domestic results from the previous TypeScript calculator. International tests cover trade accounting, price effects, worker adjustment and mutually consistent choices.
 
-The build runs the Python artifact generator, builds Astro into `dist/`, and stages the Python Worker for deployment. It generates sixteen common scenario results and presentation metadata from the same Python model used by the API. `npm run preview` serves the built pages and calculator together; an Astro-only file server cannot answer calculation requests.
+The build runs the Python artifact generator, builds Astro into `dist/`, and stages the Python Worker for deployment. It generates thirty-two common scenario results and presentation metadata from the same Python model used by the API. `npm run preview` serves the built pages and calculator together; an Astro-only file server cannot answer calculation requests.
 
 To check a running deployment against the native Python calculator, run `npm run test:api -- https://ai-pirates-game.com` (or a local preview URL). It checks complete ballots and manual comparisons in both modes, plus request validation.
 
@@ -48,7 +48,7 @@ See [the data definitions and reproduction instructions](docs/us-electorate-data
 
 ## What the model decides
 
-The US-only ballot contains all 6,480 combinations of six policy terms (4,320 when pausing AI is unavailable). International mode adds a trade choice, giving each side 12,960 combinations (8,640 without a pause):
+The US-only ballot contains all 6,480 combinations of six policy terms (4,320 when pausing AI is unavailable). International mode adds a trade choice, giving each side 12,960 combinations (8,640 without a pause). Disallowing the US status quo excludes its exact current-policy package from these counts; it does not remove a foreign option:
 
 1. Pause AI, allow current AI pace, or accelerate AI.
 2. Allow layoffs or require employers to retain affected workers at 50%, 100% or 125% of prior wages.
@@ -64,15 +64,15 @@ Tax choices include reductions, the current reference, increases and the 0%/100%
 
 The benefit reference includes cash benefits, valued food/housing/energy assistance and those net tax refunds. Medicare and Medicaid coverage is shown descriptively but is not converted into cash. The flat and prior-income formulas redesign the entire modeled benefit allocation. Keeping the same total budget does not keep every person's benefit unchanged. The current mix freezes observed recipient shares; it does not simulate each program's future eligibility rules.
 
-Employer retention is paid from capital resources and creates no extra production. A package is eligible only when employers can pay promised retained wages and taxes can pay all promised benefits plus the fixed commitment to other public spending in every year. Later surpluses cannot finance earlier deficits; borrowing is not modeled. Eligibility is checked after behavioral responses. Underfunded packages cannot receive votes. Current policy remains the automatic fallback if no eligible package wins a majority, even if it becomes underfunded; the result then shows the shortfall. Extra tax receipts become non-transfer public spending, not an unrequested dividend.
+Employer retention is paid from capital resources and creates no extra production. A package is eligible only when employers can pay promised retained wages and taxes can pay all promised benefits plus the fixed commitment to other public spending in every year. Later surpluses cannot finance earlier deficits; borrowing is not modeled. Eligibility is checked after behavioral responses. Underfunded packages cannot receive votes. Under the default majority rule, current policy remains the automatic fallback if no eligible package wins a majority, even if it becomes underfunded; the result then shows the shortfall. Under the most-votes rule, only a fully funded package other than US current policy can take office. If no such package exists, the calculation reports an error rather than inventing a fallback. Extra tax receipts become non-transfer public spending, not an unrequested dividend.
 
 ## Voting and international competition
 
-Every citizen selects the fully funded package with the greatest ten-year expected household-income utility. The package with the most votes passes only if **more than half** the population chooses it; otherwise the exact current-tax/current-benefit package with current AI pace remains. There is one vote, with no runoff. Utility uses a 3% discount rate, a logarithm and a small offset at zero income. Displacement risk is equal across labor-income groups. The model computes expected utility across work/no-work states, not utility of average income.
+Every citizen selects the fully funded package with the greatest ten-year expected household-income utility. By default, the package with the most votes passes only if **more than half** the population chooses it; otherwise the exact current-tax/current-benefit package with current AI pace remains. Checking **“Retaining status quo isn’t an option”** changes this to a plurality rule: the fully funded package with the most votes wins regardless of its share. It removes the exact current-policy package from the US ballot, as well as the automatic fallback; the winner must be a different package. Current policy remains available as a counterfactual comparison, clearly labeled as outside the ballot. The foreign actor’s menu is unchanged. Everyone knows the selected rule before choosing a package. The setting defaults to false, is included in links, downloads, API requests and precomputed keys, and is cleared by Reset. There is one vote, with no runoff. Utility uses a 3% discount rate, a logarithm and a small offset at zero income. Displacement risk is equal across labor-income groups. The model computes expected utility across work/no-work states, not utility of average income.
 
-Exact personal-utility ties prefer current policy when eligible, then a fixed policy-ID order. This is a specified favorite-package ballot rule. Perfect rationality alone does not uniquely select sincere voting over tactical coordination. A majority failure can result from votes splitting across similar packages.
+Exact personal-utility ties prefer current policy when eligible, then a fixed policy-ID order. Under plurality, current policy is excluded; both personal-utility ties and ties for the highest vote total use that fixed policy-ID order. This is a specified favorite-package ballot rule. Perfect rationality alone does not uniquely select sincere voting over tactical coordination. A majority failure can result from votes splitting across similar packages.
 
-In international mode the rest of the world is one actor choosing its own complete funded package. Its objective is worker-household income, population-weighted income utility, or modeled output. The decisions are simultaneous and independent: both sides take the other's choice as known, and every policy term can differ. There is no joint objective, bargaining or requirement to match policies. A reported consistent pair passes a complete US ballot at the foreign choice and a full foreign best-response check at the **enacted** US policy, including its status-quo fallback. There is no treaty stage or second vote. Chosen policies remain in place for ten years. If both independently choose to pause, each expects the other’s pause to last the decade.
+In international mode the rest of the world is one actor choosing its own complete funded package. Its objective is worker-household income, population-weighted income utility, or modeled output. The decisions are simultaneous and independent: both sides take the other's choice and the US voting rule as known, and every policy term can differ. There is no joint objective, bargaining or requirement to match policies. A reported consistent pair passes a complete US ballot at the foreign choice and a full foreign best-response check at the **enacted** US policy, including its status-quo fallback when the majority rule applies. There is no treaty stage or second vote. Chosen policies remain in place for ten years. If both independently choose to pause, each expects the other’s pause to last the decade.
 
 The search starts from current fiscal policy with each foreign AI pace and both trade choices: six starts, or four when pausing is unavailable. It follows at most eight response steps per start. These are computational search steps, not repeated elections. Ballots and foreign responses are cached by the other side's policy. Only verified pairs are labeled consistent; an unsuccessful search is explicitly unverified and does not prove no pair exists. If several pairs are found, the first verified pair in the fixed search order is displayed and the count is reported. The search does not enumerate every equilibrium.
 
@@ -106,7 +106,7 @@ Annual results include `consumerPriceIndex`, `aiUnemployment`, `tradeUnemploymen
 
 ## Precomputation coverage
 
-`npm run build` generates sixteen exact scenario assets: defaults and 100% obsolete roles / zero return to work / 50% employer gain, each in US-only mode and the three international objectives, with pausing allowed or unavailable. Their manifest includes a fingerprint of Python model sources, population data and dependency configuration. The API accepts only the matching version and normalized assumptions; otherwise it calculates the requested scenario with the same Python engine. Results use ordinary JSON arrays.
+`npm run build` generates thirty-two exact scenario assets: defaults and 100% obsolete roles / zero return to work / 50% employer gain, each in US-only mode and the three international objectives, with pausing allowed or unavailable and with majority or plurality voting. Their manifest includes a fingerprint of Python model sources, population data and dependency configuration. The API accepts only the matching version and normalized assumptions; otherwise it calculates the requested scenario with the same Python engine. Results use ordinary JSON arrays.
 
 Other slider combinations calculate on demand in Python. This is **not exhaustive precomputation** of all possible assumptions. Controls use discrete 5-percentage-point increments (GDP size in 0.25 increments and trade elasticity in whole units), while retaining exact calibrated references and legacy URL values. The policy grid is already coarser than five points on most axes. See [the feasibility and coverage notes](docs/precomputation-options.md) for why a fully precomputed interface would need a smaller declared assumption grid.
 
@@ -120,7 +120,7 @@ All economic calculations, utility comparisons, ballots, international responses
 | Policy menu | `calculator/policies.py` constructs the complete finite menu and exact current-policy references. |
 | Economic calculation | `calculator/production.py` calculates deployment, displacement, productive capacity and income claims. `trade.py` calculates bilateral trade, producer and consumer prices, and trade-adjustment exposure. `settlement.py` pays retained wages, taxes and benefits and checks resource accounting. `model.py` runs the ten-year profiles and computes utilities. |
 | Batch evaluation | `calculator/batch.py` evaluates policy menus with NumPy. Packages sharing production, investment and trade assumptions reuse one economic trajectory; household funding and utility are still evaluated for every package in bounded chunks. Candidates close to utility maxima or funding thresholds are checked with the scalar model before exact ballot comparisons. |
-| Voting | `calculator/ballot.py` counts one favorite-package vote per citizen. `election.py` applies the majority fallback and verifies international responses. |
+| Voting | `calculator/ballot.py` counts one favorite-package vote per citizen. `election.py` applies the selected majority-with-fallback or plurality rule and verifies international responses. |
 | Results and comparisons | `calculator/simulation.py` assembles the selected, reference and leading profiles. `comparison.py` evaluates manual packages and their pairwise preference shares. |
 | API and generated data | `calculator/requests.py` validates request payloads. `artifacts.py` generates presentation metadata and common scenario assets. `worker/entry.py` handles HTTP, canonical redirects, API responses and static assets. |
 | Pages | `src/pages/index.astro` composes the introduction, controls, results, model notes and sources from `src/components/economy/`. |
@@ -135,10 +135,10 @@ Generated `src/generated/calculator-config.json` supplies the interface with Pyt
 The page and calculator share an origin. Calculation endpoints accept `POST` requests with `Content-Type: application/json` and bodies up to 16 KiB. Invalid assumptions, policy IDs or pause restrictions return a validation error.
 
 - `GET /api/health` returns the engine name and deployed model fingerprint.
-- `POST /api/simulate` accepts `{id, inputs, mode, foreignObjective, pauseUnavailable}` and returns `{id, snapshot, source}`. The source is `precomputed` or `calculated`.
+- `POST /api/simulate` accepts `{id, inputs, mode, foreignObjective, pauseUnavailable, statusQuoUnavailable}` and returns `{id, snapshot, source}`. The source is `precomputed` or `calculated`.
 - `POST /api/compare` accepts `{scenario, policyId, selectedPolicyId, foreignPolicyId?}` and returns `{profile, voteShare}`. International comparisons require the selected foreign policy. The share is a pairwise preference diagnostic, not a new full-package election.
 
-The scenario `mode` is `us-only` or `strategic`; the foreign objective is `workers`, `prosperity` or `output`. `pauseUnavailable` defaults to false. Missing assumptions use model defaults; finite values are normalized to their permitted ranges. Policy IDs come from the published finite menu. Legacy `pace` fields do not restrict the ballot.
+The scenario `mode` is `us-only` or `strategic`; the foreign objective is `workers`, `prosperity` or `output`. `pauseUnavailable` and `statusQuoUnavailable` default to false. Missing assumptions use model defaults; finite values are normalized to their permitted ranges. Policy IDs come from the published finite menu. Legacy `pace` fields do not restrict the ballot.
 
 This repository is independent of the original personal website. It contains no personal-site APIs or analytics integration. Fonts are requested from Google Fonts, with local fallback fonts.
 

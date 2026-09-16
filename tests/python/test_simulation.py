@@ -58,6 +58,8 @@ class ScenarioTests(unittest.TestCase):
         self.assertEqual(result["policyCount"], 3)
         self.assertEqual(result["ballot"]["candidateCount"], 3)
         self.assertFalse(result["pauseUnavailable"])
+        self.assertFalse(result["statusQuoUnavailable"])
+        self.assertEqual(result["ballot"]["votingRule"], "majority")
         self.assertEqual(result["selected"]["usPolicy"], PAUSE)
         self.assertEqual(result["statusQuo"]["usPolicy"], CURRENT)
         self.assertEqual(result["baseline"]["usPolicy"], BASELINE_POLICY)
@@ -83,6 +85,15 @@ class ScenarioTests(unittest.TestCase):
     def test_old_pace_constraints_do_not_restrict_election(self):
         self.assertEqual(self.solve(pace=0), self.solve(pace=1))
         self.assertEqual(self.solve(pauseUnavailable=False), self.solve())
+        self.assertEqual(self.solve(statusQuoUnavailable=False), self.solve())
+
+    def test_plurality_setting_reaches_election_and_snapshot(self):
+        result = self.solve(mode="strategic", statusQuoUnavailable=True)
+        self.assertTrue(result["statusQuoUnavailable"])
+        self.assertEqual(result["ballot"]["votingRule"], "plurality")
+        self.assertEqual(result["selected"]["usPolicy"], PAUSE)
+        self.assertEqual(result["ballot"]["enactedPolicyId"], PAUSE["id"])
+        self.assertEqual(json.loads(json.dumps(result)), result)
 
     def test_only_top_eight_profiles_are_materialized(self):
         menu = [{**CURRENT, "id": f"choice-{i:02d}"} for i in range(12)] + [CURRENT]
@@ -96,7 +107,10 @@ class ScenarioTests(unittest.TestCase):
         self.assertEqual(result["selected"]["usPolicy"], CURRENT)
 
     def test_invalid_settings_do_not_silently_change_the_game(self):
-        for changes in ({"mode": "invalid"}, {"foreignObjective": "invalid"}, {"pauseUnavailable": "false"}):
+        for changes in (
+            {"mode": "invalid"}, {"foreignObjective": "invalid"}, {"pauseUnavailable": "false"},
+            {"statusQuoUnavailable": "false"},
+        ):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 self.solve(**changes)
 

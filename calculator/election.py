@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from .ballot import tally_package_ballot
+from .ballot import NoFundedPoliciesError, tally_package_ballot
 from .config import EQUILIBRIUM_TOLERANCE
 
 Policy = dict[str, Any]
@@ -19,6 +19,9 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
     """Select the domestic result or certify a mutually consistent policy pair."""
     options = options or {}
     policies = {policy["id"]: policy for policy in model["policies"]}
+    status_quo_unavailable = model.get("statusQuoUnavailable", False)
+    if not isinstance(status_quo_unavailable, bool):
+        raise ValueError("statusQuoUnavailable must be a boolean.")
     current = model["currentPolicy"]
     current_id = current["id"]
     if len(policies) != len(model["policies"]) or current_id not in policies:
@@ -31,27 +34,43 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
         "consistentPairsFound": 0,
         "cycleCount": 0,
         "exhaustedStarts": 0,
+        "ineligibleBallots": 0,
         "reason": "",
     }
     evaluations = 0
     ballots: dict[str, dict[str, Any]] = {}
+    ineligible_ballots: set[str] = set()
     responses: dict[str, dict[str, Any]] = {}
 
     def ballot_at(foreign: Policy | None = None) -> dict[str, Any]:
         key = foreign["id"] if foreign else "domestic"
         if key in ballots:
             return ballots[key]
+        if key in ineligible_ballots:
+            raise NoFundedPoliciesError("No funded US package at this foreign choice.")
 
         def candidates():
             nonlocal evaluations
+            ballot_policies = model["policies"]
+            if status_quo_unavailable:
+                # Certify possible favorites over alternatives only: an excluded
+                # current-policy utility must not mask their numerical ties.
+                ballot_policies = [policy for policy in ballot_policies if policy["id"] != current_id]
+                reference = model["evaluateLight"](current, foreign)
+                evaluations += 1
+                yield {
+                    "id": current_id,
+                    "utilities": reference["usUtilities"],
+                    "fullyFunded": reference["usAdmissible"],
+                }
             batch_evaluator = model.get("evaluateLightBatch")
-            if batch_evaluator is not None:
-                profiles = batch_evaluator(model["policies"], foreign)
-                if len(profiles) != len(model["policies"]):
+            if batch_evaluator is not None and ballot_policies:
+                profiles = batch_evaluator(ballot_policies, foreign)
+                if len(profiles) != len(ballot_policies):
                     raise ValueError("The batched ballot must evaluate every policy exactly once.")
             else:
-                profiles = (model["evaluateLight"](policy, foreign) for policy in model["policies"])
-            for policy, profile in zip(model["policies"], profiles, strict=True):
+                profiles = (model["evaluateLight"](policy, foreign) for policy in ballot_policies)
+            for policy, profile in zip(ballot_policies, profiles, strict=True):
                 evaluations += 1
                 yield {
                     "id": policy["id"],
@@ -59,7 +78,15 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
                     "fullyFunded": profile["usAdmissible"],
                 }
 
-        ballot = tally_package_ballot(candidates(), model["weights"], current_id)
+        try:
+            ballot = tally_package_ballot(
+                candidates(), model["weights"], current_id, status_quo_unavailable
+            )
+        except NoFundedPoliciesError:
+            ineligible_ballots.add(key)
+            search["ineligibleBallots"] += 1
+            search["ballotsEvaluated"] += 1
+            raise
         ballots[key] = ballot
         search["ballotsEvaluated"] += 1
         return ballot
@@ -68,7 +95,13 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
         ballot = ballot_at()
         search["reason"] = (
             "Every full US package was evaluated. Each citizen casts one vote for their personal "
-            "favorite funded package; a strict majority is required to change current policy."
+            "favorite funded package; "
+            + (
+                "the largest vote share wins, with no majority threshold or status-quo fallback. "
+                "The exact current-policy package is excluded from US voting."
+                if status_quo_unavailable
+                else "a strict majority is required to change current policy."
+            )
         )
         return {
             "usPolicy": policies[ballot["enactedPolicyId"]],
@@ -162,7 +195,13 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
                 break
             seen.add(foreign["id"])
             search["iterations"] += 1
-            ballot = ballot_at(foreign)
+            try:
+                ballot = ballot_at(foreign)
+            except NoFundedPoliciesError:
+                # This foreign choice has no admissible US outcome. Another
+                # seed may still lead to a funded, mutually consistent pair.
+                stopped = True
+                break
             us = policies[ballot["enactedPolicyId"]]
             best = best_response_at(us)
             profile = model["evaluateLight"](us, foreign)
@@ -190,7 +229,12 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
 
     search["consistentPairsFound"] = len(consistent)
     selected = next(iter(consistent.values()), diagnostic)
-    assert selected is not None  # A nonempty seed list and positive round limit guarantee a diagnostic.
+    if selected is None:
+        raise NoFundedPoliciesError(
+            "No fully funded US package was available at any foreign choice reached by the search. "
+            "No plurality outcome could be calculated; change the assumptions or allow the "
+            "status-quo fallback. The bounded search does not prove no funded pair exists."
+        )
     selection = "verified-consistent" if consistent else "search-incomplete"
     if consistent:
         count = len(consistent)
@@ -209,6 +253,11 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
             f"The bounded search did not verify mutually consistent choices{funding_note}. "
             "The displayed ballot is conditional on the displayed foreign policy, not an equilibrium. "
             "This does not prove that no consistent pair exists."
+        )
+    if search["ineligibleBallots"]:
+        search["reason"] += (
+            f" {search['ineligibleBallots']} foreign choice(s) had no funded US package "
+            "and were excluded from the search."
         )
     result = {
         "usPolicy": selected["usPolicy"],

@@ -1,6 +1,6 @@
 /** Presentation coordinator: collect inputs, request Python results, render them. */
 import type { ProfileOutcome, ScenarioSnapshot } from '../../lib/api/types';
-import { comparePolicy, simulateScenario } from '../../lib/api/calculator';
+import { CalculationError, comparePolicy, simulateScenario } from '../../lib/api/calculator';
 import { US_ELECTORATE } from '../../lib/presentation/config';
 import { ScenarioControls } from '../../lib/presentation/controls';
 import { el } from '../../lib/presentation/dom';
@@ -36,6 +36,14 @@ function failCalculation(error: unknown, displayFailure = false) {
   setBusy(false);
   pending = true;
   el('computation-message').classList.add('error');
+  if (error instanceof CalculationError && error.status === 422) {
+    snapshot = undefined;
+    manual = undefined;
+    el('results').hidden = true;
+    el('computation-message').textContent = error.message;
+    for (const id of ['apply-manual', 'download', 'share']) el<HTMLButtonElement>(id).disabled = true;
+    return;
+  }
   el('results').classList.add('is-stale');
   el('solve-status').textContent = 'Calculation unavailable';
   el('computation-message').textContent = displayFailure
@@ -76,6 +84,7 @@ async function run(id: number) {
     el('manual-result').textContent = '';
     el('action-status').textContent = '';
     try {
+      el('results').hidden = false;
       view.show(snapshot);
       el('solve-status').title =
         response.source === 'precomputed'
@@ -115,6 +124,7 @@ el('apply-manual').addEventListener('click', async () => {
           mode: current.mode,
           foreignObjective: current.foreignObjective,
           pauseUnavailable: current.pauseUnavailable,
+          statusQuoUnavailable: current.statusQuoUnavailable,
         },
         policyId,
         selectedPolicyId: current.selected.usPolicy.id,
@@ -140,7 +150,7 @@ el('share').addEventListener('click', async () => {
   if (pending) return;
   try {
     await navigator.clipboard.writeText(scenarioURL(state).href);
-    el('action-status').textContent = 'Scenario link copied, including whether AI can be paused.';
+    el('action-status').textContent = 'Scenario link copied, including AI pause availability and the voting rule.';
   } catch {
     el('action-status').textContent = 'Copy this page’s address to share the scenario.';
   }
@@ -148,13 +158,14 @@ el('share').addEventListener('click', async () => {
 el('download').addEventListener('click', () => {
   if (pending || !snapshot) return;
   const payload = {
-    model: 'pirates-single-ballot-v12',
+    model: 'pirates-single-ballot-v13',
     interpretation: 'Finite policy model with illustrative economic responses; not a forecast.',
     scenario: {
       inputs: snapshot.inputs,
       mode: snapshot.mode,
       foreignObjective: snapshot.foreignObjective,
       pauseUnavailable: snapshot.pauseUnavailable,
+      statusQuoUnavailable: snapshot.statusQuoUnavailable,
     },
     selection: snapshot.selection,
     selected: snapshot.selected,

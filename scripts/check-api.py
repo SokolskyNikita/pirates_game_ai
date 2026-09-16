@@ -31,13 +31,20 @@ def check_api(base: str) -> None:
             return json.load(response)
 
     assert request("/api/health")["engine"] == "python"
-    for mode, objective in (("us-only", "workers"), ("strategic", "workers"), ("strategic", "output")):
+    for mode, objective, plurality in (
+        ("us-only", "workers", False),
+        ("strategic", "workers", False),
+        ("strategic", "output", False),
+        ("us-only", "workers", True),
+        ("strategic", "output", True),
+    ):
         scenario = {
             "id": 73,
             "inputs": {**DEFAULT_INPUTS, "productivityGain": 0.45, "displacement": 0.4},
             "mode": mode,
             "foreignObjective": objective,
             "pauseUnavailable": False,
+            "statusQuoUnavailable": plurality,
         }
         response = request("/api/simulate", scenario)
         assert response["id"] == scenario["id"] and response["source"] == "calculated"
@@ -45,6 +52,13 @@ def check_api(base: str) -> None:
         for key in ("ballot", "selection", "search", "foreignBestPolicy"):
             assert actual.get(key) == expected.get(key), f"{mode}/{objective}: {key} differs"
         assert actual["selected"]["id"] == expected["selected"]["id"]
+        assert actual["statusQuoUnavailable"] == plurality
+        assert actual["ballot"]["votingRule"] == ("plurality" if plurality else "majority")
+        if plurality:
+            assert actual["ballot"]["winnerId"] == actual["ballot"]["leadingPolicyId"]
+            assert actual["selected"]["usAdmissible"]
+            assert actual["ballot"]["winnerId"] != current_policy()["id"]
+            assert actual["ballot"]["excludedCandidateCount"] == 1
         selected = actual["selected"]
         comparison = {
             "scenario": scenario,
@@ -62,8 +76,11 @@ def check_api(base: str) -> None:
             assert actual["policyCount"] == 12960 and actual["search"]["startsTried"] == 6
         else:
             assert actual["policyCount"] == 6480
-        print(f"Passed native/runtime ballot parity and manual comparison: {mode}/{objective}", flush=True)
-    for payload in ({"inputs": {"usGdpGrowth": 10**400}}, {"pauseUnavailable": 1}, {"mode": []}):
+        print(f"Passed native/runtime ballot parity and manual comparison: {mode}/{objective}/plurality={plurality}", flush=True)
+    for payload in (
+        {"inputs": {"usGdpGrowth": 10**400}}, {"pauseUnavailable": 1},
+        {"statusQuoUnavailable": "true"}, {"mode": []},
+    ):
         assert "error" in request("/api/simulate", payload, 400)
     assert "error" in request("/api/compare", {"policyId": "unknown", "selectedPolicyId": "unknown"}, 400)
     print("API validation passed.", flush=True)

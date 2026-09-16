@@ -12,16 +12,19 @@ describe('scenario URL presentation state', () => {
       mode: 'strategic',
       foreignObjective: 'output',
       pauseUnavailable: false,
+      statusQuoUnavailable: false,
     });
     expect(scenarioRequest(state, 7)).not.toHaveProperty('pace');
   });
-  it('round-trips all assumptions and pause availability in a version 12 shared link', () => {
+  it('round-trips all assumptions, pause availability and the voting rule in a version 13 shared link', () => {
     const state = readScenarioURL(
-      '?world=strategic&foreignObjective=workers&pauseUnavailable=1&usGdpGrowth=.025&foreignMarketSize=3.5&tradableShare=.55&tradeElasticity=6',
+      '?world=strategic&foreignObjective=workers&pauseUnavailable=1&statusQuoUnavailable=1&usGdpGrowth=.025&foreignMarketSize=3.5&tradableShare=.55&tradeElasticity=6',
     );
     const url = scenarioURL(state, 'https://ai-pirates-game.com/?obsolete=value');
-    expect(url.searchParams.get('v')).toBe('12');
+    expect(url.searchParams.get('v')).toBe('13');
     expect(url.searchParams.has('obsolete')).toBe(false);
+    expect(state.statusQuoUnavailable).toBe(true);
+    expect(scenarioRequest(state, 9).statusQuoUnavailable).toBe(true);
     expect(readScenarioURL(url.search)).toEqual(state);
   });
   it('rejects non-finite inputs and bounds URL values before displaying controls', () => {

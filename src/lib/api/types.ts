@@ -142,17 +142,19 @@ export interface PackageBallotTally {
 }
 
 export interface PackageBallotResult {
+  votingRule: 'majority' | 'plurality';
   /** Eligible packages only, sorted by ID, including those receiving zero votes. */
   tallies: PackageBallotTally[];
   /** Canonical ID breaks an exact tie for this descriptive leading position. */
   leadingPolicyId: string | null;
   topSupportPercent: number;
-  /** A winner exists only with strictly more than half the electorate. */
+  /** Funded leading package; majority required unless statusQuoUnavailable is set. */
   winnerId: string | null;
   enactedPolicyId: string;
   statusQuoReason: 'no-majority' | 'status-quo-majority' | 'no-eligible-policies' | null;
   /** False means automatic fallback can persist but cannot receive votes. */
   statusQuoFullyFunded: boolean;
+  statusQuoExcluded: boolean;
   /** One eligible choice per cell; null throughout when no package is eligible. */
   voterChoices: (string | null)[];
   totalPopulationWeight: number;
@@ -160,6 +162,8 @@ export interface PackageBallotResult {
   candidateCount: number;
   eligibleCandidateCount: number;
   unfundedCandidateCount: number;
+  /** Packages removed by the voting rule, separate from funding failures. */
+  excludedCandidateCount: number;
 }
 
 export interface ElectionSearch {
@@ -170,6 +174,7 @@ export interface ElectionSearch {
   consistentPairsFound: number;
   cycleCount: number;
   exhaustedStarts: number;
+  ineligibleBallots: number;
   reason: string;
 }
 export interface ScenarioRequest {
@@ -178,6 +183,7 @@ export interface ScenarioRequest {
   mode: ModelMode;
   foreignObjective: Objective;
   /** Exclude a pause from both actors’ policy menus. */ pauseUnavailable?: boolean;
+  /** Exclude current US policy and enact the funded alternative with the most votes. */ statusQuoUnavailable?: boolean;
   /** Legacy callers may supply this; deployment is now on the ballot. */ pace?: number;
 }
 export interface ScenarioSnapshot {
@@ -185,6 +191,7 @@ export interface ScenarioSnapshot {
   mode: ModelMode;
   foreignObjective: Objective;
   pauseUnavailable: boolean;
+  statusQuoUnavailable: boolean;
   selected: ProfileOutcome;
   statusQuo: ProfileOutcome;
   baseline: ProfileOutcome;
@@ -205,7 +212,7 @@ export type ScenarioResponse =
   | { id: number; error: string; snapshot?: never };
 
 export interface ComparisonRequest {
-  scenario: Pick<ScenarioRequest, 'inputs' | 'mode' | 'foreignObjective' | 'pauseUnavailable'>;
+  scenario: Pick<ScenarioRequest, 'inputs' | 'mode' | 'foreignObjective' | 'pauseUnavailable' | 'statusQuoUnavailable'>;
   policyId: string;
   selectedPolicyId: string;
   foreignPolicyId?: string;

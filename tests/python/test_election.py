@@ -3,6 +3,7 @@
 import math
 import unittest
 
+from calculator.ballot import NoFundedPoliciesError
 from calculator.election import solve_package_election
 
 BASE = {
@@ -88,6 +89,59 @@ class ElectionTests(unittest.TestCase):
         self.assertEqual(result["foreignPolicy"], ACCELERATE)
         self.assertEqual(result["selection"], "verified-consistent")
         self.assertEqual(result["foreignBestResponseGain"], 0)
+
+    def test_foreign_response_anticipates_enacted_plurality_instead_of_majority_fallback(self):
+        model = fixture(
+            split_preferences,
+            policies=[CURRENT, PAUSE, ACCELERATE, OTHER],
+            foreign=[CURRENT, PAUSE, ACCELERATE],
+            weights=[40, 35, 25],
+            score=lambda us, foreign: 3 if foreign == (ACCELERATE if us == CURRENT else PAUSE) else 0,
+        )
+        majority = solve_package_election(model)
+        plurality = solve_package_election({**model, "statusQuoUnavailable": True})
+        self.assertEqual(majority["usPolicy"], CURRENT)
+        self.assertEqual(majority["foreignPolicy"], ACCELERATE)
+        self.assertEqual(plurality["usPolicy"], PAUSE)
+        self.assertEqual(plurality["foreignPolicy"], PAUSE)
+        self.assertEqual(plurality["ballot"]["topSupportPercent"], 40)
+        self.assertEqual(plurality["ballot"]["votingRule"], "plurality")
+        self.assertEqual(plurality["selection"], "verified-consistent")
+        self.assertEqual(plurality["foreignBestResponseGain"], 0)
+
+    def test_us_current_package_exclusion_does_not_restrict_foreign_choice(self):
+        model = fixture(
+            lambda us, foreign: [2 if us == CURRENT else 1],
+            foreign=[CURRENT, PAUSE, ACCELERATE],
+            score=lambda us, foreign: 3 if foreign == CURRENT else 0,
+        )
+        result = solve_package_election({**model, "statusQuoUnavailable": True})
+        self.assertNotEqual(result["usPolicy"], CURRENT)
+        self.assertEqual(result["foreignPolicy"], CURRENT)
+        self.assertTrue(result["ballot"]["statusQuoExcluded"])
+        self.assertEqual(result["selection"], "verified-consistent")
+
+    def test_plurality_skips_unfunded_conditional_ballot_but_finds_feasible_foreign_pair(self):
+        model = fixture(
+            split_preferences,
+            policies=[CURRENT, PAUSE, ACCELERATE, OTHER],
+            foreign=[CURRENT, PAUSE, ACCELERATE],
+            weights=[40, 35, 25],
+            funded=lambda us, foreign: foreign != CURRENT,
+            score=lambda us, foreign: 3 if foreign == PAUSE else 0,
+        )
+        result = solve_package_election({**model, "statusQuoUnavailable": True})
+        self.assertEqual(result["usPolicy"], PAUSE)
+        self.assertEqual(result["foreignPolicy"], PAUSE)
+        self.assertEqual(result["selection"], "verified-consistent")
+        self.assertEqual(result["search"]["ineligibleBallots"], 1)
+        self.assertIn("no funded US package", result["search"]["reason"])
+
+    def test_plurality_with_no_funded_us_choices_raises_domestically_and_internationally(self):
+        for foreign in (None, [CURRENT, PAUSE]):
+            model = fixture(lambda us, foreign: [0], foreign=foreign, funded=lambda us, foreign: False)
+            with self.subTest(foreign=foreign), self.assertRaises(NoFundedPoliciesError):
+                solve_package_election({**model, "statusQuoUnavailable": True})
 
     def test_complete_response_checks_certify_a_fixed_point(self):
         result = solve_package_election(
@@ -197,6 +251,23 @@ class ElectionTests(unittest.TestCase):
         self.assertEqual(batches["us"], scalar["search"]["ballotsEvaluated"])
         self.assertEqual(batches["foreign"], scalar["search"]["foreignResponsesEvaluated"])
 
+    def test_plurality_batch_certification_sees_only_eligible_alternatives(self):
+        model = fixture(split_preferences, policies=[CURRENT, PAUSE, ACCELERATE, OTHER], weights=[40, 35, 25])
+        batches = []
+
+        def evaluate_batch(policies, foreign):
+            batches.append([policy["id"] for policy in policies])
+            return [model["evaluateLight"](policy, foreign) for policy in policies]
+
+        result = solve_package_election({
+            **model, "statusQuoUnavailable": True, "evaluateLightBatch": evaluate_batch,
+        })
+        self.assertEqual(batches, [["pause", "accelerate", "other"]])
+        self.assertEqual(result["ballot"]["candidateCount"], 4)
+        self.assertEqual(result["ballot"]["excludedCandidateCount"], 1)
+        self.assertEqual(result["evaluations"], 4)
+        self.assertEqual(result["usPolicy"], PAUSE)
+
     def test_incomplete_batch_results_are_rejected(self):
         model = fixture(lambda us, foreign: [0], foreign=[CURRENT, PAUSE])
         for changes in (
@@ -247,6 +318,7 @@ class ElectionTests(unittest.TestCase):
             {"policies": [PAUSE]},
             {"foreignPolicies": [PAUSE]},
             {"policies": [CURRENT, CURRENT]},
+            {"statusQuoUnavailable": "false"},
         ):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 solve_package_election({**model, **changes})

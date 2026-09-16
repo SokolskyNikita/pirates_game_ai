@@ -55,7 +55,13 @@ class MigrationParity(unittest.TestCase):
                 actual = solve_scenario(case["request"])
                 expected = case["expected"]
                 # Vote allocations, not merely outcomes, are an exact migration contract.
-                self.assertEqual(actual["ballot"], expected["ballot"])
+                self.assertEqual(
+                    {key: actual["ballot"][key] for key in expected["ballot"]}, expected["ballot"]
+                )
+                # Newly added rule/exclusion metadata does not change any legacy vote.
+                self.assertEqual(actual["ballot"]["votingRule"], "majority")
+                self.assertFalse(actual["ballot"]["statusQuoExcluded"])
+                self.assertEqual(actual["ballot"]["excludedCandidateCount"], 0)
                 self.assert_structure(actual["selected"]["usPolicy"], expected["selected"]["usPolicy"])
                 self.assert_structure(actual, expected)
 

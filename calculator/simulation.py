@@ -20,6 +20,8 @@ def scenario_settings(request: dict[str, Any]) -> tuple[str, str, bool]:
         raise ValueError("The foreign objective must be workers, prosperity, or output.")
     if not isinstance(pause_unavailable, bool):
         raise ValueError("pauseUnavailable must be a boolean.")
+    if not isinstance(request.get("statusQuoUnavailable", False), bool):
+        raise ValueError("statusQuoUnavailable must be a boolean.")
     return mode, objective, pause_unavailable
 
 
@@ -30,6 +32,7 @@ def solve_scenario(request: dict[str, Any]) -> dict[str, Any]:
     belongs on the complete ballot, not in the scenario assumptions.
     """
     mode, foreign_objective, pause_unavailable = scenario_settings(request)
+    status_quo_unavailable = request.get("statusQuoUnavailable", False)
     model = solve_model(
         request.get("inputs", {}),
         {
@@ -49,6 +52,7 @@ def solve_scenario(request: dict[str, Any]) -> dict[str, Any]:
             "policies": policies,
             "foreignPolicies": foreign_policies,
             "currentPolicy": current_policy(1),
+            "statusQuoUnavailable": status_quo_unavailable,
         }
     )
     cache: dict[str, dict[str, Any]] = {}
@@ -71,6 +75,7 @@ def solve_scenario(request: dict[str, Any]) -> dict[str, Any]:
         "mode": model["mode"],
         "foreignObjective": model["foreignObjective"],
         "pauseUnavailable": pause_unavailable,
+        "statusQuoUnavailable": status_quo_unavailable,
         "selected": selected,
         "statusQuo": materialize(current_policy(1)),
         "baseline": model["evaluate"](BASELINE_POLICY, BASELINE_POLICY if mode == "strategic" else None),

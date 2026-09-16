@@ -120,8 +120,15 @@ export class ScenarioControls {
   }
 
   private updateElectorate() {
+    el('voting-rule-heading').textContent = this.state.statusQuoUnavailable
+      ? 'One vote. The most votes wins.'
+      : 'One vote. More than 50% to pass.';
     el('electorate-description').textContent =
-      'Every adult US citizen casts one vote for their preferred complete package. More than 50% must choose the same package for it to pass; otherwise current policy remains.';
+      'Every adult US citizen casts one vote for their preferred complete funded package. ' +
+      (this.state.statusQuoUnavailable
+        ? 'The current-policy package is excluded. The alternative with the most votes passes at any share, and all players know this rule.'
+        : 'More than 50% must choose the same package for it to pass; otherwise current policy remains.');
+    el<HTMLInputElement>('status-quo-unavailable').checked = this.state.statusQuoUnavailable;
   }
 
   private updateCalibration() {
@@ -189,6 +196,12 @@ export class ScenarioControls {
         this.changed();
       }),
     );
+    el<HTMLInputElement>('status-quo-unavailable').addEventListener('change', (event) => {
+      this.state.statusQuoUnavailable = (event.target as HTMLInputElement).checked;
+      this.updateElectorate();
+      this.clearPreset();
+      this.changed();
+    });
     el<HTMLInputElement>('pause-unavailable').addEventListener('change', (event) => {
       this.state.pauseUnavailable = (event.target as HTMLInputElement).checked;
       this.syncPauseControl();
@@ -205,6 +218,7 @@ export class ScenarioControls {
       this.state.mode = 'us-only';
       this.state.foreignObjective = 'prosperity';
       this.state.pauseUnavailable = false;
+      this.state.statusQuoUnavailable = false;
       this.clearPreset();
       this.syncInputs();
       this.changed();

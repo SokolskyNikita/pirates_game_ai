@@ -12,6 +12,8 @@ from calculator.requests import comparison_request, scenario_request
 class RequestValidation(unittest.TestCase):
     def test_defaults_and_bounds(self):
         self.assertEqual(scenario_request({})["inputs"], DEFAULT_INPUTS)
+        self.assertFalse(scenario_request({})["statusQuoUnavailable"])
+        self.assertTrue(scenario_request({"statusQuoUnavailable": True})["statusQuoUnavailable"])
         self.assertEqual(scenario_request({"inputs": {"displacement": 2}})["inputs"]["displacement"], 1)
 
     def test_invalid_values_are_rejected(self):
@@ -23,6 +25,9 @@ class RequestValidation(unittest.TestCase):
             {"foreignObjective": {}},
             {"mode": "other"},
             {"pauseUnavailable": 1},
+            {"statusQuoUnavailable": 1},
+            {"statusQuoUnavailable": "false"},
+            {"statusQuoUnavailable": None},
             {"inputs": []},
             {"inputs": {"unknown": 1}},
             {"inputs": {"displacement": True}},
@@ -56,6 +61,8 @@ class RequestValidation(unittest.TestCase):
         for name, value in DEFAULT_INPUTS.items():
             self.assertNotEqual(key, scenario_key({**base, "inputs": {**DEFAULT_INPUTS, name: value / 2}}))
         self.assertNotEqual(key, scenario_key({**base, "pauseUnavailable": True}))
+        self.assertNotEqual(key, scenario_key({**base, "statusQuoUnavailable": True}))
+        self.assertEqual(key, scenario_key({**base, "statusQuoUnavailable": False}))
         self.assertNotEqual(key, scenario_key({**base, "mode": "us-only"}))
         self.assertNotEqual(key, scenario_key({**base, "foreignObjective": "output"}))
         self.assertEqual(
@@ -65,7 +72,7 @@ class RequestValidation(unittest.TestCase):
         self.assertEqual(
             scenario_key({"inputs": {"displacement": 1}}), scenario_key({"inputs": {"displacement": 1.0}})
         )
-        self.assertEqual(len({scenario_key(value) for _, value in common_scenarios()}), 16)
+        self.assertEqual(len({scenario_key(value) for _, value in common_scenarios()}), 32)
 
     def test_rendered_options_serialize_exactly_the_policy_menu(self):
         options = presentation_config()["policyOptions"]

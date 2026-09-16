@@ -10,6 +10,7 @@ from workers import Request, Response, WorkerEntrypoint
 
 from calculator._generated import MODEL_FINGERPRINT, PRECOMPUTED_PATHS
 from calculator.artifacts import scenario_key
+from calculator.ballot import NoFundedPoliciesError
 from calculator.comparison import compare_policy
 from calculator.requests import comparison_request, scenario_request
 from calculator.simulation import solve_scenario
@@ -141,6 +142,8 @@ class Default(WorkerEntrypoint):
             if snapshot is None:
                 snapshot = solve_scenario(scenario)
             return json_response({"id": scenario["id"], "snapshot": snapshot, "source": source})
+        except NoFundedPoliciesError as exc:
+            return json_response({"error": str(exc)}, 422)
         except RequestError as exc:
             return json_response({"error": str(exc)}, exc.status)
         except Exception:

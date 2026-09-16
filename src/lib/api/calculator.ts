@@ -1,5 +1,12 @@
 import type { ComparisonRequest, ComparisonResponse, ScenarioRequest, ScenarioResponse } from './types';
 
+export class CalculationError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = 'CalculationError';
+  }
+}
+
 async function post<T>(path: string, body: unknown, signal: AbortSignal): Promise<T> {
   const response = await fetch(path, {
     method: 'POST',
@@ -14,7 +21,7 @@ async function post<T>(path: string, body: unknown, signal: AbortSignal): Promis
     throw new Error('The calculation service returned an unreadable response.');
   }
   if (!response.ok || data.error)
-    throw new Error(data.error || 'The calculation service is temporarily unavailable.');
+    throw new CalculationError(data.error || 'The calculation service is temporarily unavailable.', response.status);
   return data;
 }
 export async function simulateScenario(request: ScenarioRequest, signal: AbortSignal) {
