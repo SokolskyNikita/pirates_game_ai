@@ -48,6 +48,8 @@ The page includes equations, budget accounting, voting diagnostics, manual polic
 - `src/lib/economy/pirates-voting.ts`: individual preferences and majority voting.
 - `src/lib/economy/*.test.ts`: economic and voting checks.
 - `src/styles/pirates-game.css`: responsive page styles.
+- `worker/index.ts`: canonical HTTPS redirects and the static-assets entrypoint.
+- `worker/env.d.ts`: generated Cloudflare bindings and runtime types; refresh with `npm run types` after changing Wrangler configuration.
 
 This repository is independent of the original personal website. It contains no personal-site APIs or analytics integration. Fonts are requested from Google Fonts, with local fallback fonts.
 
@@ -55,7 +57,9 @@ This repository is independent of the original personal website. It contains no 
 
 The site is hosted on Cloudflare Workers Static Assets. `wrangler.jsonc` is the deployment configuration. Run `npm run deploy` with an authenticated Wrangler session to check, test, build and publish it. The GitHub Actions workflow validates pushes and pull requests; it has read-only repository access and does not store Cloudflare credentials.
 
-Publish the generated `dist/` directory as a static site. The canonical URL is set in `astro.config.mjs` and the homepage metadata. Hosting and deployment configuration belong to this repository; no files from the original personal site are required.
+The Worker sends HTTP requests on the custom domain and all `www.ai-pirates-game.com` requests to `https://ai-pirates-game.com` with a 308 redirect, preserving the path and query. It serves other requests through the `ASSETS` binding, retaining the static headers, old-path redirects and custom 404 page. The HTTPS `workers.dev` address remains available for troubleshooting.
+
+Publish the generated `dist/` directory together with the Worker entrypoint. The canonical URL is set in `astro.config.mjs` and the homepage metadata. Hosting and deployment configuration belong to this repository; no files from the original personal site are required.
 
 Before publication, run the checks above and verify the homepage, both simulation modes, scenario links, asset loading, robots file, sitemap and a missing URL over HTTPS.
 
