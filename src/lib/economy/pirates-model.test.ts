@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  analyzePayoffs, BASELINE_POLICY, DEFAULT_INPUTS, DISCOUNT_RATE, EQUILIBRIUM_TOLERANCE,
-  INPUT_SPECS, normalizeInputs, POLICIES, scoreTrajectory, simulateProfile, solveModel,
-  UTILITY_OFFSET, type ModelInputs, type Objective, type Policy,
+  analyzePayoffs, BASELINE_POLICY, CAPACITY_RENEWAL_RATE, DEFAULT_INPUTS, DISCOUNT_RATE, EQUILIBRIUM_TOLERANCE,
+  INPUT_SPECS, normalizeInputs, POLICIES, scoreTrajectory, scoreForeignTrajectory, evaluateProfile, simulateProfile, solveModel,
+  UTILITY_OFFSET, type ModelInputs, type Policy,
 } from './pirates-model';
 
 const policy = (overrides: Partial<Policy> = {}): Policy => {
@@ -98,7 +98,7 @@ describe('Private retention and public support are distinct', () => {
 });
 
 describe('Taxes, universal rebates and resource accounting', () => {
-  it.each([.25, 1, 4])('conserves resources and international rents at foreign population %s', foreignMarketSize => {
+  it.each([.25, 1, 4])('conserves resources and international rents at foreign GDP ratio %s', foreignMarketSize => {
     const r = simulateProfile({ ...DEFAULT_INPUTS, foreignMarketSize, capitalMobility: 1 },
       policy({ replacement: .5, safetyNet: 1, workerTax: .5, tax: 1 }),
       policy({ replacement: 1, safetyNet: .5, workerTax: 1, tax: .5 }), 'strategic', 'prosperity', 1);
@@ -158,7 +158,7 @@ describe('Behavioral responses and supported populations', () => {
     expect(r.us[10]!.adoption).toBe(0);
     expect(r.us[10]!.laborEffort).toBe(0);
     expect(r.us[10]!.laborIncome).toBe(0);
-    expect(r.us[10]!.output).toBe(40);
+    expect(r.us[10]!.output).toBeCloseTo(40 * (1 - CAPACITY_RENEWAL_RATE) ** 10, 11);
     expect(Number.isFinite(r.usScore)).toBe(true);
   });
 
@@ -200,7 +200,7 @@ describe('Behavioral responses and supported populations', () => {
   it('keeps budgets and all income fields valid at every corner of the input domain', () => {
     for (let mask = 0; mask < 2 ** INPUT_SPECS.length; mask++) {
       const inputs = Object.fromEntries(INPUT_SPECS.map((s, i) => [s.key, mask & (1 << i) ? s.max : s.min])) as unknown as ModelInputs;
-      const r = simulateProfile(inputs, policy({ replacement: 1.25, safetyNet: 1, workerTax: 1, tax: 1 }), policy(), 'strategic', 'prosperity', 1);
+      const r = evaluateProfile(inputs, policy({ replacement: 1.25, safetyNet: 1, workerTax: 1, tax: 1 }), policy(), 'strategic');
       for (const y of [...r.us, ...(r.foreign ?? [])]) {
         expect(Object.values(y).filter(v => typeof v === 'number').every(Number.isFinite)).toBe(true);
         expect(y.workerIncome).toBeGreaterThanOrEqual(-1e-10);
@@ -210,7 +210,7 @@ describe('Behavioral responses and supported populations', () => {
         expect(y.unemployment).toBeLessThanOrEqual(1);
       }
     }
-  }, 15000);
+  }, 30000);
 });
 
 describe('Finite comparison benchmarks', () => {
@@ -228,31 +228,86 @@ describe('Finite comparison benchmarks', () => {
     expect(r.selected.maxRegret).toBe(2);
   });
 
-  it.each(['prosperity', 'workers', 'output'] as Objective[])('%s checks every unilateral change within the 108-policy menu', objective => {
-    const r = solveModel(DEFAULT_INPUTS, { mode: 'strategic', objective, pace: 1 });
+  it('checks a rectangular grid with an independent foreign pace and objective without retaining trajectories', () => {
+    const r = solveModel(DEFAULT_INPUTS, { mode: 'strategic', objective: 'prosperity', foreignObjective: 'workers', pace: 1 });
     expect(r.policies).toHaveLength(108);
-    expect(r.outcomes).toHaveLength(11664);
-    expect(r.outcomes.every(p => p.usPolicy.pace === 1 && p.foreignPolicy!.pace === 1)).toBe(true);
+    expect(r.foreignPolicies).toHaveLength(432);
+    expect(r.outcomes).toHaveLength(108 * 432);
+    expect(r.outcomes.every(p => p.usPolicy.pace === 1)).toBe(true);
+    expect(new Set(r.outcomes.map(p => p.foreignPolicy!.pace))).toEqual(new Set([0, .33, .67, 1]));
+    expect(r.foreignObjective).toBe('workers');
+    const bestUS = Array(432).fill(-Infinity), bestForeign = Array(108).fill(-Infinity);
+    r.outcomes.forEach((profile, index) => {
+      const row = Math.floor(index / 432), column = index % 432;
+      bestUS[column] = Math.max(bestUS[column], profile.usScore);
+      bestForeign[row] = Math.max(bestForeign[row], profile.foreignScore!);
+      expect(typeof Object.getOwnPropertyDescriptor(profile, 'us')!.get).toBe('function');
+    });
     for (const e of r.equilibria) {
-      const usMoves = r.outcomes.filter(p => p.foreignPolicy!.id === e.foreignPolicy!.id);
-      const foreignMoves = r.outcomes.filter(p => p.usPolicy.id === e.usPolicy.id);
-      expect(Math.max(...usMoves.map(p => p.usScore)) - e.usScore).toBeLessThanOrEqual(EQUILIBRIUM_TOLERANCE);
-      expect(Math.max(...foreignMoves.map(p => p.foreignScore!)) - e.foreignScore!).toBeLessThanOrEqual(EQUILIBRIUM_TOLERANCE);
+      const row = r.policies.indexOf(e.usPolicy), column = r.foreignPolicies.indexOf(e.foreignPolicy!);
+      expect(bestUS[column] - e.usScore).toBeLessThanOrEqual(EQUILIBRIUM_TOLERANCE);
+      expect(bestForeign[row] - e.foreignScore!).toBeLessThanOrEqual(EQUILIBRIUM_TOLERANCE);
     }
-    if (!r.equilibria.length) {
-      expect(r.selection).toBe('min-regret');
-      expect(r.selected.maxRegret).toBeCloseTo(Math.min(...r.outcomes.map(p => p.maxRegret)), 10);
-    }
+    expect(r.selected.foreignScore).toBeCloseTo(scoreForeignTrajectory(r.selected.foreign!, 'workers'), 12);
+    expect(r.selected.us).toEqual(r.selected.us);
+    expect(r.selected.us).not.toBe(r.selected.us); // Reading does not grow a retained full-grid trajectory cache.
     expect(r.coordinated.globalScore).toBeCloseTo(Math.max(...r.outcomes.map(p => p.globalScore)), 10);
+  }, 30000);
+
+  it('US-only ignores foreign parameters, but zero frontier capability leaves a trading foreign economy', () => {
+    const usPolicy = policy();
+    const foreignPolicy = policy({ pace: 0 });
+    const a = evaluateProfile(DEFAULT_INPUTS, usPolicy, undefined, 'us-only');
+    const inputs = { ...DEFAULT_INPUTS, foreignStrength: 0, foreignMarketSize: 4, capitalMobility: 1, tradeIntensity: 1 };
+    const b = evaluateProfile(inputs, usPolicy, undefined, 'us-only');
+    expect(a.us).toEqual(b.us);
+    const foreign = evaluateProfile({ ...inputs, investmentResponse: 0 }, usPolicy, foreignPolicy, 'strategic').foreign!;
+    expect(foreign).toHaveLength(11);
+    expect(foreign[10]!.adoption).toBe(0);
+    expect(foreign[10]!.exposure).toBeCloseTo(DEFAULT_INPUTS.foreignTradeIntensity, 12);
+    expect(foreign[10]!.unemployment).toBeGreaterThan(0);
   });
 
-  it('US-only ignores foreign inputs and zero capability removes the rival', () => {
-    const a = solveModel(DEFAULT_INPUTS, { mode: 'us-only', objective: 'workers', pace: 1 });
-    const inputs = { ...DEFAULT_INPUTS, foreignStrength: 0, foreignMarketSize: 4, capitalMobility: 1, tradeIntensity: 1 };
-    const b = solveModel(inputs, { mode: 'strategic', objective: 'workers', pace: 1 });
-    expect(a.outcomes).toEqual(b.outcomes);
-    expect(b.effectiveMode).toBe('us-only');
-    expect(b.baseline.us[10]!.adoption).toBe(0);
+  it('distinguishes foreign worker incomes, population welfare and gross output', () => {
+    const base = evaluateProfile({}, policy({ pace: 0 }), undefined, 'us-only').us[0]!;
+    // The unequal profile pays more total worker income, but its poorer half
+    // has lower utility. Output is independent of either income objective.
+    const unequal = [{ ...base, year: 1, unemployment: .5, newlyDisplaced: .5,
+      employedIncomeIndex: 250, newlyDisplacedIncomeIndex: 1, workerIncomeIndex: 125.5, output: 90 }];
+    const equal = [{ ...base, year: 1, employedIncomeIndex: 110, workerIncomeIndex: 110, output: 120 }];
+    expect(scoreForeignTrajectory(unequal, 'workers')).toBeGreaterThan(scoreForeignTrajectory(equal, 'workers'));
+    expect(scoreForeignTrajectory(unequal, 'prosperity')).toBeLessThan(scoreForeignTrajectory(equal, 'prosperity'));
+    expect(scoreForeignTrajectory(unequal, 'output')).toBeLessThan(scoreForeignTrajectory(equal, 'output'));
+  });
+
+  it('uses GDP for rent accounting and output weights, and population for welfare weights', () => {
+    const inputs = { ...DEFAULT_INPUTS, foreignMarketSize: 3, foreignPopulationRatio: 23 };
+    const a = evaluateProfile(inputs, policy(), policy({ tax: 1 }), 'strategic', 'prosperity', 'output');
+    const b = evaluateProfile({ ...inputs, foreignPopulationRatio: 2 }, policy(), policy({ tax: 1 }), 'strategic', 'prosperity', 'output');
+    expect(a.us).toEqual(b.us);
+    expect(a.foreign).toEqual(b.foreign);
+    expect(a.foreignScore).toBe(b.foreignScore);
+    const foreignWelfare = scoreTrajectory(a.foreign!, 'prosperity');
+    expect(a.globalScore).toBeCloseTo((a.usScore + 23 * foreignWelfare) / 24, 12);
+    expect(b.globalScore).toBeCloseTo((b.usScore + 2 * foreignWelfare) / 3, 12);
+    const out = evaluateProfile(inputs, policy(), policy({ tax: 1 }), 'strategic', 'output', 'workers');
+    expect(out.globalScore).toBeCloseTo((out.usScore + 3 * scoreTrajectory(out.foreign!, 'output')) / 4, 12);
+    for (let t = 0; t <= 10; t++) expect(a.us[t]!.netRentFlow + 3 * a.foreign![t]!.netRentFlow).toBeCloseTo(0, 10);
+  });
+
+  it('penalizes underinvestment in legacy capacity even if domestic AI deployment is paused', () => {
+    const inputs = { workerOwnership: 0, investmentResponse: 1, productivityGain: 0, displacement: 0 };
+    const untaxed = evaluateProfile(inputs, policy({ pace: 0 }), undefined, 'us-only');
+    const taxed = evaluateProfile(inputs, policy({ pace: 0, tax: 1 }), undefined, 'us-only');
+    expect(untaxed.us[10]!.output).toBe(100);
+    expect(taxed.us[10]!.adoption).toBe(0);
+    expect(taxed.us[10]!.capacityFactor).toBeCloseTo(.95 ** 10, 12);
+    expect(taxed.us[10]!.output).toBeCloseTo(100 * .95 ** 10, 10);
+    expect(taxed.us[10]!.laborIncome).toBeCloseTo(60 * .95 ** 10, 10);
+    expect(taxed.us[10]!.capitalIncome).toBeCloseTo(40 * .95 ** 10, 10);
+    expect(taxed.us[10]!.resourceResidual).toBeCloseTo(0, 12);
+    const inelastic = evaluateProfile({ ...inputs, investmentResponse: 0 }, policy({ pace: 0, tax: 1 }), undefined, 'us-only');
+    expect(inelastic.us[10]!.output).toBe(100);
   });
 
   it('normalizes population shares and rejects invalid policies and matrices', () => {

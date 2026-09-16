@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_INPUTS, DISCOUNT_RATE, POLICIES, UTILITY_OFFSET,
-  scoreTrajectory, simulateProfile, solveModel,
-  type Policy, type ProfileOutcome, type RegionYear, type SolveResult,
+  scoreForeignTrajectory, scoreTrajectory, simulateProfile, solveModel,
+  type Objective, type Policy, type ProfileOutcome, type RegionYear, type SolveResult,
 } from './pirates-model';
 import { analyzeCoordinateVotes, analyzeMajority, changedPolicyAxes, countVotes, solveVoting, voterUtilities, workerVoterCount, VOTER_COUNT, VOTES_REQUIRED, WORKER_VOTERS } from './pirates-voting';
 
@@ -11,6 +11,44 @@ const policy = (pace: number, tax = 0, replacement = 0, safetyNet = 0, workerTax
 const utility = (index: number) => Math.log((index / 100 + UTILITY_OFFSET) / (1 + UTILITY_OFFSET));
 const mean = (values: ArrayLike<number>) => Array.from(values).reduce((sum, value) => sum + value, 0) / values.length;
 const vector = (value: number) => new Float64Array(VOTER_COUNT).fill(value);
+
+
+interface SyntheticPayoff {
+  us: number;
+  usOwners?: number;
+  foreignWorkers: number;
+  foreignOwners?: number;
+  foreignOutput?: number;
+}
+
+/** Small, rectangular games isolate the game rules from the production model. */
+function strategicFixture(
+  policies: readonly Policy[], foreignPolicies: readonly Policy[],
+  payoff: (row: number, column: number) => SyntheticPayoff,
+  foreignObjective: Objective = 'prosperity',
+): SolveResult {
+  const template = solveModel({}, { mode: 'us-only', objective: 'prosperity', pace: policies[0]!.pace });
+  const trajectory = (workerIndex: number, ownerIndex = workerIndex, output = 100): RegionYear[] => [{
+    ...template.baseline.us[0]!, year: 1, unemployment: 0, newlyDisplaced: 0, longTermDisplaced: 0,
+    workerIncomeIndex: workerIndex, employedIncomeIndex: workerIndex,
+    newlyDisplacedIncomeIndex: workerIndex, longTermDisplacedIncomeIndex: workerIndex,
+    ownerIncomeIndex: ownerIndex, output,
+  }];
+  const outcomes: ProfileOutcome[] = policies.flatMap((usPolicy, row) => foreignPolicies.map((foreignPolicy, column) => {
+    const values = payoff(row, column);
+    const us = trajectory(values.us, values.usOwners);
+    const foreign = trajectory(values.foreignWorkers, values.foreignOwners, values.foreignOutput);
+    return {
+      ...template.outcomes[0]!, id: `${usPolicy.id}|${foreignPolicy.id}`, usPolicy, foreignPolicy, us, foreign,
+      usScore: scoreTrajectory(us, 'prosperity'), foreignScore: scoreForeignTrajectory(foreign, foreignObjective),
+    };
+  }));
+  return {
+    ...template, mode: 'strategic', effectiveMode: 'strategic', foreignObjective,
+    policies, foreignPolicies, outcomes, baseline: outcomes[0]!, selected: outcomes[0]!,
+    coordinated: outcomes[0]!, usBestResponse: outcomes[0]!, equilibria: [],
+  };
+}
 
 describe('Representative voter trajectories', () => {
   it.each([0, .2, 1])('reconciles individual expected utility with macro welfare at reemployment %s', reemployment => {
@@ -279,64 +317,113 @@ describe('Voting over the economic policy menu', () => {
     expect(result.votesForChange(challenger, incumbent)).toBe(1000);
   });
 
-  it('checks every unilateral deviation in both countries and retains every stable pair', () => {
-    const model = solveModel(DEFAULT_INPUTS, { mode: 'strategic', objective: 'prosperity', pace: 1 });
+  it('checks US majority deviations and every foreign package in a rectangular international game', () => {
+    const usPolicies = [policy(1), policy(1, .5)];
+    const foreignPolicies = [policy(1), policy(1, .5), policy(.33, 1, 1, 1, .5)];
+    const model = strategicFixture(usPolicies, foreignPolicies, (row, column) => ({
+      us: row === 1 ? 150 : 100,
+      foreignWorkers: [100, 50, 200][column]!,
+    }));
     const result = solveVoting(model);
-    expect(result.outcomes).toHaveLength(11664);
-    expect(result.outcomes.some(outcome => !outcome.feasible)).toBe(true);
-    const usGroups = new Map<string, typeof result.outcomes>();
-    const foreignGroups = new Map<string, typeof result.outcomes>();
-    for (const outcome of result.outcomes) {
-      const foreignId = outcome.foreignPolicy!.id, usId = outcome.usPolicy.id;
-      if (!usGroups.has(foreignId)) usGroups.set(foreignId, []);
-      if (!foreignGroups.has(usId)) foreignGroups.set(usId, []);
-      usGroups.get(foreignId)!.push(outcome);
-      foreignGroups.get(usId)!.push(outcome);
-    }
+    expect(result.outcomes).toHaveLength(6);
     const independentStable: string[] = [];
     for (const incumbent of result.outcomes) {
-      const usMaximum = Math.max(...usGroups.get(incumbent.foreignPolicy!.id)!
-        .filter(challenger => changedPolicyAxes(challenger.usPolicy, incumbent.usPolicy).length === 1)
-        .map(challenger => result.votesForChange(challenger, incumbent, 'us')));
-      const foreignMaximum = Math.max(...foreignGroups.get(incumbent.usPolicy.id)!
-        .filter(challenger => changedPolicyAxes(challenger.foreignPolicy!, incumbent.foreignPolicy!).length === 1)
-        .map(challenger => result.votesForChange(challenger, incumbent, 'foreign')));
+      const usAlternatives = result.outcomes.filter(challenger =>
+        challenger.foreignPolicy!.id === incumbent.foreignPolicy!.id
+        && changedPolicyAxes(challenger.usPolicy, incumbent.usPolicy).length === 1);
+      const usMaximum = Math.max(0, ...usAlternatives.map(challenger => result.votesForChange(challenger, incumbent)));
+      const foreignAlternatives = result.outcomes.filter(challenger => challenger.usPolicy.id === incumbent.usPolicy.id);
+      const foreignBestScore = Math.max(...foreignAlternatives.map(challenger => challenger.foreignScore!));
+      const foreignGain = foreignBestScore - incumbent.foreignScore!;
       expect(incumbent.usDeviationVotes).toBe(usMaximum);
-      expect(incumbent.foreignDeviationVotes).toBe(foreignMaximum);
-      expect(incumbent.maxDeviationVotes).toBe(Math.max(usMaximum, foreignMaximum));
-      if (Math.max(usMaximum, foreignMaximum) < VOTES_REQUIRED) independentStable.push(incumbent.id);
+      expect(incumbent.maxDeviationVotes).toBe(usMaximum);
+      expect(incumbent.foreignBestResponseGain).toBeCloseTo(foreignGain, 12);
+      expect(incumbent.foreignBestResponsePolicyId).toBe(foreignPolicies[2]!.id);
+      if (usMaximum < VOTES_REQUIRED && foreignGain <= 1e-10) independentStable.push(incumbent.id);
     }
-    expect(result.selected.usPackageDeviationVotes).toBe(Math.max(...usGroups.get(result.selected.foreignPolicy!.id)!
-      .map(challenger => result.votesForChange(challenger, result.selected, 'us'))));
-    expect(result.selected.foreignPackageDeviationVotes).toBe(Math.max(...foreignGroups.get(result.selected.usPolicy.id)!
-      .map(challenger => result.votesForChange(challenger, result.selected, 'foreign'))));
     expect(result.majorityStable.map(outcome => outcome.id)).toEqual(independentStable);
-    if (independentStable.length) {
-      expect(result.selection).toBe('separate-ballot-stable');
-      expect(result.selected.maxDeviationVotes).toBeLessThan(VOTES_REQUIRED);
-    } else {
-      expect(result.selection).toBe('min-coordinate-deviation-votes');
-      expect(result.selected.maxDeviationVotes).toBe(Math.min(...result.outcomes.map(outcome => outcome.maxDeviationVotes)));
-    }
+    expect(result.majorityStable).toHaveLength(1);
+    expect(result.selection).toBe('international-stable');
+    expect(result.selected.usPolicy.id).toBe(usPolicies[1]!.id);
+    expect(result.selected.foreignPolicy!.id).toBe(foreignPolicies[2]!.id);
+    expect(result.selected.foreignPolicy!.pace).not.toBe(result.selected.usPolicy.pace);
+    expect(changedPolicyAxes(foreignPolicies[0]!, foreignPolicies[2]!).length).toBeGreaterThan(1);
+    expect(result.selected.foreignBestResponseGain).toBe(0);
+    expect(result.selected.usPackageDeviationVotes).toBe(0);
+
+    // Even under separate US ballots, the foreign actor can change its entire package.
+    expect(result.statusQuo.foreignBestResponseGain).toBeGreaterThan(0);
+    expect(result.statusQuo.foreignBestResponsePolicyId).toBe(foreignPolicies[2]!.id);
   });
 
-  it('reports no stable pair in a matching-pennies majority game', () => {
-    const template = solveModel({}, { mode: 'strategic', objective: 'prosperity', pace: 1 });
-    const policies = template.policies.slice(0, 2);
-    const trajectory = (wins: boolean): RegionYear[] => [{
-      ...template.baseline.us[0]!, year: 1,
-      employedIncomeIndex: wins ? 200 : 50, ownerIncomeIndex: wins ? 200 : 50,
-    }];
-    const outcomes: ProfileOutcome[] = policies.flatMap((usPolicy, row) => policies.map((foreignPolicy, column) => ({
-      ...template.outcomes[0]!, id: `${usPolicy.id}|${foreignPolicy.id}`, usPolicy, foreignPolicy,
-      us: trajectory(row === column), foreign: trajectory(row !== column),
-    })));
-    const synthetic: SolveResult = { ...template, policies, outcomes };
-    const result = solveVoting(synthetic);
-    expect(result.majorityStable).toHaveLength(0);
-    expect(result.selection).toBe('min-coordinate-deviation-votes');
-    expect(result.selected.maxDeviationVotes).toBe(1000);
-    expect(result.hasMajorityCycle).toBe(true);
+  it.each([.5, .501])('still requires 501 US votes in the international game at worker share %s', workerShare => {
+    const usPolicies = [policy(1), policy(1, .5)];
+    const model = strategicFixture(usPolicies, [policy(1)], row => ({
+      us: row === 1 ? 200 : 100, usOwners: row === 1 ? 50 : 100, foreignWorkers: 100,
+    }));
+    model.inputs.workerShare = workerShare;
+    for (const outcome of model.outcomes) for (const point of outcome.us) point.workerShare = workerShare;
+    const result = solveVoting(model);
+    expect(result.statusQuo.usDeviationVotes).toBe(Math.round(workerShare * VOTER_COUNT));
+    expect(result.selected.usPolicy.id).toBe(usPolicies[workerShare > .5 ? 1 : 0]!.id);
+    expect(result.selection).toBe('international-stable');
+    expect(result.selected.foreignBestResponseGain).toBe(0);
+  });
+
+  it.each([
+    ['workers', 0], ['prosperity', 1], ['output', 2],
+  ] as const)('lets the foreign actor optimize %s without replacing US voters with an aggregate objective', (foreignObjective, expectedColumn) => {
+    const usPolicies = [policy(1), policy(1, .5)];
+    const foreignPolicies = [policy(1), policy(.67, .5), policy(.33, 1)];
+    const foreignPayoffs = [
+      { foreignWorkers: 150, foreignOwners: 1, foreignOutput: 100 },
+      { foreignWorkers: 140, foreignOwners: 400, foreignOutput: 120 },
+      { foreignWorkers: 100, foreignOwners: 100, foreignOutput: 200 },
+    ];
+    const model = strategicFixture(usPolicies, foreignPolicies, (row, column) => ({
+      us: row === 1 ? 150 : 100, ...foreignPayoffs[column]!,
+    }), foreignObjective);
+    const result = solveVoting(model);
+    expect(result.selected.usPolicy.id).toBe(usPolicies[1]!.id);
+    expect(result.selected.foreignPolicy!.id).toBe(foreignPolicies[expectedColumn]!.id);
+    expect(result.selected.foreignBestResponseGain).toBe(0);
+    expect(result.selection).toBe('international-stable');
+
+    const rescored = solveVoting({ ...model, objective: 'output', outcomes: model.outcomes.map(outcome => ({
+      ...outcome, usScore: outcome.usPolicy.id === usPolicies[0]!.id ? 1e6 : -1e6,
+      globalScore: outcome.usPolicy.id === usPolicies[0]!.id ? 1e6 : -1e6,
+    })) });
+    expect(rescored.selected.id).toBe(result.selected.id);
+    expect(rescored.outcomes.map(outcome => outcome.usDeviationVotes)).toEqual(result.outcomes.map(outcome => outcome.usDeviationVotes));
+  });
+
+  it('retains all tied foreign best responses and an already stable status quo', () => {
+    const foreignPolicies = [policy(1), policy(.33, 1, 1, 1)];
+    const model = strategicFixture([policy(1)], foreignPolicies, () => ({ us: 100, foreignWorkers: 100 }));
+    const result = solveVoting(model);
+    expect(result.majorityStable).toHaveLength(2);
+    expect(result.majorityStable.every(outcome => outcome.foreignBestResponseGain === 0)).toBe(true);
     expect(result.selected).toBe(result.statusQuo);
+    expect(result.selection).toBe('international-stable');
+    expect(result.hasMajorityCycle).toBe(false);
+  });
+
+  it('reports no stable pair and keeps the foreign actor rational in a matching-pennies game', () => {
+    const policies = [policy(1), policy(1, .5)];
+    const model = strategicFixture(policies, policies, (row, column) => ({
+      us: row === column ? 200 : 50,
+      foreignWorkers: row !== column ? 200 : 50,
+    }));
+    const result = solveVoting(model);
+    expect(result.majorityStable).toHaveLength(0);
+    expect(result.selection).toBe('foreign-best-response-fallback');
+    expect(result.selected.usDeviationVotes).toBe(1000);
+    expect(result.selected.maxDeviationVotes).toBe(1000);
+    expect(result.selected.foreignBestResponseGain).toBe(0);
+    expect(result.hasMajorityCycle).toBe(true);
+    expect(result.selected.id).not.toBe(result.statusQuo.id);
+    const foreignBestResponses = result.outcomes.filter(outcome => outcome.foreignBestResponseGain <= 1e-10);
+    expect(foreignBestResponses).toHaveLength(2);
+    expect(result.selected.usDeviationVotes).toBe(Math.min(...foreignBestResponses.map(outcome => outcome.usDeviationVotes)));
   });
 });

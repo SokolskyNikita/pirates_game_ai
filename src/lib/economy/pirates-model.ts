@@ -11,13 +11,14 @@
  * q=workerOwnership*workerTax+(1-workerOwnership)*ownerTax.
  * investmentBurden =1-(1-c)*(1-q).
  * adoption=pace*(t/10)*frontier*(1-response*investmentBurden).
- * exposure=adoption+.25*trade*foreignAdoption*(1-adoption).
+ * exposure=adoption+importShare*foreignAdoption*(1-adoption).
  * u=(1-reemployment)*previousU+displacement*change(exposure).
  * laborEffort=1-response*workerTax.
- * Y=40+60*(1-u)*laborEffort+100*productivityGain*exposure.
- * L=60*(1-u)*laborEffort*(1+.35*productivityGain*exposure).
+ * capacity=1-response*investmentBurden*(1-.95^t).
+ * Y=capacity*(40+60*(1-u)*laborEffort+100*productivityGain*exposure).
+ * L=capacity*60*(1-u)*laborEffort*(1+.35*productivityGain*exposure).
  * I=12*change(adoption)+40*change(adoption)^2; J=30*newlyAffected.
- * K=Y-L-I-J. International rents F sum to zero after population weights;
+ * K=Y-L-I-J. International rents F sum to zero after relative GDP weights;
  * attraction depends on adoption and the combined retention/tax burden.
  *
  * Employer pay E=min(60*u*retentionTarget,max(0,K+F)); C=K+F-E.
@@ -34,9 +35,9 @@
  * Unfunded obligations remain valid strategies with actual funded incomes;
  * shortfalls are reported and are not represented as fully paid promises.
  * No demand, price, debt, capital-stock accumulation or depreciation is solved.
- * Behavioral responses affect new AI deployment and labor effort only. The
- * baseline capital contribution 40 is maintained. Response coefficients are
- * declared assumptions, not calibrated elasticities or empirical forecasts.
+ * Behavioral responses affect AI deployment, productive capacity renewal and
+ * labor effort. Five percent annual capacity renewal is a declared assumption.
+ * Response coefficients are not calibrated elasticities or empirical forecasts.
  */
 
 export type ModelMode = 'us-only' | 'strategic';
@@ -53,6 +54,8 @@ export interface ModelInputs {
   foreignStrength: number;
   tradeIntensity: number;
   foreignMarketSize: number;
+  foreignPopulationRatio: number;
+  foreignTradeIntensity: number;
 }
 
 export interface InputSpec {
@@ -73,8 +76,10 @@ export const DEFAULT_INPUTS: ModelInputs = {
   capitalMobility: .5,
   investmentResponse: .35,
   foreignStrength: 1,
-  tradeIntensity: .3,
-  foreignMarketSize: 1,
+  tradeIntensity: .14175546,
+  foreignMarketSize: 2.8463217399,
+  foreignPopulationRatio: 23.0368311373,
+  foreignTradeIntensity: .03916185,
 };
 
 export const INPUT_SPECS: readonly InputSpec[] = [
@@ -84,10 +89,12 @@ export const INPUT_SPECS: readonly InputSpec[] = [
   { key: 'workerOwnership', label: 'Workers’ share of capital', min: 0, max: .5, step: .025, description: 'Fraction of all capital income belonging to the worker-household group, including employee or pension ownership.' },
   { key: 'workerShare', label: 'Worker households in the electorate', min: .01, max: .99, step: .001, description: 'Worker share of 1,000 voters; the remainder are owner households. Aggregate labor income 60 and capital income 40 stay fixed, so income per household adjusts with this ratio.' },
   { key: 'capitalMobility', label: 'Mobile AI rents', min: 0, max: 1, step: .05, description: 'Strength of international rent relocation and its response to different tax rates; inactive in US-only mode.' },
-  { key: 'investmentResponse', label: 'Response to policy burdens', min: 0, max: 1, step: .05, description: 'How strongly employer retention and income levies reduce new AI investment, and worker levies reduce productive labor effort. Zero holds these behavioral responses fixed.' },
-  { key: 'foreignStrength', label: 'Foreign frontier capability', min: 0, max: 1, step: .05, description: 'Foreign adoption capacity and ability to attract mobile rents. Zero removes the strategic rival.' },
-  { key: 'tradeIntensity', label: 'Cross-border exposure', min: 0, max: 1, step: .05, description: 'Imported AI and knowledge add up to one quarter of the other bloc’s adoption to domestic exposure.' },
-  { key: 'foreignMarketSize', label: 'Foreign market / population', min: .25, max: 4, step: .25, description: 'Foreign population and baseline output relative to the US; both blocs begin with the same output per person.' },
+  { key: 'investmentResponse', label: 'Response to policy burdens', min: 0, max: 1, step: .05, description: 'How strongly employer retention and income levies reduce AI adoption and replacement of productive capacity, and worker levies reduce labor effort. Zero holds these responses fixed; this is an assumption, not an estimated elasticity.' },
+  { key: 'foreignStrength', label: 'Foreign frontier capability', min: 0, max: 1, step: .05, description: 'Foreign frontier adoption capacity and ability to attract mobile rents. At zero, the foreign economy can still import US AI and choose its own policies.' },
+  { key: 'tradeIntensity', label: 'US import exposure', min: 0, max: 1, step: .01, description: 'Maximum share of otherwise unexposed US activity reached through foreign adoption. The default uses 2025 US imports/GDP; using that share for AI spillovers is an assumption.' },
+  { key: 'foreignMarketSize', label: 'Rest-of-world GDP / US GDP', min: .25, max: 8, step: .1, description: 'Relative baseline economic size. The default is 2025 rest-of-world nominal GDP divided by US GDP. Population is a separate quantity.' },
+  { key: 'foreignPopulationRatio', label: 'Rest-of-world population / US population', min: .25, max: 40, step: .25, description: 'Relative population, independent of GDP. The default uses 2025 World Bank population estimates; it weights person-based global welfare comparisons, not dollars of rent flows.' },
+  { key: 'foreignTradeIntensity', label: 'Foreign exposure to US exports', min: 0, max: 1, step: .01, description: 'Maximum foreign AI spillover exposure through US adoption. The default uses 2025 US exports divided by rest-of-world GDP; it does not count trade within the foreign bloc.' },
 ];
 
 export interface Policy {
@@ -129,6 +136,8 @@ export const DISCOUNT_RATE = .03;
 export const EQUILIBRIUM_TOLERANCE = 1e-10;
 /** Offset affects utility only; it never creates household income. */
 export const UTILITY_OFFSET = .01;
+/** Illustrative annual renewal share, not an estimated national depreciation rate. */
+export const CAPACITY_RENEWAL_RATE = .05;
 
 export const MODEL_NOTES: readonly { title: string; detail: string; equation?: string }[] = [
   { title: 'Two separate choices', detail: 'Private policy either lays off workers in obsolete roles or requires employers to retain them at 50%, 100% or 125% of their fixed pre-AI wage, before household taxes. Retained roles add no production. Public policy separately offers no targeted floor, a 50% floor or a 100% floor, measured after tax on employer wages. This is a mandated retention rule, not a claim that profit-maximizing firms voluntarily keep obsolete jobs.' },
@@ -136,11 +145,11 @@ export const MODEL_NOTES: readonly { title: string; detail: string; equation?: s
   { title: 'The residual rebate', detail: 'After targeted public support, every voter receives an equal share of remaining receipts, including owners. Thus a zero targeted floor does not necessarily mean zero government income. The worker and owner dividends are their household-population shares of the residual pool. This universal rebate is a specified budget rule, not a description of the current US system.' },
   { title: 'Money must come from somewhere', detail: 'Employer retention wages are paid from capital income before household levies. Both wages and public support are capped by their available funding. Private payroll, taxes and transfers change who receives output; none creates additional output. Private gross-pay shortfalls and net public-floor shortfalls are shown separately, without adding overlapping missing income twice.', equation: 'total household income = gross output − installation cost − adjustment cost + net foreign rent inflow' },
   { title: 'Worker and owner populations', detail: 'The electorate has 1,000 voters. The worker share is editable in one-voter steps, with both groups present. Workers are tracked by productive, newly obsolete and longer-term obsolete roles. Obsolete workers may be retained employees or laid off. Baseline aggregate productive wages 60 and capital income 40 remain fixed when population shares change, so baseline income per household changes.' },
-  { title: 'Investment and labor incentives', detail: 'Anticipated retention payroll and ownership-weighted household levies jointly reduce the return to new AI deployment. The retention forecast includes imported exposure even during a domestic deployment pause. Worker taxes also reduce productive labor effort through the same adjustable response parameter. At zero response these behavioral effects are held fixed. These are transparent illustrative response rules, not estimated elasticities.', equation: 'capital levy=ownership×worker tax+(1−ownership)×owner tax; combined burden=1−(1−capital levy)×(1−anticipated payroll share); adoption=planned adoption×(1−response×burden); labor effort=1−response×worker tax' },
-  { title: 'International competition', detail: 'Up to 60% of new AI rents can relocate, depending on mobility and foreign capability. Larger markets, greater adoption and smaller combined retention/tax burdens attract more. Net US flow plus foreign population times foreign flow is zero. Relocation changes national income without creating world production. Zero foreign capability explicitly removes the rival and reduces the calculation to US-only mode.' },
+  { title: 'Investment and labor incentives', detail: 'Retention obligations and household levies deter AI deployment and renewal of existing productive capacity. The model assumes 5% of capacity requires renewal annually; stronger burdens leave more of that capacity unreplaced. Output and productive wages fall together, including during an AI pause. Worker taxes also reduce productive labor effort. Zero response disables these effects. These are reduced-form assumptions, not estimated elasticities or a solved investment market.', equation: 'capacity in year t=1−response×burden×(1−0.95^t); adoption=planned adoption×(1−response×burden); labor effort=1−response×worker tax' },
+  { title: 'International competition', detail: 'The rest of the world is one actor choosing its own policy and deployment pace. It can maximize worker net income, person-weighted income utility, or gross output. Larger GDP, frontier adoption and smaller policy burdens attract mobile AI rents. US net rent inflow plus the foreign GDP ratio times foreign net inflow is zero. Population is separate from GDP. At zero foreign frontier capability, the foreign economy still imports US AI and chooses its own taxes and worker policy.' },
   { title: 'Scores and rational voters', detail: 'The economic comparison scores use ten annual outcomes and a 3% discount rate. Income utility is log((income/baseline+0.01)/1.01). The 1% offset affects utility only, never actual income. Separate voting code evaluates each voter’s own expected future utility and majority challenges. Population-weighted worker/owner utility optima are comparison benchmarks, not democratic winners.' },
-  { title: 'The policy menu', detail: 'At a fixed deployment pace, 4 retention choices×3 public floors×3 worker levies×3 owner levies give 108 policies and 11,664 international pairs. Every choice is enumerated. The four deployment scenarios are 0%, 33%,67% and 100%. The browser does not claim to have solved all four paces simultaneously.' },
-  { title: 'Limits of the economic response', detail: 'There is no full general-equilibrium, price, demand, debt, capital-stock accumulation or depreciation model. Behavioral penalties concern new AI investment and labor effort; the baseline capital contribution 40 remains. The model does not assign real professions to risk ranks, estimate current US income distribution or predict an inevitable collapse under a particular tax.' },
+  { title: 'The policy menu', detail: 'The US votes over 108 combinations at its selected deployment pace: four retention wages, three public floors and three rates for each household tax. The foreign actor independently chooses among all 432 combinations, including four deployment paces. International mode evaluates all 46,656 pairs. A stable pair combines no winning US amendment with a foreign best response; it need not exist or be unique.' },
+  { title: 'Limits of the economic response', detail: 'GDP, population and import shares anchor the relative size of the two economies. AI productivity, displacement, reemployment, ownership, rent mobility and policy responses remain adjustable assumptions. Capacity erosion is an illustrative renewal rule, not a capital-stock forecast. The model does not solve prices, demand, debt or firm investment decisions, and does not estimate which real professions disappear first.' },
 ];
 
 export interface RegionYear {
@@ -197,6 +206,8 @@ export interface RegionYear {
   totalLaborIncome: number;
   laborEffort: number;
   investmentBurden: number;
+  /** Productive capacity after reduced-form underinvestment in replacement. */
+  capacityFactor: number;
   /** Capital income after investment/adjustment and relocation, before retained payroll and household taxes. */
   capitalIncome: number;
   capitalAfterRetention: number;
@@ -244,15 +255,17 @@ export interface ProfileOutcome {
   foreignFundingGap?: number;
 }
 
-export interface SolveOptions { mode: ModelMode; objective: Objective; pace?: number }
+export interface SolveOptions { mode: ModelMode; objective: Objective; foreignObjective?: Objective; pace?: number }
 
 export interface SolveResult {
   inputs: ModelInputs;
   mode: ModelMode;
   objective: Objective;
+  foreignObjective: Objective;
   pace?: number;
   effectiveMode: ModelMode;
   policies: readonly Policy[];
+  foreignPolicies: readonly Policy[];
   outcomes: ProfileOutcome[];
   selected: ProfileOutcome;
   equilibria: ProfileOutcome[];
@@ -302,7 +315,7 @@ function initialYear(inputs: ModelInputs): RegionYear {
     publicSupport: 0, publicSupportRatio: 0, netWageIncomeRatio: 0, safetyNetFundingGap: 0,
     productiveWorkers: 1, retainedWorkers: 0, laidOffWorkers: 0, employedWorkers: 1,
     unemployment: 0, reemployed: 0, laborIncome: 60, totalLaborIncome: 60, capitalIncome: 40, capitalAfterRetention: 40,
-    laborEffort: 1, investmentBurden: 0,
+    laborEffort: 1, investmentBurden: 0, capacityFactor: 1,
     taxRevenue: 0, baselineTaxRevenue: 0, additionalTaxRevenue: 0,
     workerTaxRevenue: 0, ownerTaxRevenue: 0, workerTaxBase: workerIncome, ownerTaxBase: ownerIncome,
     taxBase: 100, transfers: 0, workerDividend: 0, ownerDividend: 0, totalDividend: 0, trainingSpend: 0,
@@ -325,19 +338,20 @@ interface Production {
   adjustment: number;
   laborEffort: number;
   investmentBurden: number;
+  capacityFactor: number;
 }
 
 /** Anticipated year-ten obsolete payroll as a share of baseline capital income,
  * evaluated before tax/retention deter adoption. Reemployment limits that bill.
  * It is a declared response approximation, not an investor's solved equilibrium.
  */
-function investmentBurden(inputs: ModelInputs, policy: Policy, strength: number, otherPotential: number): number {
+function investmentBurden(inputs: ModelInputs, policy: Policy, strength: number, otherPotential: number, tradeIntensity: number): number {
   let expectedAffected = 0;
   let priorExposure = 0;
   for (let t = 1; t <= YEARS; t++) {
     const own = policy.pace * strength * t / YEARS;
     const foreign = otherPotential * t / YEARS;
-    const exposure = own + .25 * inputs.tradeIntensity * foreign * (1 - own);
+    const exposure = own + tradeIntensity * foreign * (1 - own);
     expectedAffected = (1 - inputs.reemployment) * expectedAffected + inputs.displacement * (exposure - priorExposure);
     priorExposure = exposure;
   }
@@ -350,20 +364,23 @@ function adoptionAt(inputs: ModelInputs, policy: Policy, year: number, strength:
   return policy.pace * (year / YEARS) * strength * (1 - inputs.investmentResponse * burden);
 }
 
-function production(inputs: ModelInputs, previous: RegionYear, adoption: number, otherAdoption: number, policy: Policy, burden: number): Production {
-  const exposure = adoption + .25 * inputs.tradeIntensity * otherAdoption * (1 - adoption);
+function production(inputs: ModelInputs, previous: RegionYear, adoption: number, otherAdoption: number, policy: Policy, burden: number, tradeIntensity: number, year: number): Production {
+  const exposure = adoption + tradeIntensity * otherAdoption * (1 - adoption);
   const deltaExposure = Math.max(0, exposure - previous.exposure);
   const deltaAdoption = Math.max(0, adoption - previous.adoption);
   const reemploymentRate = inputs.reemployment;
   const reemployed = previous.unemployment * reemploymentRate;
   const unemployment = Math.min(1, Math.max(0, previous.unemployment - reemployed + inputs.displacement * deltaExposure));
   const laborEffort = 1 - inputs.investmentResponse * policy.workerTax;
-  const output = 40 + 60 * (1 - unemployment) * laborEffort + 100 * inputs.productivityGain * exposure;
-  const labor = 60 * (1 - unemployment) * laborEffort * (1 + .35 * inputs.productivityGain * exposure);
+  // A burden also discourages replacement of existing productive capacity.
+  // Scaling output and wages together preserves their accounting relationship.
+  const capacityFactor = 1 - inputs.investmentResponse * burden * (1 - (1 - CAPACITY_RENEWAL_RATE) ** year);
+  const output = capacityFactor * (40 + 60 * (1 - unemployment) * laborEffort + 100 * inputs.productivityGain * exposure);
+  const labor = capacityFactor * 60 * (1 - unemployment) * laborEffort * (1 + .35 * inputs.productivityGain * exposure);
   const investment = 12 * deltaAdoption + 40 * deltaAdoption ** 2;
   const adjustment = 30 * inputs.displacement * deltaExposure;
   const capital = output - labor - investment - adjustment;
-  return { adoption, exposure, unemployment, newlyDisplaced: inputs.displacement * deltaExposure, reemployed, output, labor, capital, rents: Math.max(0, capital - 40), investment, adjustment, laborEffort, investmentBurden: burden };
+  return { adoption, exposure, unemployment, newlyDisplaced: inputs.displacement * deltaExposure, reemployed, output, labor, capital, rents: Math.max(0, capital - 40 * capacityFactor), investment, adjustment, laborEffort, investmentBurden: burden, capacityFactor };
 }
 
 function settle(inputs: ModelInputs, policy: Policy, p: Production, year: number, flow: number): RegionYear {
@@ -427,7 +444,7 @@ function settle(inputs: ModelInputs, policy: Policy, p: Production, year: number
     ownerIncomeIndex: 100 * ownerIncome / (40 * (1 - inputs.workerOwnership)),
     unemployment: p.unemployment, reemployed: p.reemployed, laborIncome: p.labor,
     totalLaborIncome: p.labor + employerPay,
-    laborEffort: p.laborEffort, investmentBurden: p.investmentBurden,
+    laborEffort: p.laborEffort, investmentBurden: p.investmentBurden, capacityFactor: p.capacityFactor,
     capitalIncome, capitalAfterRetention, taxRevenue, baselineTaxRevenue: 0, additionalTaxRevenue: taxRevenue,
     workerTaxRevenue, ownerTaxRevenue, workerTaxBase, ownerTaxBase,
     taxBase, transfers: taxRevenue, workerDividend, ownerDividend, totalDividend, trainingSpend: 0,
@@ -442,8 +459,9 @@ function settle(inputs: ModelInputs, policy: Policy, p: Production, year: number
  * log((income/baseline + .01)/1.01). The offset keeps zero incomes finite in the
  * objective but creates no income in the budget. Prosperity weights worker and
  * owner welfare by their editable household shares. Output = output/100-1 (gross output,
- * not national welfare or consumption). Relative population weights the global
- * objective, so a foreign bloc twice as large receives twice the global weight.
+ * not national welfare or consumption). Population weights global welfare;
+ * relative baseline GDP weights global output. Foreign strategic objectives are
+ * scored separately, so unlike objective units are never added together.
  */
 export function scoreTrajectory(trajectory: readonly RegionYear[], objective: Objective): number {
   let score = 0;
@@ -464,16 +482,30 @@ export function scoreTrajectory(trajectory: readonly RegionYear[], objective: Ob
   return weights ? score / weights : 0;
 }
 
-function simulateRaw(inputs: ModelInputs, usPolicy: Policy, foreignPolicy: Policy | undefined, objective: Objective): ProfileOutcome {
+/** Foreign workers objective is income, not US voters' risk-averse utility. */
+export function scoreForeignTrajectory(trajectory: readonly RegionYear[], objective: Objective): number {
+  if (objective !== 'workers') return scoreTrajectory(trajectory, objective);
+  let score = 0, weights = 0;
+  for (const point of trajectory) {
+    if (point.year === 0) continue;
+    const weight = (1 + DISCOUNT_RATE) ** -point.year;
+    score += weight * (point.workerIncomeIndex / 100 - 1);
+    weights += weight;
+  }
+  return weights ? score / weights : 0;
+}
+
+function simulateTrajectories(inputs: ModelInputs, usPolicy: Policy, foreignPolicy?: Policy): { us: RegionYear[]; foreign?: RegionYear[] } {
   const us = [initialYear(inputs)];
   const foreign = foreignPolicy ? [initialYear(inputs)] : undefined;
-  const usBurden = investmentBurden(inputs, usPolicy, 1, foreignPolicy ? foreignPolicy.pace * inputs.foreignStrength : 0);
-  const foreignBurden = foreignPolicy ? investmentBurden(inputs, foreignPolicy, inputs.foreignStrength, usPolicy.pace) : 0;
+  const usTrade = foreignPolicy ? inputs.tradeIntensity : 0;
+  const usBurden = investmentBurden(inputs, usPolicy, 1, foreignPolicy ? foreignPolicy.pace * inputs.foreignStrength : 0, usTrade);
+  const foreignBurden = foreignPolicy ? investmentBurden(inputs, foreignPolicy, inputs.foreignStrength, usPolicy.pace, inputs.foreignTradeIntensity) : 0;
   for (let year = 1; year <= YEARS; year++) {
     const usAdoption = adoptionAt(inputs, usPolicy, year, 1, usBurden);
     const foreignAdoption = foreignPolicy ? adoptionAt(inputs, foreignPolicy, year, inputs.foreignStrength, foreignBurden) : 0;
-    const pUS = production(inputs, us[year - 1]!, usAdoption, foreignAdoption, usPolicy, usBurden);
-    const pForeign = foreign && foreignPolicy ? production(inputs, foreign[year - 1]!, foreignAdoption, usAdoption, foreignPolicy, foreignBurden) : undefined;
+    const pUS = production(inputs, us[year - 1]!, usAdoption, foreignAdoption, usPolicy, usBurden, usTrade, year);
+    const pForeign = foreign && foreignPolicy ? production(inputs, foreign[year - 1]!, foreignAdoption, usAdoption, foreignPolicy, foreignBurden, inputs.foreignTradeIntensity, year) : undefined;
     let usFlow = 0;
     if (pForeign && foreignPolicy) {
       const mobile = .6 * inputs.capitalMobility * inputs.foreignStrength;
@@ -488,18 +520,48 @@ function simulateRaw(inputs: ModelInputs, usPolicy: Policy, foreignPolicy: Polic
       foreign.push(settle(inputs, foreignPolicy, pForeign, year, -usFlow / inputs.foreignMarketSize));
     }
   }
+  return { us, foreign };
+}
+
+const PROFILE_INPUTS = Symbol('profileInputs');
+type LazyProfile = ProfileOutcome & { [PROFILE_INPUTS]: ModelInputs };
+// Shared accessors preserve one object shape across the large policy grid.
+function materializeUS(this: LazyProfile): RegionYear[] {
+  return simulateTrajectories(this[PROFILE_INPUTS], this.usPolicy, this.foreignPolicy).us;
+}
+function materializeForeign(this: LazyProfile): RegionYear[] | undefined {
+  return this.foreignPolicy ? simulateTrajectories(this[PROFILE_INPUTS], this.usPolicy, this.foreignPolicy).foreign : undefined;
+}
+
+/** Getters recompute a short trajectory on request; the full grid never retains
+ * tens of thousands of eleven-year object arrays. Keep descriptors when cloning.
+ */
+function lazyProfile(inputs: ModelInputs, metadata: Omit<ProfileOutcome, 'us' | 'foreign'>): ProfileOutcome {
+  return Object.defineProperties(metadata, {
+    [PROFILE_INPUTS]: { value: inputs },
+    us: { enumerable: true, get: materializeUS },
+    foreign: { enumerable: true, get: materializeForeign },
+  }) as ProfileOutcome;
+}
+
+function simulateRaw(inputs: ModelInputs, usPolicy: Policy, foreignPolicy: Policy | undefined,
+  objective: Objective, foreignObjective: Objective = objective): ProfileOutcome {
+  const { us, foreign } = simulateTrajectories(inputs, usPolicy, foreignPolicy);
   const usScore = scoreTrajectory(us, objective);
-  const foreignScore = foreign ? scoreTrajectory(foreign, objective) : undefined;
-  return {
+  const foreignScore = foreign ? scoreForeignTrajectory(foreign, foreignObjective) : undefined;
+  // Coordinated comparison uses one common objective; strategic payoffs may differ.
+  const commonForeignScore = foreign ? scoreTrajectory(foreign, objective) : undefined;
+  const globalWeight = objective === 'output' ? inputs.foreignMarketSize : inputs.foreignPopulationRatio;
+  return lazyProfile(inputs, {
     id: `${usPolicy.id}|${foreignPolicy?.id ?? 'none'}`,
-    usPolicy, foreignPolicy, us, foreign, usScore, foreignScore,
-    globalScore: foreignScore === undefined ? usScore : (usScore + inputs.foreignMarketSize * foreignScore) / (1 + inputs.foreignMarketSize),
+    usPolicy, foreignPolicy, usScore, foreignScore,
+    globalScore: commonForeignScore === undefined ? usScore : (usScore + globalWeight * commonForeignScore) / (1 + globalWeight),
     usRegret: 0, foreignRegret: 0, maxRegret: 0,
     feasible: us.every(point => point.feasible),
     foreignFeasible: foreign?.every(point => point.feasible),
     fundingGap: us.reduce((sum, point) => sum + point.unfundedSupport, 0),
     foreignFundingGap: foreign?.reduce((sum, point) => sum + point.unfundedSupport, 0),
-  };
+  });
 }
 
 function assignRegrets(outcome: ProfileOutcome, bestUS: number, bestForeign = outcome.foreignScore ?? 0): void {
@@ -522,20 +584,33 @@ export function simulateProfile(
   mode: ModelMode = 'strategic',
   objective: Objective = 'prosperity',
   pace?: number,
+  foreignObjective: Objective = 'prosperity',
 ): ProfileOutcome {
   const inputs = normalizeInputs(values);
-  const opponent = mode === 'strategic' && inputs.foreignStrength > 0 ? foreignPolicy ?? BASELINE_POLICY : undefined;
+  const opponent = mode === 'strategic' ? foreignPolicy ?? BASELINE_POLICY : undefined;
   checkedPolicy(usPolicy);
   if (opponent) checkedPolicy(opponent);
-  const result = simulateRaw(inputs, usPolicy, opponent, objective);
+  const result = simulateRaw(inputs, usPolicy, opponent, objective, foreignObjective);
   let bestUS = result.usScore;
   let bestForeign = result.foreignScore ?? 0;
   for (const policy of policiesAtPace(pace)) {
-    bestUS = Math.max(bestUS, simulateRaw(inputs, policy, opponent, objective).usScore);
-    if (opponent) bestForeign = Math.max(bestForeign, simulateRaw(inputs, usPolicy, policy, objective).foreignScore!);
+    bestUS = Math.max(bestUS, simulateRaw(inputs, policy, opponent, objective, foreignObjective).usScore);
+  }
+  if (opponent) for (const policy of POLICIES) {
+    bestForeign = Math.max(bestForeign, simulateRaw(inputs, usPolicy, policy, objective, foreignObjective).foreignScore!);
   }
   assignRegrets(result, bestUS, bestForeign);
   return result;
+}
+
+/** Evaluate a policy pair without enumerating deviations. */
+export function evaluateProfile(values: Partial<ModelInputs>, usPolicy: Policy, foreignPolicy?: Policy,
+  mode: ModelMode = 'strategic', objective: Objective = 'prosperity', foreignObjective: Objective = 'prosperity'): ProfileOutcome {
+  const inputs = normalizeInputs(values);
+  const opponent = mode === 'strategic' ? foreignPolicy ?? BASELINE_POLICY : undefined;
+  checkedPolicy(usPolicy);
+  if (opponent) checkedPolicy(opponent);
+  return simulateRaw(inputs, usPolicy, opponent, objective, foreignObjective);
 }
 
 function bestBy(outcomes: readonly ProfileOutcome[], score: (p: ProfileOutcome) => number): ProfileOutcome {
@@ -612,14 +687,14 @@ export function solveModel(
   options: SolveOptions = { mode: 'strategic', objective: 'prosperity' },
 ): SolveResult {
   const inputs = normalizeInputs(values);
-  const { mode, objective, pace = 1 } = options;
+  const { mode, objective, foreignObjective = 'prosperity', pace = 1 } = options;
   const policies = policiesAtPace(pace);
-  const effectiveMode: ModelMode = mode === 'strategic' && inputs.foreignStrength > 0 ? 'strategic' : 'us-only';
+  const effectiveMode: ModelMode = mode;
   const outcomes: ProfileOutcome[] = [];
-  const foreignPolicies: readonly (Policy | undefined)[] = effectiveMode === 'strategic' ? policies : [undefined];
+  const foreignPolicies: readonly (Policy | undefined)[] = effectiveMode === 'strategic' ? POLICIES : [undefined];
   for (const usPolicy of policies) {
     for (const foreignPolicy of foreignPolicies) {
-      const outcome = simulateRaw(inputs, usPolicy, foreignPolicy, objective);
+      const outcome = simulateRaw(inputs, usPolicy, foreignPolicy, objective, foreignObjective);
       outcomes.push(outcome);
     }
   }
@@ -645,9 +720,9 @@ export function solveModel(
     selection = analysis.selection;
   }
   return {
-    inputs, mode, objective, pace, effectiveMode, policies, outcomes, selected, equilibria, selection,
+    inputs, mode, objective, foreignObjective, pace, effectiveMode, policies, foreignPolicies: effectiveMode === 'strategic' ? POLICIES : [], outcomes, selected, equilibria, selection,
     coordinated: bestBy(outcomes, p => p.globalScore),
     usBestResponse: bestBy(outcomes.filter(p => p.foreignPolicy?.id === selected.foreignPolicy?.id), p => p.usScore),
-    baseline: simulateProfile(inputs, BASELINE_POLICY, effectiveMode === 'strategic' ? BASELINE_POLICY : undefined, effectiveMode, objective, pace),
+    baseline: simulateProfile(inputs, BASELINE_POLICY, effectiveMode === 'strategic' ? BASELINE_POLICY : undefined, effectiveMode, objective, pace, foreignObjective),
   };
 }

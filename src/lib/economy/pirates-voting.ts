@@ -35,7 +35,7 @@ export const VOTING_NOTES = [
   'Separate ballots change one decision at a time: employer-funded retention, the government income floor, worker tax, owner tax, and deployment pace when it is not fixed. Stability means that no single-decision change attracts 501 votes while every other decision and the other country’s policy stay fixed. A joint package can still defeat a separately stable policy; that comparison is reported separately.',
   'A strict Condorcet winner obtains 501 votes against every other policy. A majority-unbeaten policy merely has no challenger with 501 votes; indifference and 500–500 votes can leave several such policies. Identical voter utilities are retained as separate policies and do not count as strict wins.',
   'If no domestic policy is stable, a finite amendment agenda is solved backward. The separate-ballot agenda considers each available value of each decision in the displayed order, then ends. Each amendment changes only that decision in the current policy. Voters compare eventual outcomes, including all later votes. The result depends on the agenda and may lose a fresh vote. There is no additional final ratification vote.',
-  'International stability means that neither country can obtain 501 votes for a permitted unilateral change while the other country keeps its policy. This is majority stability, not a utility-maximizing Nash equilibrium. If none exists, the displayed pair minimizes the largest number of votes for a permitted unilateral deviation and is explicitly unstable.',
+  'The rest of the world is one rational actor with its own selected objective, not a second electorate. It can change any part of its own policy package, including adoption pace. A stable pair combines no winning US majority amendment with a foreign best response. Each unilateral comparison holds the other side’s policy fixed. If none exists, the displayed example keeps the foreign actor at a best response and minimizes the strongest US challenge; it remains unstable.',
   'Selection favors the zero-retention, zero-government-floor, zero-worker-tax, zero-owner-tax status quo when it qualifies; otherwise it follows the displayed policy order. With a fixed adoption pace the status quo uses that pace. It is distinct from the model’s no-AI baseline.',
 ] as const;
 
@@ -244,7 +244,10 @@ export function analyzeMajority(
 export interface VotingOutcome extends ProfileOutcome {
   /** Maximum number of voters preferring an available unilateral change. */
   usDeviationVotes: number;
+  /** Compatibility only: the foreign actor has no ballot or vote count. */
   foreignDeviationVotes: number;
+  foreignBestResponseGain: number;
+  foreignBestResponsePolicyId?: string;
   maxDeviationVotes: number;
   usBestChallengerId?: string;
   foreignBestChallengerId?: string;
@@ -351,7 +354,8 @@ export interface VotingResult {
   selected: VotingOutcome;
   statusQuo: VotingOutcome;
   selection: MajorityAnalysis['selection'] | 'majority-stable' | 'min-deviation-votes'
-    | 'separate-ballot-stable' | 'coordinate-agenda' | 'min-coordinate-deviation-votes';
+    | 'separate-ballot-stable' | 'coordinate-agenda' | 'min-coordinate-deviation-votes'
+    | 'international-stable' | 'foreign-best-response-fallback';
   condorcetWinners: VotingOutcome[];
   majorityUnbeaten: VotingOutcome[];
   majorityStable: VotingOutcome[];
@@ -375,11 +379,13 @@ export interface VotingResult {
 export function solveVoting(model: SolveResult, options: { ballots?: BallotMode } = {}): VotingResult {
   const ballots = options.ballots ?? 'separate';
   const policies = model.policies;
-  const outcomes: VotingOutcome[] = model.outcomes.map(outcome => ({
-    ...outcome, usDeviationVotes: 0, foreignDeviationVotes: 0, maxDeviationVotes: 0,
-  }));
+  const outcomes: VotingOutcome[] = model.outcomes.map(outcome => Object.assign(
+    // Object spread would eagerly materialize every lazy trajectory in the grid.
+    Object.defineProperties({}, Object.getOwnPropertyDescriptors(outcome)),
+    { usDeviationVotes: 0, foreignDeviationVotes: 0, maxDeviationVotes: 0, foreignBestResponseGain: 0 },
+  ) as VotingOutcome);
   interface VoterScores { utilities?: Float64Array; runs: UtilityRun[] }
-  const cache = new WeakMap<ProfileOutcome, { us: VoterScores; foreign?: VoterScores }>();
+  const cache = new WeakMap<ProfileOutcome, { us: VoterScores }>();
   const scoreRegion = (trajectory: readonly RegionYear[]): VoterScores => {
     const utilities = voterUtilities(trajectory, model.inputs.reemployment, model.inputs.workerShare);
     // A large international grid needs only the exact runs after construction;
@@ -389,22 +395,26 @@ export function solveVoting(model: SolveResult, options: { ballots?: BallotMode 
   const getUtilities = (profile: ProfileOutcome) => {
     let value = cache.get(profile);
     if (!value) {
-      value = { us: scoreRegion(profile.us), foreign: profile.foreign ? scoreRegion(profile.foreign) : undefined };
+      value = { us: scoreRegion(profile.us) };
       cache.set(profile, value);
     }
     return value;
   };
   const votesForChange: VotingResult['votesForChange'] = (challenger, incumbent, region = 'us') => {
-    const a = getUtilities(challenger)[region];
-    const b = getUtilities(incumbent)[region];
-    if (!a || !b) throw new RangeError('Foreign voting requires two foreign trajectories.');
+    if (region !== 'us') throw new RangeError('The foreign bloc is one optimizing actor, not an electorate.');
+    const a = getUtilities(challenger).us;
+    const b = getUtilities(incumbent).us;
     return countCompressedVotes(a.runs, b.runs);
   };
   const statusQuoPolicy = policies.find(policy => policy.replacement === 0 && policy.safetyNet === 0
     && policyValue(policy, 'workerTax') === 0 && policy.tax === 0)!;
   if (!statusQuoPolicy) throw new RangeError('The policy menu needs a zero-retention, zero-government-floor, zero-worker-tax, zero-owner-tax voting status quo.');
+  const foreignPolicies = model.foreignPolicies ?? (model.effectiveMode === 'strategic' ? policies : []);
+  const foreignStatusQuoPolicy = foreignPolicies.find(policy => policy.id === statusQuoPolicy.id)
+    ?? foreignPolicies.find(policy => policy.replacement === 0 && policy.safetyNet === 0
+      && policy.workerTax === 0 && policy.tax === 0) ?? foreignPolicies[0];
   const statusQuo = outcomes.find(outcome => outcome.usPolicy.id === statusQuoPolicy.id
-    && (!outcome.foreignPolicy || outcome.foreignPolicy.id === statusQuoPolicy.id))!;
+    && (!outcome.foreignPolicy || outcome.foreignPolicy.id === foreignStatusQuoPolicy?.id))!;
   if (!statusQuo) throw new RangeError('The voting status quo must be included in the profile grid.');
   const common = {
     mode: model.effectiveMode, effectiveMode: model.effectiveMode, ballots, policies, outcomes, statusQuo, votesForChange,
@@ -420,15 +430,9 @@ export function solveVoting(model: SolveResult, options: { ballots?: BallotMode 
           selected.usBestPackageChallengerId = challenger.usPolicy.id;
         }
       }
-      if (selected.foreignPolicy && challenger.usPolicy.id === selected.usPolicy.id) {
-        const votes = votesForChange(challenger, selected, 'foreign');
-        if (votes > selected.foreignPackageDeviationVotes) {
-          selected.foreignPackageDeviationVotes = votes;
-          selected.foreignBestPackageChallengerId = challenger.foreignPolicy!.id;
-        }
-      }
+
     }
-    selected.maxPackageDeviationVotes = Math.max(selected.usPackageDeviationVotes, selected.foreignPackageDeviationVotes);
+    selected.maxPackageDeviationVotes = selected.usPackageDeviationVotes;
   };
   if (model.effectiveMode === 'us-only') {
     const analysis = analyzeMajority(outcomes.map(outcome => getUtilities(outcome).us.utilities!), outcomes.indexOf(statusQuo));
@@ -487,49 +491,68 @@ export function solveVoting(model: SolveResult, options: { ballots?: BallotMode 
     };
   }
   const size = policies.length;
-  if (outcomes.length !== size * size) throw new RangeError('International voting requires the full square policy grid.');
+  const foreignSize = foreignPolicies.length;
+  if (!foreignSize || outcomes.length !== size * foreignSize) {
+    throw new RangeError('International voting requires the full rectangular policy grid.');
+  }
   const edges: number[][] = outcomes.map(() => []);
   let tiedPairCount = 0;
-  const record = (incumbentIndex: number, challengerIndex: number, region: 'us' | 'foreign', votes: number) => {
-    const incumbent = outcomes[incumbentIndex]!;
-    const challenger = outcomes[challengerIndex]!;
-    if (region === 'us' && votes > incumbent.usDeviationVotes) {
-      incumbent.usDeviationVotes = votes;
-      incumbent.usBestChallengerId = challenger.usPolicy.id;
-    } else if (region === 'foreign' && votes > incumbent.foreignDeviationVotes) {
-      incumbent.foreignDeviationVotes = votes;
-      incumbent.foreignBestChallengerId = challenger.foreignPolicy!.id;
-    }
-    if (votes >= VOTES_REQUIRED) edges[incumbentIndex]!.push(challengerIndex);
-  };
+  // Only US voters use majority comparisons. Foreign deviations are evaluated
+  // over every package, including a different deployment pace, by scalar payoff.
   const comparisonPairs: [number, number][] = [];
   for (let first = 0; first < size; first++) for (let second = first + 1; second < size; second++) {
     if (ballots === 'package' || changedPolicyAxes(policies[first]!, policies[second]!).length === 1) comparisonPairs.push([first, second]);
   }
-  for (let fixed = 0; fixed < size; fixed++) {
+  const recordUS = (incumbentIndex: number, challengerIndex: number, votes: number) => {
+    const incumbent = outcomes[incumbentIndex]!;
+    if (votes > incumbent.usDeviationVotes) {
+      incumbent.usDeviationVotes = votes;
+      incumbent.usBestChallengerId = outcomes[challengerIndex]!.usPolicy.id;
+    }
+    if (votes >= VOTES_REQUIRED) edges[incumbentIndex]!.push(challengerIndex);
+  };
+  for (let column = 0; column < foreignSize; column++) {
     for (const [first, second] of comparisonPairs) {
-      for (const region of ['us', 'foreign'] as const) {
-        const firstIndex = region === 'us' ? first * size + fixed : fixed * size + first;
-        const secondIndex = region === 'us' ? second * size + fixed : fixed * size + second;
-        const forward = votesForChange(outcomes[secondIndex]!, outcomes[firstIndex]!, region);
-        const backward = votesForChange(outcomes[firstIndex]!, outcomes[secondIndex]!, region);
-        record(firstIndex, secondIndex, region, forward);
-        record(secondIndex, firstIndex, region, backward);
-        if (forward < VOTES_REQUIRED && backward < VOTES_REQUIRED) tiedPairCount++;
-      }
+      const firstIndex = first * foreignSize + column;
+      const secondIndex = second * foreignSize + column;
+      const forward = votesForChange(outcomes[secondIndex]!, outcomes[firstIndex]!);
+      const backward = votesForChange(outcomes[firstIndex]!, outcomes[secondIndex]!);
+      recordUS(firstIndex, secondIndex, forward);
+      recordUS(secondIndex, firstIndex, backward);
+      if (forward < VOTES_REQUIRED && backward < VOTES_REQUIRED) tiedPairCount++;
     }
   }
-  for (const outcome of outcomes) outcome.maxDeviationVotes = Math.max(outcome.usDeviationVotes, outcome.foreignDeviationVotes);
-  const majorityStable = outcomes.filter(outcome => outcome.maxDeviationVotes < VOTES_REQUIRED);
-  const minimumDeviationVotes = Math.min(...outcomes.map(outcome => outcome.maxDeviationVotes));
+  for (let row = 0; row < size; row++) {
+    let best = row * foreignSize;
+    for (let column = 1; column < foreignSize; column++) {
+      const candidate = row * foreignSize + column;
+      if (!Number.isFinite(outcomes[candidate]!.foreignScore)) throw new RangeError('The foreign actor needs a finite payoff for every policy pair.');
+      if (outcomes[candidate]!.foreignScore! > outcomes[best]!.foreignScore!) best = candidate;
+    }
+    const bestScore = outcomes[best]!.foreignScore!;
+    if (!Number.isFinite(bestScore)) throw new RangeError('The foreign actor needs a finite payoff for every policy pair.');
+    for (let column = 0; column < foreignSize; column++) {
+      const index = row * foreignSize + column;
+      const outcome = outcomes[index]!;
+      outcome.foreignBestResponseGain = Math.max(0, bestScore - outcome.foreignScore!);
+      outcome.foreignBestResponsePolicyId = outcomes[best]!.foreignPolicy!.id;
+      outcome.foreignBestChallengerId = outcome.foreignBestResponsePolicyId;
+      outcome.maxDeviationVotes = outcome.usDeviationVotes;
+      // A detected cycle follows permitted US amendments and a deterministic
+      // foreign best response; no foreign vote counts are invented.
+      if (outcome.foreignBestResponseGain > EQUILIBRIUM_TOLERANCE) edges[index]!.push(best);
+    }
+  }
+  const foreignBestResponses = outcomes.filter(outcome => outcome.foreignBestResponseGain <= EQUILIBRIUM_TOLERANCE);
+  const majorityStable = foreignBestResponses.filter(outcome => outcome.usDeviationVotes < VOTES_REQUIRED);
+  const minimumDeviationVotes = Math.min(...foreignBestResponses.map(outcome => outcome.usDeviationVotes));
   const candidates = majorityStable.length ? majorityStable
-    : outcomes.filter(outcome => outcome.maxDeviationVotes === minimumDeviationVotes);
+    : foreignBestResponses.filter(outcome => outcome.usDeviationVotes === minimumDeviationVotes);
   const selected = candidates.includes(statusQuo) ? statusQuo : candidates[0]!;
   attachPackageChallenges(selected);
   return {
     ...common, selected,
-    selection: majorityStable.length ? (ballots === 'separate' ? 'separate-ballot-stable' : 'majority-stable')
-      : (ballots === 'separate' ? 'min-coordinate-deviation-votes' : 'min-deviation-votes'),
+    selection: majorityStable.length ? 'international-stable' : 'foreign-best-response-fallback',
     condorcetWinners: [], majorityUnbeaten: [], majorityStable,
     agendaOrder: [statusQuoPolicy.id, ...policies.filter(policy => policy.id !== statusQuoPolicy.id).map(policy => policy.id)],
     agendaSteps: [], hasMajorityCycle: containsCycle(edges), tiedPairCount, equivalentPolicyGroups: [],

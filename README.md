@@ -15,7 +15,7 @@ npm ci
 npm run dev
 ```
 
-Astro prints the local address. All simulation calculations run in the browser. No account, database, API key or environment file is required.
+Astro prints the local address. All simulation calculations run in a browser background worker, so changing a control can cancel an unfinished calculation. No account, database, API key or environment file is required.
 
 ## Validate and build
 
@@ -35,10 +35,15 @@ The static output is in `dist/`. The build generates a sitemap for the productio
 - Separate ballots choose layoffs or employer retention at 50%, 100% or 125% of the starting wage; a government income floor at 0%, 50% or 100%; and worker and owner household taxes at 0%, 50% or 100%.
 - Retaining an obsolete role creates no extra output. Employer payments reduce capital income. Government receipts fund income top-ups first, with the remainder returned as an equal dividend to every voter.
 - Taxes and retention obligations can reduce investment. Worker taxes can reduce productive labor effort. The strength of those responses is an explicit scenario input.
-- At a fixed deployment pace the solver enumerates all 108 policies, or all 11,664 international policy pairs. A stable result cannot be defeated by 501 votes on one decision with the others fixed. That is narrower than defeating every possible policy package; the page reports this distinction and any fallback agenda.
+- At a fixed US deployment pace the solver enumerates 108 US policies. A stable US result cannot be defeated by 501 votes on one decision with the others fixed. That is narrower than defeating every possible policy package.
+- In international mode the rest of the world is one rational actor, choosing among 432 policies including four AI deployment paces. Its selectable objective is average worker disposable income, population-weighted logarithmic income utility, or gross output. The solver checks all 46,656 pairs. A stable pair must survive US ballots and be a foreign best response. A fallback is explicitly labeled unstable.
+- International reference inputs use 2025 World Bank GDP and BEA bilateral trade data. Relative GDP weights rent flows; imports give asymmetric exposure to foreign adoption. Both economies share household composition and behavioral response assumptions. Population is reported separately from economic size.
+- Policy burdens can reduce existing productive capacity through an assumed 5% annual renewal requirement. This is an illustrative response rule, not an estimated capital-stock model.
 - This is an illustrative model, not a calibrated forecast of the US economy. It does not solve a full general-equilibrium economy, firm optimization, repeated elections or AI safety outcomes.
 
 The page includes equations, budget accounting, voting diagnostics, manual policy comparisons and downloadable results. Scenario assumptions are stored in the URL for sharing.
+
+See the [calculator audit](docs/calculator-audit.md) for corrected issues, validation and remaining model limits.
 
 ## Source layout
 
@@ -46,6 +51,7 @@ The page includes equations, budget accounting, voting diagnostics, manual polic
 - `src/components/economy/pirates-game.ts`: browser controls, charts and results.
 - `src/lib/economy/pirates-model.ts`: economic outcomes and resource accounting.
 - `src/lib/economy/pirates-voting.ts`: individual preferences and majority voting.
+- `src/lib/economy/simulation.ts` and `simulation.worker.ts`: compact results and cancellable background calculation.
 - `src/lib/economy/*.test.ts`: economic and voting checks.
 - `src/styles/pirates-game.css`: responsive page styles.
 - `worker/index.ts`: canonical HTTPS redirects and the static-assets entrypoint.
@@ -67,6 +73,6 @@ Before publication, run the checks above and verify the homepage, both simulatio
 
 Inspired by [Nuño Sempere (@NunoSempere)](https://nunosempere.com/) and [Humans on AI #53, September 15, 2026](https://p3humansonai.substack.com/p/humans-on-ai-53-september-15th-2026). These credits do not imply endorsement of the model or its assumptions.
 
-The page also cites Acemoglu and Restrepo on automation and new tasks; the IMF on AI and fiscal policy; Guerreiro, Rebelo and Teles on robot taxation; the OECD on employment support; and Ian Stewart’s pirate voting puzzle. Source-specific explanations and links are on the page.
+The international defaults cite the World Bank, BEA and Stanford AI Index 2026. The page also cites Acemoglu and Restrepo on automation and new tasks; the IMF on AI and fiscal policy; Guerreiro, Rebelo and Teles on robot taxation; the OECD on employment support; and Ian Stewart’s pirate voting puzzle. Source-specific explanations and links are on the page.
 
 No software license has been selected for this repository.
