@@ -34,7 +34,7 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
         <h1>When AI does the work,<br />what should happen to the job?</h1>
         <div class="intro-bottom">
           <p class="lede">Suppose mathematicians’ work is automated first. Keep their jobs, change their pay or let them go? Test rules that also apply when the next occupations are affected.</p>
-          <p class="model-note">1,000 self-interested US voters. Each considers ten years of their own income. A simplified model, with adjustable assumptions.</p>
+          <p class="model-note">Every adult US citizen has an equal vote. Each considers ten years of their own income. Survey data represent different sources and levels of income.</p>
         </div>
       </header>
 
@@ -48,8 +48,21 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
         <div class="workbench">
           <aside class="controls" aria-label="Model assumptions">
             <div class="control-heading"><h2>Your assumptions</h2><button id="reset" type="button" class="text-button">Reset</button></div>
-            <div class="voting-rule"><strong>501 votes to change a decision</strong><p id="electorate-description">900 workers and 100 capital owners. Each votes for their own expected income.</p></div>
-            <div id="electorate-inputs"></div>
+            <div class="voting-rule">
+              <strong>More than 50% to change a decision</strong>
+              <p id="electorate-description">Every adult citizen has an equal vote. A tie keeps the policy in place.</p>
+              <p id="population-summary">The electorate follows the US distribution of income and income sources.</p>
+              <details id="population-details" class="population-details">
+                <summary>Who is represented?</summary>
+                <p>The first table classifies each adult by their own largest income source. The voting model uses household resources shared among adults, so it also captures income from a spouse or other household member.</p>
+                <div class="table-scroll" tabindex="0" role="region" aria-label="US adult citizens by main income source"><table><caption>Main income source</caption><thead id="population-table-head"></thead><tbody id="population-table"></tbody></table></div>
+                <p id="population-note"></p>
+                <div class="table-scroll" tabindex="0" role="region" aria-label="US adult citizen income distribution"><table><caption>Annual 2025 dollars per adult; averages within each fifth. Public support is already included in income.</caption><thead id="income-distribution-head"></thead><tbody id="income-distribution"></tbody></table></div>
+                <div id="benefit-receipts"></div>
+                <p>Receiving benefits does not make someone unemployed. Cash benefits and the value of food, housing and energy assistance enter the resource calculation. Medicare and Medicaid coverage is reported separately.</p>
+                <a href="#population-sources">Data and definitions</a>
+              </details>
+            </div>
             <div id="domestic-inputs"></div>
 
             <fieldset id="foreign-inputs" hidden>
@@ -66,7 +79,7 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
             </fieldset>
 
             <details id="advanced-inputs" class="assumption-details">
-              <summary>Ownership & economic responses</summary>
+              <summary>Economic responses & AI deployment</summary>
               <div id="structural-inputs"></div>
               <label class="objective-label" for="rollout">US AI deployment target</label>
               <select id="rollout" aria-describedby="rollout-help"><option value="1">100% · deployment proceeds</option><option value="0.67">67% · limited deployment</option><option value="0.33">33% · limited deployment</option><option value="0">0% · pause US deployment</option></select>
@@ -79,22 +92,20 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
             <p id="computation-message" class="computation-message" role="status" aria-live="polite">Calculating…</p>
             <div class="results" id="results" aria-busy="true">
               <div class="result-heading"><p class="eyebrow" id="result-label">The selected policy</p><span class="status" id="solve-status"></span></div>
-              <div class="policy-decisions">
-                <section class="policy-decision employment-decision" aria-labelledby="employment-decision-label"><p class="eyebrow" id="employment-decision-label">Employer</p><h2 id="recommendation">Comparing employment choices</h2></section>
-                <section class="policy-decision government-decision" aria-labelledby="government-decision-label"><p class="eyebrow" id="government-decision-label">Government</p><h2 id="safety-net-recommendation">Comparing income support</h2></section>
+              <div id="policy-decisions" class="policy-decisions" role="group" aria-label="Five policy decisions">
+                <p class="small-copy">Comparing job retention, benefit amounts, benefit rules and taxes.</p>
               </div>
-              <p id="recommendation-copy" class="result-explanation"></p>
               <p id="decision-votes-note" class="decision-summary"></p>
               <div id="policy-strip" class="policy-strip"></div>
               <p id="policy-meaning" class="small-copy"></p>
               <div id="funding-verdict" class="funding-verdict"></div>
 
               <figure class="income-figure">
-                <figcaption><h3>What workers take home</h3><p>Income after tax, including employer pay, benefits, dividends and capital income. Before AI = 100.</p></figcaption>
-                <div class="legend"><span class="worker">Affected roles</span><span class="owner">Productive roles</span><span class="output">All workers</span></div>
-                <div id="income-chart" class="chart" role="img" aria-label="Ten-year household income projection"></div>
+                <figcaption><h3>What people take home</h3><p>Income after tax, including pay, government benefits and capital income. Each group’s income before AI = 100.</p></figcaption>
+                <div class="legend"><span class="worker">Lost work</span><span class="owner">Productive work</span><span class="output">All adult citizens</span></div>
+                <div id="income-chart" class="chart" role="img" aria-label="Ten-year income projection"></div>
                 <div id="endpoints" class="endpoints"></div>
-                <details class="chart-data"><summary>Read the chart as a table</summary><div class="table-scroll" tabindex="0" role="region" aria-label="Worker income by year"><table><caption>Income relative to each household’s starting income</caption><thead><tr><th scope="col">Year</th><th scope="col">Affected roles</th><th scope="col">Productive roles</th><th scope="col">All workers</th></tr></thead><tbody id="year-table"></tbody></table></div></details>
+                <details class="chart-data"><summary>Read the chart as a table</summary><div class="table-scroll" tabindex="0" role="region" aria-label="Income by year"><table><caption>Income relative to each group’s starting income</caption><thead><tr><th scope="col">Year</th><th scope="col">Lost work</th><th scope="col">Productive work</th><th scope="col">All adult citizens</th></tr></thead><tbody id="year-table"></tbody></table></div></details>
               </figure>
 
               <section id="international-result" class="international-result" hidden aria-labelledby="international-heading">
@@ -106,14 +117,12 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
 
               <details class="result-details alternatives">
                 <summary>Compare alternatives</summary>
-                <section class="decision-votes" aria-labelledby="decision-votes-heading"><h3 id="decision-votes-heading">Would US voters change a decision?</h3><p class="small-copy">Each row changes one decision. The others stay fixed. A change needs 501 votes.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Separate US ballot results"><table><thead><tr><th scope="col">Decision</th><th scope="col">Strongest alternative</th><th scope="col">Votes to switch</th></tr></thead><tbody id="decision-votes"></tbody></table></div></section>
-                <section class="salary-options" aria-labelledby="salary-options-heading"><h3 id="salary-options-heading">Employer choices</h3><div class="table-scroll" tabindex="0" role="region" aria-label="Compare employer choices"><table><thead><tr><th scope="col">Employer rule</th><th scope="col">Actual pay after tax</th><th scope="col">Votes to switch</th></tr></thead><tbody id="salary-options"></tbody></table></div><p id="salary-options-note" class="small-copy"></p></section>
-                <section class="safety-options" aria-labelledby="safety-options-heading"><h3 id="safety-options-heading">Government choices</h3><div class="table-scroll" tabindex="0" role="region" aria-label="Compare government income floors"><table><thead><tr><th scope="col">Income floor</th><th scope="col">Actual top-up</th><th scope="col">Votes to switch</th></tr></thead><tbody id="safety-options"></tbody></table></div><p id="safety-options-note" class="small-copy"></p></section>
-                <section class="comparison-section" aria-labelledby="comparison-heading"><h3 id="comparison-heading">Income and output in year ten</h3><p class="small-copy">Starting values = 100. Policies can change several decisions together.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Compare policy packages"><table class="comparison-table"><thead><tr><th scope="col">Policy</th><th scope="col">Workers</th><th scope="col">Owners</th><th scope="col">Output</th><th scope="col">10-year benefit</th></tr></thead><tbody id="comparison-table"></tbody></table></div><p id="score-help" class="small-copy"></p></section>
+                <section class="decision-votes" aria-labelledby="decision-votes-heading"><h3 id="decision-votes-heading">Would US voters change a decision?</h3><p class="small-copy">Each row changes one of the five decisions. The others stay fixed. More than 50% of the electorate must prefer the change.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Separate US ballot results"><table><thead><tr><th scope="col">Decision</th><th scope="col">Strongest alternative</th><th scope="col">Prefer the change</th></tr></thead><tbody id="decision-votes"></tbody></table></div></section>
+                <section class="comparison-section" aria-labelledby="comparison-heading"><h3 id="comparison-heading">Income and output in year ten</h3><p class="small-copy">Starting values = 100. Policies can change several decisions together.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Compare policy packages"><table class="comparison-table"><thead><tr><th scope="col">Policy</th><th scope="col">All citizens</th><th scope="col">Mainly work income</th><th scope="col">Mainly capital income</th><th scope="col">Output</th></tr></thead><tbody id="comparison-table"></tbody></table></div><p id="score-help" class="small-copy"></p></section>
               </details>
 
-              <details class="result-details manual-policy"><summary>Try your own US policy</summary><p class="small-copy">Choose the employer rule, government floor and both household taxes. US deployment and the foreign policy stay fixed.</p><div id="manual-inputs"></div><button type="button" id="apply-manual">Compare with the selected policy</button><p id="manual-result" role="status"></p></details>
-              <details class="result-details accounting"><summary>Follow the money in year ten</summary><p class="small-copy">Annual resource units; starting US output = 100. Transfers change who receives income.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Year ten income accounting"><table><tbody id="accounting-table"></tbody></table></div><p id="ownership-note" class="small-copy"></p></details>
+              <details class="result-details manual-policy"><summary>Try your own US policy</summary><p class="small-copy">Choose job retention, the benefit budget, the benefit formula and both tax rates. US deployment and foreign policy stay fixed.</p><div id="manual-inputs"></div><button type="button" id="apply-manual">Compare with the selected policy</button><p id="manual-result" role="status"></p></details>
+              <details class="result-details accounting"><summary>Follow the money in year ten</summary><p class="small-copy">Year-ten income flows under the selected policy. Transfers change who receives income.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Year ten income accounting"><table><tbody id="accounting-table"></tbody></table></div><p id="ownership-note" class="small-copy"></p></details>
               <details class="result-details vote-audit"><summary>Voting details and tie-breaking</summary><p id="selection-explanation" class="small-copy"></p><div id="agenda-order" class="small-copy"></div></details>
               <div class="result-actions"><button type="button" id="share" class="text-button">Copy scenario link</button><button type="button" id="download" class="text-button">Download results</button><span id="action-status" role="status"></span></div>
             </div>
@@ -126,22 +135,24 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
         <div class="reading-copy">
           <p>Workers keep their vote after losing a job. They vote for the policy that improves their own expected income, including the cost of weaker investment. “Mathematicians first” describes the thought experiment; the model does not predict which profession comes next.</p>
           <details class="method-details"><summary>Voting and international competition</summary>
-            <p id="voting-rules">The US has 1,000 voters. Job protections, the income floor, the worker-household tax and the owner-household tax have separate ballots. A policy is stable when no single change can win 501 votes while the other decisions stay fixed. A package that changes several decisions together may still win.</p>
-            <p>Each voter is perfectly rational and self-interested. Voters know their order of exposure and compare ten years of expected income, discounted by 3% a year. Logarithmic utility makes an income loss more costly when income is already low. A 1% offset keeps utility finite at zero income; it adds no money to the budget. Job retention has no separate value beyond its income.</p>
+            <p id="voting-rules">Every adult US citizen has an equal vote. Survey weights represent their shares of the population; the model does not use a fixed number of artificial voters. Job retention, benefit amounts, the benefit formula, non-capital taxes and capital taxes are separate decisions. A result is stable when no change to one decision is preferred by more than 50% of the electorate. A package that changes several decisions together may still win.</p>
+            <p>Each voter is perfectly rational and self-interested. They compare their own expected income over ten years, including the consequences for investment and production. Ties do not count as support for a change. A person keeps their vote when they lose a job. Job retention has no separate value beyond its income.</p>
             <p>In international mode, the rest of the world acts as one decision-maker. It chooses its own complete policy, including AI deployment, to maximize the objective you select. A stable result requires both US ballot stability and a foreign best response. It does not require the foreign policy to win a US vote.</p>
-            <p>There may be several stable results or none. Voting details show the selection rule and any remaining challenge. An unstable fallback is not an equilibrium. Policies are fixed for ten years; repeated elections and renegotiation are outside this model.</p>
+            <p>The search checks candidate policies, then verifies a selected result against every permitted change to one US decision and every foreign policy in the menu. Failure to find a stable result is not proof that none exists. Voting details show any remaining challenge. Policies are fixed for ten years; repeated elections and renegotiation are outside this model.</p>
           </details>
-          <details class="method-details"><summary>Employer pay, benefits and taxes</summary>
-            <p>Employers can lay off workers or retain obsolete roles at 50%, 100% or 125% of the starting wage before tax. These roles add no output. Employer payments come from capital income; finding new productive work is a separate transition.</p>
-            <p>The government can set a floor of 0%, 50% or 100% of the starting wage after household tax. It pays only the gap left by employer pay. A worker retained at full salary with a 50% worker tax keeps half that salary; a full income floor would require a government top-up of the other half.</p>
-            <p>The worker-household tax reaches wages, retention pay and worker-owned capital. The owner-household tax reaches the remaining owners’ capital income. Each rate can be 0%, 50% or 100%. Government transfers are exempt. Receipts fund the income floor first, then an equal dividend for every household, including owners. The floor excludes capital income and this dividend.</p>
-            <p>Employers and governments can run out of money. Voters compare actual payments after shortfalls. The equal dividend is an assumed spending rule. The policy menu does not reproduce the current US tax and benefit system.</p>
+          <details class="method-details"><summary>The five decisions</summary>
+            <p><strong>1. Job retention.</strong> Employers can lay off workers or retain obsolete roles at 50%, 100% or 125% of their starting wage before tax. These roles add no output. The employer bears the cost, which reduces capital income. Finding new productive work is a separate transition.</p>
+            <p><strong>2. Benefit amounts.</strong> Government spending on the modeled benefits can be 0%, 50%, 100%, 150% or 200% of its survey baseline. The result states the proposed budget change separately from the amount actually funded. Higher spending does not mean every recipient receives more.</p>
+            <p><strong>3. The benefit formula.</strong> Keep the current mix, pay every adult an equal amount, or link payments to prior income. “Prior income” means observed disposable income before AI, not lifetime earnings. The current mix preserves the starting distribution of benefits; losing a job does not automatically create a new unemployment-benefit payment.</p>
+            <p><strong>4. Non-capital taxes.</strong> The result compares the selected tax benchmark with the survey-based US reference and also shows the actual average after incomes change. A lower rate is a tax reduction. The calculation retains differences in tax burdens across income groups.</p>
+            <p><strong>5. Capital taxes.</strong> The same comparison applies to capital income. These are modeled average burdens, not statutory brackets or official separate rates for “workers” and “capital owners.” A person can receive both labor and capital income.</p>
+            <p>The tax reference covers modeled federal and state income taxes after credits, plus payroll taxes including self-employment contributions. It excludes sales and property taxes, corporate taxes and employers’ contributions for employees. Modeled net tax refunds count as benefits; this does not capture the full value of every refundable credit. A policy must fund the fixed reference commitment to other public spending to enter the vote. Benefits and retained wages may still fall short of their targets; voters compare actual payments. Surplus receipts fund non-transfer public spending rather than an additional dividend.</p>
           </details>
           <details class="method-details"><summary>Economic assumptions and limits</summary>
-            <p>Starting US output is 100: 60 goes to labor and 40 to capital. Workers receive all labor income and their chosen share of capital income. Changing the worker-owner ratio divides these starting incomes among different numbers of households.</p>
-            <p>International defaults use relative GDP and bilateral trade exposure. Both economies share the household mix, capital ownership and behavioral assumptions set by the sliders; their economic size, import exposure and frontier capability can differ. AI gains, displacement, return to work and responses to taxes remain adjustable assumptions. Zero foreign frontier capability leaves the foreign economy and its imports in place.</p>
+            <p>The US population and income distribution come from the Census survey. Household income is pooled and divided among adult household members. The model groups citizens by that household’s main income source, income level and their own employment status. Main sources include work, capital, public benefits and pensions. Benefit receipt and employment overlap. These group labels do not determine how anyone votes; their own projected income does.</p>
+            <p>International defaults use relative GDP and bilateral trade exposure. The foreign actor uses the same income distribution as a simplifying assumption; it is not a survey of foreign voters. AI gains, displacement, return to work and responses to taxes remain adjustable assumptions. Zero foreign frontier capability leaves the foreign economy and its imports in place.</p>
             <p>Taxes and required employer pay can slow AI investment and reduce productive effort. They can also erode existing capital capacity through an assumed 5% annual renewal requirement. This rate is a modeling choice, not an estimate from the cited data.</p>
-            <p>This is a finite policy comparison, not a full model of the world economy. It does not solve market prices, demand, debt, firms’ investment decisions or individual labor supply. It omits lobbying, monetary policy, AI safety and military outcomes. Changing the policy menu or voting procedure can change the result.</p>
+            <p>This is a comparison within a policy menu, not a full model of the world economy. Observed household investment income is not total company profit or wealth. The employer-funding limit and production responses remain modeling assumptions. It does not solve market prices, demand, debt, firms’ investment decisions or individual labor supply. It omits lobbying, monetary policy, AI safety and military outcomes. Changing the policy menu or voting procedure can change the result.</p>
           </details>
           <details class="method-details"><summary>Equations and calculation method</summary><div id="model-method"></div></details>
           <details class="method-details"><summary>Why the pirate game?</summary><p>The pirate puzzle asks who can win enough votes to divide a fixed treasure. Automation changes how much is produced and who receives it. This simulator keeps the voting question and adds production, employment and government payments.</p></details>
@@ -152,6 +163,11 @@ const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href
         <div class="reading-label"><p class="eyebrow">Sources & credits</p><h2>Data and<br />inspiration.</h2></div>
         <div class="reading-copy">
           <p>Inspired by <a href="https://nunosempere.com/">Nuño Sempere (@NunoSempere)</a> and <a href="https://p3humansonai.substack.com/p/humans-on-ai-53-september-15th-2026">Humans on AI #53, September 15, 2026</a>.</p>
+          <details class="method-details" id="population-sources"><summary>US population, income, benefits and taxes</summary>
+            <p>The population reference uses the Census Bureau’s <a href="https://www.census.gov/data/datasets/2026/demo/cps/cps-asec-2026.html">2026 Current Population Survey Annual Social and Economic Supplement</a>. Annual income refers to 2025; employment status refers to March 2026. Adult citizens receive equal voting weight; survey weights estimate their population shares. The population disclosure above gives the main income groups, income distribution and overlapping benefit receipt. The covered household population is a proxy: the CPS omits institutionalized adults, most military barracks and citizens living abroad.</p>
+            <p>Social Security includes retirement and disability benefits. The resource measure includes public cash benefits and Census valuations of SNAP, WIC, school meals, housing and energy assistance. The benefit budget also includes modeled net tax refunds. Medicare and Medicaid enrollment is reported as coverage, not added to spendable income. “No earnings” does not mean unemployed: retirees, students and other adults may not be looking for work.</p>
+            <p>Tax references are computed from <a href="https://www.census.gov/topics/income-poverty/income/guidance/tax-model.html">Census tax estimates</a> and assigned to non-capital and capital income for this model. They are effective averages, not a complete tax system. The data include investment income and reported or imputed capital gains, not all wealth or consumption funded by asset sales. Household pooling, source allocation and income-group averages are modeling assumptions.</p>
+          </details>
           <details class="method-details"><summary>World economy data used for the defaults</summary>
             <p>The World Bank’s 2025 figures put <a href="https://data.worldbank.org/indicator/NY.GDP.MKTP.CD?locations=US-1W">US GDP at $30.77 trillion and the rest of the world at $87.58 trillion</a>, a ratio of 2.846. Its <a href="https://data.worldbank.org/indicator/SP.POP.TOTL?locations=US-1W">population figures are 341.8 million and 7.874 billion</a>, a ratio of 23.037. Market size uses GDP, not population. Population is shown here for context and does not change the selected policies. Displayed reference values are rounded; calculations retain their full precision.</p>
             <p>The <a href="https://www.bea.gov/sites/default/files/2026-06/trad1326.pdf">BEA’s 2025 trade figures (page 4)</a> give US imports of $4.362 trillion and exports of $3.430 trillion. Imports from the other actor are 14.18% of US GDP and 3.92% of foreign GDP. These are bilateral exposure measures; trade within the foreign bloc is excluded.</p>

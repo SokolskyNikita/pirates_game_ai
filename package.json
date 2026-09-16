@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "A democratic automation-policy simulator with 1,000 rational, self-interested voters.",
+  "description": "An automation-policy simulator with a survey-weighted US electorate and rational, self-interested voters.",
   "engines": {
     "node": ">=22.12.0"
   },

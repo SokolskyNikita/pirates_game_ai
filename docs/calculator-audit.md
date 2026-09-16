@@ -1,5 +1,7 @@
 # Calculator audit
 
+Historical audit of version 4, before the survey-weighted electorate and five-ballot model. See the README for the current implementation.
+
 September 16, 2026. Scope: interface, accessibility, calculation procedure and international assumptions. The requested format is a concise calculator with technical details available on demand.
 
 ## Findings and remedies

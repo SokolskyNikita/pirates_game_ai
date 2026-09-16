@@ -1,560 +1,314 @@
 import {
-  DISCOUNT_RATE, EQUILIBRIUM_TOLERANCE, UTILITY_OFFSET,
-  type Policy, type ProfileOutcome, type RegionYear, type SolveResult,
+  CALIBRATION, EQUILIBRIUM_TOLERANCE,
+  type LightProfile, type Policy, type ProfileOutcome, type SolveResult,
 } from './pirates-model';
 
-export const VOTER_COUNT = 1000;
-/** Default only: the actual electorate uses inputs.workerShare. */
-export const WORKER_VOTERS = 900;
-export const VOTES_REQUIRED = 501;
-export const POLICY_AXES = ['replacement', 'safetyNet', 'workerTax', 'tax', 'pace'] as const;
+/** Population estimates are continuous weights, not a rounded synthetic headcount. */
+export const MAJORITY_PERCENT = 50;
+export const VOTE_SUM_TOLERANCE = 1e-10;
+export const POLICY_AXES = ['replacement', 'welfareScale', 'benefitFormula', 'laborTax', 'capitalTax', 'pace'] as const;
 export type PolicyAxis = typeof POLICY_AXES[number];
-export type BallotMode = 'separate' | 'package';
+export type PolicyValue = Policy[PolicyAxis];
+export type BallotMode = 'separate';
 
-function policyValue(policy: Policy, axis: PolicyAxis): number {
-  return (policy as Policy & { workerTax?: number })[axis] ?? 0;
+export function hasMajority(percent: number): boolean {
+  return percent > MAJORITY_PERCENT + VOTE_SUM_TOLERANCE;
 }
 
 export function changedPolicyAxes(first: Policy, second: Policy): PolicyAxis[] {
-  return POLICY_AXES.filter(axis => policyValue(first, axis) !== policyValue(second, axis));
+  return POLICY_AXES.filter(axis => first[axis] !== second[axis]);
 }
 
-export function workerVoterCount(workerShare = .9): number {
-  const count = Math.round(VOTER_COUNT * workerShare);
-  if (!Number.isFinite(workerShare) || count < 1 || count >= VOTER_COUNT) {
-    throw new RangeError('The electorate must contain at least one worker and one owner.');
+function normalizedWeights(weights: ArrayLike<number>): Float64Array {
+  if (!weights.length) throw new RangeError('An electorate needs at least one population cell.');
+  let total = 0;
+  for (let cell = 0; cell < weights.length; cell++) {
+    const weight = weights[cell]!;
+    if (!Number.isFinite(weight) || weight < 0) throw new RangeError('Population weights must be finite and nonnegative.');
+    total += weight;
   }
-  return count;
+  if (!Number.isFinite(total) || total <= 0) throw new RangeError('The electorate needs a finite, positive total population.');
+  return Float64Array.from(weights, weight => weight / total * 100);
+}
+
+function compareUtilities(challenger: ArrayLike<number>, incumbent: ArrayLike<number>, weights: ArrayLike<number>): number {
+  if (challenger.length !== weights.length || incumbent.length !== weights.length) {
+    throw new RangeError('Every policy must retain the same population cells.');
+  }
+  let votes = 0;
+  for (let cell = 0; cell < weights.length; cell++) {
+    const candidate = challenger[cell]!, current = incumbent[cell]!;
+    if (!Number.isFinite(candidate) || !Number.isFinite(current)) throw new RangeError('Every voter utility must be finite.');
+    if (candidate > current + EQUILIBRIUM_TOLERANCE) votes += weights[cell]!;
+  }
+  return Math.min(100, Math.max(0, votes));
+}
+
+/** Share of all adult citizens strictly preferring a change. Income does not weight a vote. */
+export function countVotes(challenger: ArrayLike<number>, incumbent: ArrayLike<number>, weights: ArrayLike<number> = CALIBRATION.weights): number {
+  return compareUtilities(challenger, incumbent, normalizedWeights(weights));
 }
 
 export const VOTING_NOTES = [
-  'There are 1,000 representative voters. The worker-to-owner ratio is adjustable; its default is 900 workers and 100 owners. A change requires at least 501 voters to strictly prefer it; indifferent voters retain the incumbent. These are expected preferences under the model, not a prediction of an actual election.',
-  'Worker ranks are fixed across policies. As cumulative initial displacement rises, workers are exposed in rank order. A rank cell crossing a displacement boundary is split fractionally. Previously displaced workers return with the specified annual probability; returning workers are not exposed a second time. This ordering and the expected-utility treatment are assumptions.',
-  'Displacement tracks lost productive work. An obsolete role can still receive employer-funded retention wages. Voters choose a retention-pay rule; this does not model employers voluntarily retaining workers to maximize profits. Preferences use actual private pay, public top-ups and dividends after funding limits.',
-  'Each voter compares ten years of discounted expected utility, using the same logarithm and 1% income offset as the model. The expected utility of employed, newly displaced and longer-term displaced states is computed separately. The offset creates no income. Owners have identical preferences in this model.',
-  'Separate ballots change one decision at a time: employer-funded retention, the government income floor, worker tax, owner tax, and deployment pace when it is not fixed. Stability means that no single-decision change attracts 501 votes while every other decision and the other country’s policy stay fixed. A joint package can still defeat a separately stable policy; that comparison is reported separately.',
-  'A strict Condorcet winner obtains 501 votes against every other policy. A majority-unbeaten policy merely has no challenger with 501 votes; indifference and 500–500 votes can leave several such policies. Identical voter utilities are retained as separate policies and do not count as strict wins.',
-  'If no domestic policy is stable, a finite amendment agenda is solved backward. The separate-ballot agenda considers each available value of each decision in the displayed order, then ends. Each amendment changes only that decision in the current policy. Voters compare eventual outcomes, including all later votes. The result depends on the agenda and may lose a fresh vote. There is no additional final ratification vote.',
-  'The rest of the world is one rational actor with its own selected objective, not a second electorate. It can change any part of its own policy package, including adoption pace. A stable pair combines no winning US majority amendment with a foreign best response. Each unilateral comparison holds the other side’s policy fixed. If none exists, the displayed example keeps the foreign actor at a best response and minimizes the strongest US challenge; it remains unstable.',
-  'Selection favors the zero-retention, zero-government-floor, zero-worker-tax, zero-owner-tax status quo when it qualifies; otherwise it follows the displayed policy order. With a fixed adoption pace the status quo uses that pace. It is distinct from the model’s no-AI baseline.',
+  'Every adult US citizen has equal voting weight. Survey population weights approximate the income and employment distribution; they are not turnout weights. A change needs more than half of the entire electorate to strictly prefer it. Indifference retains the incumbent.',
+  'The same population cells and their income histories are compared across every policy. Receiving a benefit or losing a job does not change a citizen’s voting weight. Each preference concerns the citizen’s own discounted expected income utility, including taxes, public payments and economic consequences.',
+  'US ballots change one decision at a time: retained wages, the amount of welfare, its distribution rule, tax on labor income, or tax on capital income. US AI deployment is a scenario assumption. A verified stable policy has no single-decision challenger supported by more than 50%; a joint policy package may still defeat it.',
+  'The rest of the world is one rational actor with its own objective. It can choose a different policy package and deployment pace. An international result is verified only after checking every available foreign package at the selected US policy, as well as every permitted US amendment at the selected foreign policy.',
+  'A policy must fund the modeled baseline public services to be available. Underfunded alternatives cannot win a ballot. Search steps may leave an unavailable starting policy for an available one without calling that move a majority vote.',
+  'The solver searches from several fixed starting policies. It follows majority-supported US amendments and foreign best responses. A reported stable result is checked against the entire permitted unilateral menu. Search failure does not prove that no stable result exists, and finding one does not prove it is unique.',
+  'The search starts from current-policy tax and welfare settings. When several amendments pass, the search tests the one with the largest supporting population share first, breaking ties by policy order. This is a selection procedure, not an additional voter preference or a claim that an actual legislature would use that agenda.',
 ] as const;
 
-/** One utility per representative voter. Worker cells have equal population
- * mass 1/workerCount within the worker group. The same cell boundaries are used for all
- * alternatives, so a voter keeps their identity when policies are compared.
- */
-export function voterUtilities(trajectory: readonly RegionYear[], reemployment: number, workerShare = .9): Float64Array {
-  const workerCount = workerVoterCount(workerShare);
-  const utilities = new Float64Array(VOTER_COUNT);
-  const priorUnemployment = new Float64Array(workerCount);
-  let cumulativeDisplacement = 0;
-  let discountWeight = 0;
-  const utility = (index: number) => Math.log((index / 100 + UTILITY_OFFSET) / (1 + UTILITY_OFFSET));
-  for (const point of trajectory) {
-    if (point.year === 0) continue;
-    const weight = (1 + DISCOUNT_RATE) ** -point.year;
-    discountWeight += weight;
-    const previousBoundary = cumulativeDisplacement;
-    cumulativeDisplacement += point.newlyDisplaced;
-    const employedUtility = utility(point.employedIncomeIndex);
-    const newUtility = utility(point.newlyDisplacedIncomeIndex);
-    const longTermUtility = utility(point.longTermDisplacedIncomeIndex);
-    for (let voter = 0; voter < workerCount; voter++) {
-      // Scaled boundaries keep a fully covered cell exactly 1. This also
-      // preserves identical utilities within a displacement cohort.
-      const newlyDisplaced = Math.min(1, Math.max(0, cumulativeDisplacement * workerCount - voter))
-        - Math.min(1, Math.max(0, previousBoundary * workerCount - voter));
-      const longTerm = (1 - reemployment) * priorUnemployment[voter]!;
-      const unemployed = Math.min(1, Math.max(0, newlyDisplaced + longTerm));
-      const employed = 1 - unemployed;
-      utilities[voter] = utilities[voter]! + weight * (
-        employed * employedUtility + newlyDisplaced * newUtility + longTerm * longTermUtility);
-      priorUnemployment[voter] = unemployed;
-    }
-    const ownerUtility = weight * utility(point.ownerIncomeIndex);
-    for (let voter = workerCount; voter < VOTER_COUNT; voter++) {
-      utilities[voter] = utilities[voter]! + ownerUtility;
-    }
-  }
-  if (discountWeight) {
-    for (let voter = 0; voter < VOTER_COUNT; voter++) utilities[voter] = utilities[voter]! / discountWeight;
-  }
-  return utilities;
-}
-
-/** Indifference, including numerical equality, does not vote for a change. */
-export function countVotes(challenger: ArrayLike<number>, incumbent: ArrayLike<number>): number {
-  if (challenger.length !== VOTER_COUNT || incumbent.length !== VOTER_COUNT) {
-    throw new RangeError('A policy comparison requires 1,000 representative voter utilities.');
-  }
-  let votes = 0;
-  for (let voter = 0; voter < VOTER_COUNT; voter++) {
-    if (challenger[voter]! > incumbent[voter]! + EQUILIBRIUM_TOLERANCE) votes++;
-  }
-  return votes;
-}
-
-interface UtilityRun { end: number; utility: number }
-
-/** Exact consecutive runs preserve each voter's identity and comparison.
- * Fully exposed cohorts and owners generally make the 1,000-person vector
- * much shorter. No approximate utilities or population weights are rounded.
- */
-function compressUtilities(utilities: ArrayLike<number>): UtilityRun[] {
-  const runs: UtilityRun[] = [];
-  for (let voter = 0; voter < utilities.length; voter++) {
-    const last = runs.at(-1);
-    if (last && last.utility === utilities[voter]) last.end = voter + 1;
-    else runs.push({ end: voter + 1, utility: utilities[voter]! });
-  }
-  return runs;
-}
-
-function countCompressedVotes(challenger: readonly UtilityRun[], incumbent: readonly UtilityRun[]): number {
-  let a = 0, b = 0, position = 0, votes = 0;
-  while (a < challenger.length && b < incumbent.length) {
-    const first = challenger[a]!, second = incumbent[b]!;
-    const end = Math.min(first.end, second.end);
-    if (first.utility > second.utility + EQUILIBRIUM_TOLERANCE) votes += end - position;
-    position = end;
-    if (first.end === end) a++;
-    if (second.end === end) b++;
-  }
-  return votes;
-}
-
-export interface AgendaStep {
-  incumbent: number;
-  challenger: number;
-  /** Terminal policy if this amendment is rejected, with later votes anticipated. */
-  continuationIfRejected: number;
-  /** Terminal policy if this amendment is accepted, with later votes anticipated. */
-  continuationIfAccepted: number;
-  votesForChange: number;
-  accepted: boolean;
-}
-
-export interface MajorityAnalysis {
-  /** Row = challenger; column = incumbent. */
-  pairwiseVotes: number[][];
-  condorcetWinners: number[];
-  unbeaten: number[];
-  selected: number;
-  selection: 'condorcet' | 'majority-unbeaten' | 'agenda-majority';
-  agendaOrder: number[];
-  agendaSteps: AgendaStep[];
-  agendaWinner: number;
-  hasMajorityCycle: boolean;
-  /** Unordered comparisons where neither alternative attracts 501 votes. */
-  tiedPairCount: number;
-  /** Equivalent voter utilities, not necessarily identical physical outcomes. */
-  equivalentGroups: number[][];
-}
-
-function containsCycle(edges: readonly (readonly number[])[]): boolean {
-  const indegrees = new Uint32Array(edges.length);
-  for (const outgoing of edges) for (const next of outgoing) indegrees[next] = indegrees[next]! + 1;
-  const queue: number[] = [];
-  for (let node = 0; node < edges.length; node++) if (!indegrees[node]) queue.push(node);
-  for (let cursor = 0; cursor < queue.length; cursor++) {
-    for (const next of edges[queue[cursor]!]!) {
-      indegrees[next] = indegrees[next]! - 1;
-      if (!indegrees[next]) queue.push(next);
-    }
-  }
-  return queue.length < edges.length;
-}
-
-/** Analyze an absolute-majority election independently of the economic model.
- * Agenda entries are each policy exactly once; the status quo is moved first.
- * Sophisticated voting compares the two continuation winners by backward
- * induction, rather than assuming sincere votes in a known multi-vote agenda.
- */
-export function analyzeMajority(
-  utilities: readonly ArrayLike<number>[],
-  statusQuoIndex = 0,
-  requestedAgenda?: readonly number[],
-): MajorityAnalysis {
-  const size = utilities.length;
-  if (!size || !Number.isInteger(statusQuoIndex) || statusQuoIndex < 0 || statusQuoIndex >= size
-    || utilities.some(vector => vector.length !== VOTER_COUNT
-      || Array.from(vector).some(value => !Number.isFinite(value)))) {
-    throw new RangeError('Expected nonempty policies with 1,000 finite voter utilities and a valid status quo.');
-  }
-  const order = requestedAgenda ? [...requestedAgenda] : utilities.map((_, index) => index);
-  if (order.length !== size || new Set(order).size !== size
-    || order.some(index => !Number.isInteger(index) || index < 0 || index >= size)) {
-    throw new RangeError('The agenda must contain each policy index exactly once.');
-  }
-  const agendaOrder = [statusQuoIndex, ...order.filter(index => index !== statusQuoIndex)];
-  const compressed = utilities.map(compressUtilities);
-  const pairwiseVotes = compressed.map(challenger => compressed.map(incumbent => countCompressedVotes(challenger, incumbent)));
-  const condorcetWinners = order.filter(candidate => order.every(other => other === candidate
-    || pairwiseVotes[candidate]![other]! >= VOTES_REQUIRED));
-  const unbeaten = order.filter(candidate => order.every(other => other === candidate
-    || pairwiseVotes[other]![candidate]! < VOTES_REQUIRED));
-  const edges = pairwiseVotes.map(row => row.flatMap((votes, other) => votes >= VOTES_REQUIRED ? [other] : []));
-  let tiedPairCount = 0;
-  for (let first = 0; first < size; first++) for (let second = first + 1; second < size; second++) {
-    if (pairwiseVotes[first]![second]! < VOTES_REQUIRED && pairwiseVotes[second]![first]! < VOTES_REQUIRED) tiedPairCount++;
-  }
-  const groups: number[][] = [];
-  for (let policy = 0; policy < size; policy++) {
-    // Approximate indifference is not transitive. Every pair within a displayed
-    // group must agree, rather than joining groups through a chain of ties.
-    const group = groups.find(existing => existing.every(member => Array.from(utilities[member]!).every((value, voter) =>
-      Math.abs(value - utilities[policy]![voter]!) <= EQUILIBRIUM_TOLERANCE)));
-    if (group) group.push(policy); else groups.push([policy]);
-  }
-  // winners[stage][incumbent] gives the terminal outcome after all later votes.
-  const winners: number[][] = Array.from({ length: size + 1 }, () => []);
-  winners[size] = order.map((_, index) => index);
-  for (let stage = size - 1; stage >= 1; stage--) {
-    const challenger = agendaOrder[stage]!;
-    winners[stage] = order.map((_, incumbent) => {
-      const reject = winners[stage + 1]![incumbent]!;
-      const accept = winners[stage + 1]![challenger]!;
-      return pairwiseVotes[accept]![reject]! >= VOTES_REQUIRED ? accept : reject;
-    });
-  }
-  let incumbent = statusQuoIndex;
-  const agendaSteps: AgendaStep[] = [];
-  for (let stage = 1; stage < size; stage++) {
-    const challenger = agendaOrder[stage]!;
-    const continuationIfRejected = winners[stage + 1]![incumbent]!;
-    const continuationIfAccepted = winners[stage + 1]![challenger]!;
-    const votesForChange = pairwiseVotes[continuationIfAccepted]![continuationIfRejected]!;
-    const accepted = votesForChange >= VOTES_REQUIRED;
-    agendaSteps.push({ incumbent, challenger, continuationIfRejected, continuationIfAccepted, votesForChange, accepted });
-    if (accepted) incumbent = challenger;
-  }
-  const agendaWinner = incumbent;
-  const preferred = (candidates: readonly number[]) => candidates.includes(statusQuoIndex)
-    ? statusQuoIndex : agendaOrder.find(index => candidates.includes(index))!;
-  const selection = condorcetWinners.length ? 'condorcet' : unbeaten.length ? 'majority-unbeaten' : 'agenda-majority';
-  const selected = condorcetWinners.length ? preferred(condorcetWinners)
-    : unbeaten.length ? preferred(unbeaten) : agendaWinner;
-  return {
-    pairwiseVotes, condorcetWinners, unbeaten, selected, selection,
-    agendaOrder, agendaSteps, agendaWinner, hasMajorityCycle: containsCycle(edges),
-    tiedPairCount, equivalentGroups: groups.filter(group => group.length > 1),
-  };
-}
-
 export interface VotingOutcome extends ProfileOutcome {
-  /** Maximum number of voters preferring an available unilateral change. */
+  /** Percentage of the entire electorate preferring its strongest one-decision challenger. */
   usDeviationVotes: number;
-  /** Compatibility only: the foreign actor has no ballot or vote count. */
-  foreignDeviationVotes: number;
   foreignBestResponseGain: number;
   foreignBestResponsePolicyId?: string;
-  maxDeviationVotes: number;
   usBestChallengerId?: string;
-  foreignBestChallengerId?: string;
-  /** Full-package diagnostics are populated for the selected profile only. */
+  /** Not populated by the coordinate search: package stability is not claimed. */
   usPackageDeviationVotes?: number;
-  foreignPackageDeviationVotes?: number;
-  maxPackageDeviationVotes?: number;
-  usBestPackageChallengerId?: string;
-  foreignBestPackageChallengerId?: string;
-}
-
-export interface CoordinateAmendment { axis: PolicyAxis; value: number }
-
-/** A known, finite series of single-decision amendments. The challenger is
- * reconstructed from the current policy at every state, retaining decisions
- * made earlier. Voters anticipate every remaining ballot.
- */
-export function analyzeCoordinateAgenda(
-  policies: readonly Policy[], pairwiseVotes: readonly (readonly number[])[], statusQuoIndex: number,
-): { agenda: CoordinateAmendment[]; steps: (AgendaStep & CoordinateAmendment)[]; winner: number } {
-  const key = (policy: Policy) => POLICY_AXES.map(axis => policyValue(policy, axis)).join('|');
-  const indices = new Map(policies.map((policy, index) => [key(policy), index]));
-  const agenda: CoordinateAmendment[] = POLICY_AXES.flatMap(axis => {
-    const values = [...new Set(policies.map(policy => policyValue(policy, axis)))];
-    return values.length > 1 ? values.map(value => ({ axis, value })) : [];
-  });
-  const challengers = agenda.map(({ axis, value }) => policies.map(policy => {
-    const challenger = indices.get(key({ ...policy, [axis]: value }));
-    if (challenger === undefined) throw new RangeError('Separate ballots require a complete menu of decision combinations.');
-    return challenger;
-  }));
-  const winners: number[][] = Array.from({ length: agenda.length + 1 }, () => []);
-  winners[agenda.length] = policies.map((_, index) => index);
-  for (let stage = agenda.length - 1; stage >= 0; stage--) {
-    winners[stage] = policies.map((_, incumbent) => {
-      const reject = winners[stage + 1]![incumbent]!;
-      const accept = winners[stage + 1]![challengers[stage]![incumbent]!]!;
-      return pairwiseVotes[accept]![reject]! >= VOTES_REQUIRED ? accept : reject;
-    });
-  }
-  let incumbent = statusQuoIndex;
-  const steps: (AgendaStep & CoordinateAmendment)[] = [];
-  for (let stage = 0; stage < agenda.length; stage++) {
-    const challenger = challengers[stage]![incumbent]!;
-    const continuationIfRejected = winners[stage + 1]![incumbent]!;
-    const continuationIfAccepted = winners[stage + 1]![challenger]!;
-    const votesForChange = pairwiseVotes[continuationIfAccepted]![continuationIfRejected]!;
-    const accepted = votesForChange >= VOTES_REQUIRED;
-    steps.push({ ...agenda[stage]!, incumbent, challenger, continuationIfRejected, continuationIfAccepted, votesForChange, accepted });
-    if (accepted) incumbent = challenger;
-  }
-  return { agenda, steps, winner: incumbent };
-}
-
-/** Coordinate-election analysis uses only direct, one-decision challengers for
- * stability. The separate agenda is a fallback, not a proof of stability.
- */
-export function analyzeCoordinateVotes(
-  policies: readonly Policy[], pairwiseVotes: readonly (readonly number[])[], statusQuoIndex: number,
-) {
-  const size = policies.length;
-  if (!size || !Number.isInteger(statusQuoIndex) || statusQuoIndex < 0 || statusQuoIndex >= size
-    || pairwiseVotes.length !== size || pairwiseVotes.some(row => row.length !== size
-      || row.some(votes => !Number.isInteger(votes) || votes < 0 || votes > VOTER_COUNT))) {
-    throw new RangeError('Expected a square policy vote matrix and a valid status quo.');
-  }
-  const maxDeviationVotes = policies.map(() => 0);
-  const bestChallengers: (number | undefined)[] = policies.map(() => undefined);
-  const edges: number[][] = policies.map(() => []);
-  let tiedPairCount = 0;
-  for (let incumbent = 0; incumbent < size; incumbent++) for (let challenger = 0; challenger < size; challenger++) {
-    if (changedPolicyAxes(policies[incumbent]!, policies[challenger]!).length !== 1) continue;
-    const votes = pairwiseVotes[challenger]![incumbent]!;
-    if (votes > maxDeviationVotes[incumbent]!) {
-      maxDeviationVotes[incumbent] = votes;
-      bestChallengers[incumbent] = challenger;
-    }
-    if (votes >= VOTES_REQUIRED) edges[incumbent]!.push(challenger);
-    if (incumbent < challenger && votes < VOTES_REQUIRED && pairwiseVotes[incumbent]![challenger]! < VOTES_REQUIRED) tiedPairCount++;
-  }
-  const stable = policies.flatMap((_, index) => maxDeviationVotes[index]! < VOTES_REQUIRED ? [index] : []);
-  const agenda = analyzeCoordinateAgenda(policies, pairwiseVotes, statusQuoIndex);
-  const selected = stable.includes(statusQuoIndex) ? statusQuoIndex : stable[0] ?? agenda.winner;
-  return { stable, selected, maxDeviationVotes, bestChallengers, agenda, tiedPairCount, hasMajorityCycle: containsCycle(edges) };
 }
 
 export interface VotingAgendaStep {
   incumbentId: string;
   challengerId: string;
-  continuationIfRejectedId: string;
-  continuationIfAcceptedId: string;
   votesForChange: number;
   accepted: boolean;
   axis?: PolicyAxis;
-  value?: number;
+  value?: PolicyValue;
 }
 
 export interface VotingResult {
-  mode: SolveResult['effectiveMode'];
-  effectiveMode: SolveResult['effectiveMode'];
-  ballots: BallotMode;
-  policies: readonly Policy[];
-  outcomes: VotingOutcome[];
   selected: VotingOutcome;
-  statusQuo: VotingOutcome;
-  selection: MajorityAnalysis['selection'] | 'majority-stable' | 'min-deviation-votes'
-    | 'separate-ballot-stable' | 'coordinate-agenda' | 'min-coordinate-deviation-votes'
-    | 'international-stable' | 'foreign-best-response-fallback';
-  condorcetWinners: VotingOutcome[];
-  majorityUnbeaten: VotingOutcome[];
   majorityStable: VotingOutcome[];
-  /** Policy IDs, with the voting status quo first. */
-  agendaOrder: string[];
+  selection: 'verified-stable' | 'search-incomplete';
+  evaluations: number;
+  startsTried: number;
+  iterations: number;
+  /** The search never enumerates every pair or claims to find every equilibrium. */
+  searchComplete: false;
   agendaSteps: VotingAgendaStep[];
-  coordinateAgenda?: CoordinateAmendment[];
   hasMajorityCycle: boolean;
-  tiedPairCount: number;
-  /** US-only policy groups with equivalent voter utilities. */
-  equivalentPolicyGroups: string[][];
-  /** Available only in US-only mode: challenger row, incumbent column. */
-  pairwiseVotes?: number[][];
-  votesForChange: (challenger: ProfileOutcome, incumbent: ProfileOutcome, region?: 'us' | 'foreign') => number;
+  bestChallenger?: Policy;
+  votesForChange: (challenger: LightProfile, incumbent: LightProfile) => number;
 }
 
-/** Vote on the model's full chosen menu. The model's scalar objective is not
- * consulted: every preference is rebuilt from individual household outcomes.
- * Model outcomes remain cached, and no policy is excluded for underfunding.
- */
-export function solveVoting(model: SolveResult, options: { ballots?: BallotMode } = {}): VotingResult {
-  const ballots = options.ballots ?? 'separate';
-  const policies = model.policies;
-  const outcomes: VotingOutcome[] = model.outcomes.map(outcome => Object.assign(
-    // Object spread would eagerly materialize every lazy trajectory in the grid.
-    Object.defineProperties({}, Object.getOwnPropertyDescriptors(outcome)),
-    { usDeviationVotes: 0, foreignDeviationVotes: 0, maxDeviationVotes: 0, foreignBestResponseGain: 0 },
-  ) as VotingOutcome);
-  interface VoterScores { utilities?: Float64Array; runs: UtilityRun[] }
-  const cache = new WeakMap<ProfileOutcome, { us: VoterScores }>();
-  const scoreRegion = (trajectory: readonly RegionYear[]): VoterScores => {
-    const utilities = voterUtilities(trajectory, model.inputs.reemployment, model.inputs.workerShare);
-    // A large international grid needs only the exact runs after construction;
-    // retaining every 1,000-entry vector would consume hundreds of megabytes.
-    return { utilities: model.effectiveMode === 'us-only' ? utilities : undefined, runs: compressUtilities(utilities) };
-  };
-  const getUtilities = (profile: ProfileOutcome) => {
-    let value = cache.get(profile);
-    if (!value) {
-      value = { us: scoreRegion(profile.us) };
-      cache.set(profile, value);
-    }
-    return value;
-  };
-  const votesForChange: VotingResult['votesForChange'] = (challenger, incumbent, region = 'us') => {
-    if (region !== 'us') throw new RangeError('The foreign bloc is one optimizing actor, not an electorate.');
-    const a = getUtilities(challenger).us;
-    const b = getUtilities(incumbent).us;
-    return countCompressedVotes(a.runs, b.runs);
-  };
-  const statusQuoPolicy = policies.find(policy => policy.replacement === 0 && policy.safetyNet === 0
-    && policyValue(policy, 'workerTax') === 0 && policy.tax === 0)!;
-  if (!statusQuoPolicy) throw new RangeError('The policy menu needs a zero-retention, zero-government-floor, zero-worker-tax, zero-owner-tax voting status quo.');
-  const foreignPolicies = model.foreignPolicies ?? (model.effectiveMode === 'strategic' ? policies : []);
-  const foreignStatusQuoPolicy = foreignPolicies.find(policy => policy.id === statusQuoPolicy.id)
-    ?? foreignPolicies.find(policy => policy.replacement === 0 && policy.safetyNet === 0
-      && policy.workerTax === 0 && policy.tax === 0) ?? foreignPolicies[0];
-  const statusQuo = outcomes.find(outcome => outcome.usPolicy.id === statusQuoPolicy.id
-    && (!outcome.foreignPolicy || outcome.foreignPolicy.id === foreignStatusQuoPolicy?.id))!;
-  if (!statusQuo) throw new RangeError('The voting status quo must be included in the profile grid.');
-  const common = {
-    mode: model.effectiveMode, effectiveMode: model.effectiveMode, ballots, policies, outcomes, statusQuo, votesForChange,
-  };
-  const attachPackageChallenges = (selected: VotingOutcome) => {
-    selected.usPackageDeviationVotes = 0;
-    selected.foreignPackageDeviationVotes = 0;
-    for (const challenger of outcomes) {
-      if (challenger.foreignPolicy?.id === selected.foreignPolicy?.id) {
-        const votes = votesForChange(challenger, selected, 'us');
-        if (votes > selected.usPackageDeviationVotes) {
-          selected.usPackageDeviationVotes = votes;
-          selected.usBestPackageChallengerId = challenger.usPolicy.id;
-        }
-      }
+export interface WeightedGame {
+  policies: readonly Policy[];
+  foreignPolicies: readonly Policy[];
+  weights: ArrayLike<number>;
+  currentPolicy: Policy;
+  foreignCurrentPolicy?: Policy;
+  evaluateLight: (us: Policy, foreign?: Policy) => LightProfile;
+  evaluateForeign?: (us: Policy, foreign: Policy) => number;
+  evaluate: (us: Policy, foreign?: Policy) => ProfileOutcome;
+}
 
-    }
-    selected.maxPackageDeviationVotes = selected.usPackageDeviationVotes;
-  };
-  if (model.effectiveMode === 'us-only') {
-    const analysis = analyzeMajority(outcomes.map(outcome => getUtilities(outcome).us.utilities!), outcomes.indexOf(statusQuo));
-    for (let incumbent = 0; incumbent < outcomes.length; incumbent++) {
-      const outcome = outcomes[incumbent]!;
-      for (let challenger = 0; challenger < outcomes.length; challenger++) {
-        if (ballots === 'separate' && changedPolicyAxes(outcome.usPolicy, outcomes[challenger]!.usPolicy).length !== 1) continue;
-        const votes = analysis.pairwiseVotes[challenger]![incumbent]!;
-        if (votes > outcome.usDeviationVotes) {
-          outcome.usDeviationVotes = votes;
-          outcome.usBestChallengerId = outcomes[challenger]!.usPolicy.id;
-        }
+export interface SearchOptions {
+  /** A finite deterministic search; each reported equilibrium still has a complete unilateral check. */
+  starts?: number;
+  rounds?: number;
+  amendments?: number;
+  cacheSize?: number;
+}
+
+interface USCheck {
+  profile: LightProfile;
+  votes: number;
+  challenger?: LightProfile;
+}
+interface ForeignCheck { policy?: Policy; score: number }
+interface Candidate { check: USCheck; foreign: ForeignCheck }
+
+function policyKey(policy: Policy): string {
+  return POLICY_AXES.map(axis => policy[axis]).join('|');
+}
+
+/** Build the full one-axis neighborhood without scanning the full menu at every ballot. */
+export function coordinateAlternatives(policies: readonly Policy[], policy: Policy): Policy[] {
+  return policies.filter(candidate => changedPolicyAxes(policy, candidate).length === 1);
+}
+
+function neighborIndex(policies: readonly Policy[]): Map<string, Policy[]> {
+  const keys = new Map<string, Policy>();
+  const ids = new Set<string>();
+  const values = POLICY_AXES.map(axis => [...new Set(policies.map(policy => policy[axis]))]);
+  for (const policy of policies) {
+    if (keys.has(policyKey(policy)) || ids.has(policy.id)) throw new RangeError('Policy IDs and decision combinations must be unique.');
+    keys.set(policyKey(policy), policy);
+    ids.add(policy.id);
+  }
+  const neighbors = new Map<string, Policy[]>();
+  for (const policy of policies) {
+    const alternatives: Policy[] = [];
+    POLICY_AXES.forEach((axis, axisIndex) => {
+      for (const value of values[axisIndex]!) {
+        if (value === policy[axis]) continue;
+        const candidate = keys.get(policyKey({ ...policy, [axis]: value }));
+        if (!candidate) throw new RangeError('Separate ballots require a complete menu of decision combinations.');
+        alternatives.push(candidate);
       }
-      outcome.maxDeviationVotes = outcome.usDeviationVotes;
+    });
+    neighbors.set(policy.id, alternatives);
+  }
+  return neighbors;
+}
+
+/**
+ * Bounded search with exact certificates. The US uses majority amendments;
+ * the foreign bloc uses a scalar best response over its full menu. A failed
+ * search never becomes a claim that the game has no equilibrium.
+ */
+export function solveWeightedGame(game: WeightedGame, options: SearchOptions = {}): VotingResult {
+  const weights = normalizedWeights(game.weights);
+  if (!game.policies.length) throw new RangeError('The US policy menu must not be empty.');
+  const current = game.policies.find(policy => policy.id === game.currentPolicy.id);
+  if (!current) throw new RangeError('The current-policy baseline must appear in the US policy menu.');
+  const neighbors = neighborIndex(game.policies);
+  const strategic = game.foreignPolicies.length > 0;
+  if (new Set(game.foreignPolicies.map(policy => policy.id)).size !== game.foreignPolicies.length) {
+    throw new RangeError('Foreign policy IDs must be unique.');
+  }
+  const foreignCurrent = strategic
+    ? game.foreignPolicies.find(policy => policy.id === game.foreignCurrentPolicy?.id)
+      ?? game.foreignPolicies.find(policy => policy.id === current.id) ?? game.foreignPolicies[0]
+    : undefined;
+  const starts = options.starts ?? 3, rounds = options.rounds ?? 3, amendments = options.amendments ?? 12;
+  const cacheSize = options.cacheSize ?? 256;
+  if ([starts, rounds, amendments, cacheSize].some(value => !Number.isInteger(value) || value < 1)) {
+    throw new RangeError('Search limits must be positive integers.');
+  }
+  let evaluations = 0, startsTried = 0, iterations = 0, hasMajorityCycle = false;
+  const cache = new Map<string, LightProfile>();
+  const foreignBest = new Map<string, ForeignCheck | null>();
+  const profileKey = (us: Policy, foreign?: Policy) => JSON.stringify([us.id, foreign?.id ?? null]);
+  const evaluate = (us: Policy, foreign?: Policy): LightProfile => {
+    const key = profileKey(us, foreign);
+    const cached = cache.get(key);
+    if (cached) return cached;
+    const profile = game.evaluateLight(us, foreign);
+    if (profile.usUtilities.length !== weights.length
+      || Array.from(profile.usUtilities).some(value => !Number.isFinite(value))) {
+      throw new RangeError('Every profile needs finite utilities for the same population cells.');
     }
-    const policyId = (index: number) => outcomes[index]!.usPolicy.id;
-    if (ballots === 'separate') {
-      const coordinate = analyzeCoordinateVotes(policies, analysis.pairwiseVotes, outcomes.indexOf(statusQuo));
-      const majorityStable = coordinate.stable.map(index => outcomes[index]!);
-      const agenda = coordinate.agenda;
-      const selected = outcomes[coordinate.selected]!;
-      attachPackageChallenges(selected);
-      return {
-        ...common, selected, selection: majorityStable.length ? 'separate-ballot-stable' : 'coordinate-agenda',
-        condorcetWinners: analysis.condorcetWinners.map(index => outcomes[index]!),
-        majorityUnbeaten: majorityStable, majorityStable,
-        agendaOrder: [statusQuoPolicy.id, ...agenda.steps.map(step => policyId(step.challenger))],
-        coordinateAgenda: agenda.agenda,
-        agendaSteps: agenda.steps.map(step => ({
-          axis: step.axis, value: step.value,
-          incumbentId: policyId(step.incumbent), challengerId: policyId(step.challenger),
-          continuationIfRejectedId: policyId(step.continuationIfRejected),
-          continuationIfAcceptedId: policyId(step.continuationIfAccepted),
-          votesForChange: step.votesForChange, accepted: step.accepted,
-        })),
-        hasMajorityCycle: coordinate.hasMajorityCycle, tiedPairCount: coordinate.tiedPairCount,
-        equivalentPolicyGroups: analysis.equivalentGroups.map(group => group.map(policyId)),
-        pairwiseVotes: analysis.pairwiseVotes,
-      };
+    if (strategic && !Number.isFinite(profile.foreignScore)) throw new RangeError('The foreign actor needs a finite payoff.');
+    evaluations++;
+    cache.set(key, profile);
+    if (cache.size > cacheSize) cache.delete(cache.keys().next().value!);
+    return profile;
+  };
+  const votesForChange = (challenger: LightProfile, incumbent: LightProfile) =>
+    compareUtilities(challenger.usUtilities, incumbent.usUtilities, weights);
+  const inspectUS = (us: Policy, foreign?: Policy, materialized?: LightProfile): USCheck => {
+    const profile = materialized ?? evaluate(us, foreign);
+    let votes = 0;
+    let challenger: LightProfile | undefined;
+    for (const policy of neighbors.get(us.id)!) {
+      const candidate = evaluate(policy, foreign);
+      if (!candidate.usAdmissible) continue;
+      const support = votesForChange(candidate, profile);
+      if (!challenger || support > votes + VOTE_SUM_TOLERANCE) { votes = support; challenger = candidate; }
     }
-    attachPackageChallenges(outcomes[analysis.selected]!);
-    return {
-      ...common, selected: outcomes[analysis.selected]!, selection: analysis.selection,
-      condorcetWinners: analysis.condorcetWinners.map(index => outcomes[index]!),
-      majorityUnbeaten: analysis.unbeaten.map(index => outcomes[index]!), majorityStable: [],
-      agendaOrder: analysis.agendaOrder.map(policyId),
-      agendaSteps: analysis.agendaSteps.map(step => ({
-        incumbentId: policyId(step.incumbent), challengerId: policyId(step.challenger),
-        continuationIfRejectedId: policyId(step.continuationIfRejected),
-        continuationIfAcceptedId: policyId(step.continuationIfAccepted),
-        votesForChange: step.votesForChange, accepted: step.accepted,
-      })),
-      hasMajorityCycle: analysis.hasMajorityCycle, tiedPairCount: analysis.tiedPairCount,
-      equivalentPolicyGroups: analysis.equivalentGroups.map(group => group.map(policyId)),
-      pairwiseVotes: analysis.pairwiseVotes,
+    return { profile, votes, challenger };
+  };
+  const bestForeign = (us: Policy): ForeignCheck | null => {
+    if (!strategic) return { score: 0 };
+    const cached = foreignBest.get(us.id);
+    if (cached !== undefined) return cached;
+    let best: ForeignCheck | undefined;
+    for (const policy of game.foreignPolicies) {
+      const candidate = game.evaluateForeign ? undefined : evaluate(us, policy);
+      if (candidate && !candidate.foreignAdmissible) continue;
+      const score = game.evaluateForeign ? game.evaluateForeign(us, policy) : candidate!.foreignScore!;
+      if (game.evaluateForeign) evaluations++;
+      if (score === -Infinity) continue; // Unavailable: the policy cannot fund required public services.
+      if (!Number.isFinite(score)) throw new RangeError('The foreign actor needs a finite payoff.');
+      // Select the true numeric maximum; equilibrium tolerance is applied only
+      // when comparing an incumbent with that maximum, not while accumulating it.
+      if (!best || score > best.score) best = { policy, score };
+    }
+    // Foreign fiscal availability depends on the US policy. A failed row says
+    // nothing about other starting policies, so remember it and try another seed.
+    foreignBest.set(us.id, best ?? null);
+    return best ?? null;
+  };
+  let fallback: Candidate | undefined;
+  const remember = (check: USCheck, foreign: ForeignCheck) => {
+    // These candidates keep the foreign actor at a full-menu best response.
+    // Do not combine voter shares with cardinal foreign utility into one score.
+    const admissible = check.profile.usAdmissible && (!strategic || check.profile.foreignAdmissible);
+    const previousAdmissible = fallback?.check.profile.usAdmissible && (!strategic || fallback?.check.profile.foreignAdmissible);
+    if (!fallback || (admissible && !previousAdmissible)
+      || (Boolean(admissible) === Boolean(previousAdmissible) && check.votes < fallback.check.votes - VOTE_SUM_TOLERANCE)) fallback = { check, foreign };
+  };
+  const finish = (candidate: Candidate, stable: boolean): VotingResult => {
+    const { check, foreign } = candidate;
+    // Materialize only the chosen profile, after search and certification.
+    const full = game.evaluate(check.profile.usPolicy, check.profile.foreignPolicy);
+    evaluations++;
+    if (strategic && !Number.isFinite(full.foreignScore)) throw new RangeError('The materialized foreign payoff must be finite.');
+    const finalCheck = inspectUS(full.usPolicy, full.foreignPolicy, full);
+    const gain = strategic ? Math.max(0, foreign.score - full.foreignScore!) : 0;
+    const selected: VotingOutcome = {
+      ...full, usDeviationVotes: finalCheck.votes, usBestChallengerId: finalCheck.challenger?.usPolicy.id,
+      foreignBestResponseGain: gain, foreignBestResponsePolicyId: foreign.policy?.id,
     };
-  }
-  const size = policies.length;
-  const foreignSize = foreignPolicies.length;
-  if (!foreignSize || outcomes.length !== size * foreignSize) {
-    throw new RangeError('International voting requires the full rectangular policy grid.');
-  }
-  const edges: number[][] = outcomes.map(() => []);
-  let tiedPairCount = 0;
-  // Only US voters use majority comparisons. Foreign deviations are evaluated
-  // over every package, including a different deployment pace, by scalar payoff.
-  const comparisonPairs: [number, number][] = [];
-  for (let first = 0; first < size; first++) for (let second = first + 1; second < size; second++) {
-    if (ballots === 'package' || changedPolicyAxes(policies[first]!, policies[second]!).length === 1) comparisonPairs.push([first, second]);
-  }
-  const recordUS = (incumbentIndex: number, challengerIndex: number, votes: number) => {
-    const incumbent = outcomes[incumbentIndex]!;
-    if (votes > incumbent.usDeviationVotes) {
-      incumbent.usDeviationVotes = votes;
-      incumbent.usBestChallengerId = outcomes[challengerIndex]!.usPolicy.id;
+    if (stable && (!full.usAdmissible || (strategic && !full.foreignAdmissible)
+      || hasMajority(finalCheck.votes) || gain > EQUILIBRIUM_TOLERANCE)) {
+      throw new Error('A candidate failed its equilibrium certificate.');
     }
-    if (votes >= VOTES_REQUIRED) edges[incumbentIndex]!.push(challengerIndex);
+    return {
+      selected, majorityStable: stable ? [selected] : [],
+      selection: stable ? 'verified-stable' : 'search-incomplete', evaluations, startsTried, iterations,
+      searchComplete: false, agendaSteps: [], hasMajorityCycle,
+      bestChallenger: finalCheck.challenger?.usPolicy, votesForChange,
+    };
   };
-  for (let column = 0; column < foreignSize; column++) {
-    for (const [first, second] of comparisonPairs) {
-      const firstIndex = first * foreignSize + column;
-      const secondIndex = second * foreignSize + column;
-      const forward = votesForChange(outcomes[secondIndex]!, outcomes[firstIndex]!);
-      const backward = votesForChange(outcomes[firstIndex]!, outcomes[secondIndex]!);
-      recordUS(firstIndex, secondIndex, forward);
-      recordUS(secondIndex, firstIndex, backward);
-      if (forward < VOTES_REQUIRED && backward < VOTES_REQUIRED) tiedPairCount++;
+  const seedCandidates = [current, game.policies[0]!, game.policies.at(-1)!, game.policies[Math.floor(game.policies.length / 2)]!];
+  const seeds = seedCandidates.filter((policy, index) => seedCandidates.findIndex(other => other.id === policy.id) === index).slice(0, starts);
+  for (const seed of seeds) {
+    startsTried++;
+    let us = seed, foreign = foreignCurrent;
+    const visitedPairs = new Set<string>();
+    for (let round = 0; round < rounds; round++) {
+      iterations++;
+      const roundKey = profileKey(us, foreign);
+      if (visitedPairs.has(roundKey)) { hasMajorityCycle = true; break; }
+      visitedPairs.add(roundKey);
+      const visitedUS = new Set<string>();
+      let check: USCheck | undefined;
+      for (let amendment = 0; amendment < amendments; amendment++) {
+        check = inspectUS(us, foreign);
+        if (check.profile.usAdmissible ? !hasMajority(check.votes) : !check.challenger) break;
+        if (visitedUS.has(us.id)) { hasMajorityCycle = true; break; }
+        visitedUS.add(us.id);
+        us = check.challenger!.usPolicy;
+      }
+      // The final amendment can exhaust the walk. Recheck that resulting policy;
+      // do not certify the previously examined incumbent by accident.
+      check = inspectUS(us, foreign);
+      const response = bestForeign(us);
+      if (!response) break;
+      const gain = strategic ? Math.max(0, response.score - check.profile.foreignScore!) : 0;
+      if (check.profile.usAdmissible && (!strategic || check.profile.foreignAdmissible)
+        && !hasMajority(check.votes) && gain <= EQUILIBRIUM_TOLERANCE) return finish({ check, foreign: response }, true);
+      foreign = response.policy;
+      const responseCheck = inspectUS(us, foreign);
+      remember(responseCheck, response);
+      if (responseCheck.profile.usAdmissible && (!strategic || responseCheck.profile.foreignAdmissible)
+        && !hasMajority(responseCheck.votes)) return finish({ check: responseCheck, foreign: response }, true);
     }
   }
-  for (let row = 0; row < size; row++) {
-    let best = row * foreignSize;
-    for (let column = 1; column < foreignSize; column++) {
-      const candidate = row * foreignSize + column;
-      if (!Number.isFinite(outcomes[candidate]!.foreignScore)) throw new RangeError('The foreign actor needs a finite payoff for every policy pair.');
-      if (outcomes[candidate]!.foreignScore! > outcomes[best]!.foreignScore!) best = candidate;
-    }
-    const bestScore = outcomes[best]!.foreignScore!;
-    if (!Number.isFinite(bestScore)) throw new RangeError('The foreign actor needs a finite payoff for every policy pair.');
-    for (let column = 0; column < foreignSize; column++) {
-      const index = row * foreignSize + column;
-      const outcome = outcomes[index]!;
-      outcome.foreignBestResponseGain = Math.max(0, bestScore - outcome.foreignScore!);
-      outcome.foreignBestResponsePolicyId = outcomes[best]!.foreignPolicy!.id;
-      outcome.foreignBestChallengerId = outcome.foreignBestResponsePolicyId;
-      outcome.maxDeviationVotes = outcome.usDeviationVotes;
-      // A detected cycle follows permitted US amendments and a deterministic
-      // foreign best response; no foreign vote counts are invented.
-      if (outcome.foreignBestResponseGain > EQUILIBRIUM_TOLERANCE) edges[index]!.push(best);
-    }
-  }
-  const foreignBestResponses = outcomes.filter(outcome => outcome.foreignBestResponseGain <= EQUILIBRIUM_TOLERANCE);
-  const majorityStable = foreignBestResponses.filter(outcome => outcome.usDeviationVotes < VOTES_REQUIRED);
-  const minimumDeviationVotes = Math.min(...foreignBestResponses.map(outcome => outcome.usDeviationVotes));
-  const candidates = majorityStable.length ? majorityStable
-    : foreignBestResponses.filter(outcome => outcome.usDeviationVotes === minimumDeviationVotes);
-  const selected = candidates.includes(statusQuo) ? statusQuo : candidates[0]!;
-  attachPackageChallenges(selected);
-  return {
-    ...common, selected,
-    selection: majorityStable.length ? 'international-stable' : 'foreign-best-response-fallback',
-    condorcetWinners: [], majorityUnbeaten: [], majorityStable,
-    agendaOrder: [statusQuoPolicy.id, ...policies.filter(policy => policy.id !== statusQuoPolicy.id).map(policy => policy.id)],
-    agendaSteps: [], hasMajorityCycle: containsCycle(edges), tiedPairCount, equivalentPolicyGroups: [],
-  };
+  if (!fallback) throw new Error(strategic
+    ? 'No fiscally admissible international candidate found in bounded search.'
+    : 'The bounded search did not evaluate a candidate.');
+  return finish(fallback, false);
+}
+
+export function solveVoting(model: SolveResult, options: SearchOptions = {}): VotingResult {
+  return solveWeightedGame({
+    policies: model.policies, foreignPolicies: model.foreignPolicies, weights: model.weights,
+    currentPolicy: model.currentPolicy, foreignCurrentPolicy: model.currentPolicy,
+    evaluateLight: model.evaluateLight, evaluateForeign: model.evaluateForeign, evaluate: model.evaluate,
+  }, options);
 }

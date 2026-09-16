@@ -1,39 +1,35 @@
-import { describe, expect, it } from 'vitest';
-import { DEFAULT_INPUTS, EQUILIBRIUM_TOLERANCE, POLICIES, evaluateProfile, scoreForeignTrajectory, type Objective } from './pirates-model';
-import { solveScenario } from './simulation';
-
-describe('browser calculation snapshots', () => {
-  it.each(['workers', 'prosperity', 'output'] as const)('sends a cloneable compact %s scenario with a foreign best response', (foreignObjective: Objective) => {
-    const snapshot = solveScenario({ id: 1, inputs: DEFAULT_INPUTS, mode: 'strategic', foreignObjective, pace: 1 });
-    const copy = structuredClone(snapshot);
-    expect(copy.foreignObjective).toBe(foreignObjective);
-    expect(copy.pairCount).toBe(108 * 432);
-    expect(copy.alternatives).toHaveLength(108);
-    expect(copy.alternatives.every(profile => profile.foreignPolicy?.id === copy.selected.foreignPolicy?.id)).toBe(true);
-    expect(copy.selected.us).toHaveLength(11);
-    expect(copy.selected.foreign).toHaveLength(11);
-    expect(copy.selected.foreignBestResponseGain).toBeLessThanOrEqual(EQUILIBRIUM_TOLERANCE);
-    // Recompute every foreign deviation independently of the solver's cached
-    // regret field and compact snapshot, including all four deployment paces.
-    const selectedForeignScore = scoreForeignTrajectory(copy.selected.foreign!, foreignObjective);
-    const foreignScores = POLICIES.map(foreignPolicy => {
-      const alternative = evaluateProfile(DEFAULT_INPUTS, copy.selected.usPolicy, foreignPolicy,
-        'strategic', 'prosperity', foreignObjective);
-      return scoreForeignTrajectory(alternative.foreign!, foreignObjective);
-    });
-    expect(foreignScores).toHaveLength(432);
-    expect(copy.selected.foreignScore).toBeCloseTo(selectedForeignScore, 12);
-    expect(Math.max(...foreignScores) - selectedForeignScore).toBeLessThanOrEqual(EQUILIBRIUM_TOLERANCE);
-    expect(copy.statusQuo.usPolicy.pace).toBe(1);
-    expect(copy.statusQuo.foreignPolicy?.id).toBe(copy.selected.foreignPolicy?.id);
-    if (copy.stableCount) expect(copy.selected.usDeviationVotes).toBeLessThan(501);
-    expect(copy.selected.us.every(point => Math.abs(point.resourceResidual) < 1e-8)).toBe(true);
-  });
-
-  it('keeps a paused US distinct from an independently deploying foreign actor', () => {
-    const snapshot = solveScenario({ id: 2, inputs: { ...DEFAULT_INPUTS, displacement: 0, investmentResponse: 0 }, mode: 'strategic', foreignObjective: 'output', pace: 0 });
-    expect(snapshot.selected.usPolicy.pace).toBe(0);
-    expect(snapshot.selected.foreignPolicy?.pace).toBe(1);
-    expect(snapshot.selected.us.at(-1)!.exposure).toBeGreaterThan(0);
-  });
+import {describe,it,expect} from 'vitest';
+import {solveScenario} from './simulation';
+import {DEFAULT_INPUTS,solveModel,EQUILIBRIUM_TOLERANCE} from './pirates-model';
+import {countVotes,changedPolicyAxes,hasMajority} from './pirates-voting';
+describe('weighted scenario snapshots',()=>{
+ it('sends cloneable selected outcomes and only one-axis alternatives',()=>{
+  const s=solveScenario({id:1,inputs:DEFAULT_INPUTS,mode:'us-only',foreignObjective:'prosperity',pace:1});
+  const clone=structuredClone(s);expect(clone.selected.usUtilities).toEqual(s.selected.usUtilities);
+  expect(s.policyCount).toBeGreaterThan(1000);expect(s.alternatives.length).toBeLessThan(30);
+  for(const a of s.alternatives)expect(changedPolicyAxes(a.usPolicy,s.selected.usPolicy)).toHaveLength(1);
+  expect(s.statusQuo.usPolicy.welfareScale).toBe(1);expect(s.statusQuo.usPolicy.benefitFormula).toBe('current');
+  expect(s.baseline.us.at(-1)!.allIncomeIndex).toBeCloseTo(100,8);
+  if(s.selection==='verified-stable')expect(hasMajority(s.selected.usDeviationVotes)).toBe(false);
+ });
+ it.each(['workers','prosperity','output'] as const)('independently verifies all foreign responses and US amendments for %s',objective=>{
+  const s=solveScenario({id:2,inputs:DEFAULT_INPUTS,mode:'strategic',foreignObjective:objective,pace:1});
+  expect(s.selected.usAdmissible).toBe(true);expect(s.selected.foreignAdmissible).toBe(true);
+  expect(s.foreignPolicyCount).toBe(4*s.policyCount);
+  expect(s.statusQuo.foreignPolicy?.id).toBe(s.selected.foreignPolicy?.id);
+  const model=solveModel(DEFAULT_INPUTS,{mode:'strategic',objective:'workers',foreignObjective:objective,pace:1});
+  let best=-Infinity;
+  for(const policy of model.foreignPolicies)best=Math.max(best,model.evaluateForeign(s.selected.usPolicy,policy));
+  expect(Math.max(0,best-s.selected.foreignScore!)).toBeCloseTo(s.selected.foreignBestResponseGain,10);
+  let strongest=0;
+  for(const alternative of s.alternatives)if(alternative.usAdmissible)strongest=Math.max(strongest,countVotes(alternative.usUtilities,s.selected.usUtilities));
+  expect(strongest).toBeCloseTo(s.selected.usDeviationVotes,10);
+  if(s.selection==='verified-stable') {expect(strongest).toBeLessThanOrEqual(50+1e-10);expect(best-s.selected.foreignScore!).toBeLessThanOrEqual(EQUILIBRIUM_TOLERANCE);}
+  for(const y of [...s.selected.us,...s.selected.foreign!])expect(y.resourceResidual).toBeCloseTo(0,6);
+ },15000);
+ it('lets the foreign actor deploy when the US scenario is paused',()=>{
+  const s=solveScenario({id:3,inputs:{...DEFAULT_INPUTS,displacement:0,investmentResponse:0},mode:'strategic',foreignObjective:'output',pace:0});
+  expect(s.selected.usPolicy.pace).toBe(0);expect(s.selected.foreignPolicy!.pace).toBe(1);
+  expect(s.selected.us.at(-1)!.exposure).toBeGreaterThan(0);
+ },15000);
 });

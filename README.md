@@ -28,22 +28,43 @@ npm run preview
 
 The static output is in `dist/`. The build generates a sitemap for the production domain; `public/robots.txt` identifies it. A custom `404.html` is included. Dependencies are pinned and recorded in `package-lock.json`.
 
-## What the model assumes
+## Population and reference policy
 
-- There are 1,000 equal-weight voters and a change requires 501 votes. The ratio of worker to owner households can be changed in one-voter increments, with both groups present.
-- Voters are rational and self-interested. They compare their own expected income over ten years using logarithmic utility, a 3% annual discount rate and known exposure order. Rationality alone does not imply this utility function.
-- Separate ballots choose layoffs or employer retention at 50%, 100% or 125% of the starting wage; a government income floor at 0%, 50% or 100%; and worker and owner household taxes at 0%, 50% or 100%.
-- Retaining an obsolete role creates no extra output. Employer payments reduce capital income. Government receipts fund income top-ups first, with the remainder returned as an equal dividend to every voter.
-- Taxes and retention obligations can reduce investment. Worker taxes can reduce productive labor effort. The strength of those responses is an explicit scenario input.
-- At a fixed US deployment pace the solver enumerates 108 US policies. A stable US result cannot be defeated by 501 votes on one decision with the others fixed. That is narrower than defeating every possible policy package.
-- In international mode the rest of the world is one rational actor, choosing among 432 policies including four AI deployment paces. Its selectable objective is average worker disposable income, population-weighted logarithmic income utility, or gross output. The solver checks all 46,656 pairs. A stable pair must survive US ballots and be a foreign best response. A fallback is explicitly labeled unstable.
-- International reference inputs use 2025 World Bank GDP and BEA bilateral trade data. Relative GDP weights rent flows; imports give asymmetric exposure to foreign adoption. Both economies share household composition and behavioral response assumptions. Population is reported separately from economic size.
-- Policy burdens can reduce existing productive capacity through an assumed 5% annual renewal requirement. This is an illustrative response rule, not an estimated capital-stock model.
-- This is an illustrative model, not a calibrated forecast of the US economy. It does not solve a full general-equilibrium economy, firm optimization, repeated elections or AI safety outcomes.
+The electorate uses the **2026 Census CPS ASEC, covering 2025 income**. Every represented US citizen age 18+ has equal voting weight; there is no turnout adjustment or adjustable worker/owner ratio. The CPS household sample does not cover every institutionalized, overseas or military-barracks population.
 
-The page includes equations, budget accounting, voting diagnostics, manual policy comparisons and downloadable results. Scenario assumptions are stored in the URL for sharing.
+The published aggregate data contain 99 groups by household income source, income quintile and employment status. Household resources are shared among all household adults, including noncitizens; citizen adults retain their individual survey weights for voting. People with wages, investment income and benefits keep every component. Descriptive personal-income and benefit-receipt percentages are reported separately from the household groups used to calculate preferences.
 
-See the [calculator audit](docs/calculator-audit.md) for corrected issues, validation and remaining model limits.
+See [the data definitions and reproduction instructions](docs/us-electorate-data.md). The source archive stays outside the repository; only aggregate groups and a reproducible processing script are published.
+
+## What the model decides
+
+Five separate majority ballots choose:
+
+1. Allow layoffs or require employers to retain obsolete roles at 50%, 100% or 125% of prior wages.
+2. Set the modeled benefit budget to 0%, 50%, 100%, 150% or 200% of its 2025 reference.
+3. Preserve the current recipient mix, pay equally to every adult, or pay in proportion to pre-AI disposable household income.
+4. Change the tax benchmark on work, pensions and other non-investment income.
+5. Change the tax benchmark on investment income.
+
+Tax choices include reductions, the current reference, increases and the 0%/100% endpoints. Each group's tax profile changes toward those endpoints; the page distinguishes the selected benchmark from the resulting average rate after incomes change. References are model allocations of Census-estimated federal/state income taxes and payroll contributions, including self-employment contributions. They are not statutory rates or all US taxes. Negative net tax amounts are represented as benefit payments without double counting.
+
+The benefit reference includes cash benefits, valued food/housing/energy assistance and those net tax refunds. Medicare and Medicaid coverage is shown descriptively but is not converted into cash. The flat and prior-income formulas redesign the entire modeled benefit allocation. Keeping the same total budget does not keep every person's benefit unchanged. The current mix freezes observed recipient shares; it does not simulate each program's future eligibility rules.
+
+Employer retention is paid from capital resources and creates no extra production. Taxes must fund the fixed reference commitment to other public spending. Policies that cannot fund it are excluded from majority selection. Promised retention or welfare above the remaining budget is shown as a shortfall; voters compare actual payments. Extra tax receipts become non-transfer public spending, not an unrequested dividend.
+
+## Voting and international competition
+
+A change passes only when **more than half** of the weighted population strictly prefers it. Voters compare ten years of their own expected household-income utility, discounted at 3%, with a logarithm and a small offset at zero income. Displacement risk is assumed equal across labor-income groups. The model computes expected utility across work/no-work states, not utility of average income.
+
+The solver searches from several starting policies. A reported stable result is then checked against every single-decision US amendment. Stability does not mean everyone prefers the outcome or that it beats every joint package. Failure to find a verified result does not prove that no equilibrium exists.
+
+In international mode the rest of the world is one actor choosing its own complete policy and deployment pace. Its objective is worker-household income, population-weighted income utility, or modeled output. Verification checks its full policy menu at the selected US policy. The foreign economy uses the US household structure as an explicit simplifying assumption; its GDP size, trade exposure and frontier capability differ.
+
+International size and trade references use 2025 World Bank and BEA data. Investment and labor responses are measured relative to the current-tax baseline, so a no-AI/current-policy run reproduces reference incomes. High policy burdens can reduce adoption, labor effort and productive capacity. The 5% capacity-renewal rate and behavioral responses are assumptions, not estimated elasticities.
+
+This is a finite policy model, not a calibrated general-equilibrium forecast. Its dollar amounts describe household resources, which include pension withdrawals and capital gains; its output index is not observed GDP. It does not solve prices, debt, firm investment decisions, repeated elections, or the value of individual public services.
+
+The page includes expandable equations, accounting, comparisons and survey definitions. Calculations run in a cancellable background worker. Scenarios and results can be shared or downloaded. See the [earlier calculator audit](docs/calculator-audit.md) for the previous version's changes.
 
 ## Source layout
 
@@ -52,7 +73,9 @@ See the [calculator audit](docs/calculator-audit.md) for corrected issues, valid
 - `src/lib/economy/pirates-model.ts`: economic outcomes and resource accounting.
 - `src/lib/economy/pirates-voting.ts`: individual preferences and majority voting.
 - `src/lib/economy/simulation.ts` and `simulation.worker.ts`: compact results and cancellable background calculation.
-- `src/lib/economy/*.test.ts`: economic and voting checks.
+- `src/lib/economy/us-electorate.ts` and `us-electorate-data.json`: weighted survey groups and reference statistics.
+- `scripts/build-us-electorate.py`: reproducible Census microdata aggregation.
+- `src/lib/economy/*.test.ts`: population, economic and voting checks.
 - `src/styles/pirates-game.css`: responsive page styles.
 - `worker/index.ts`: canonical HTTPS redirects and the static-assets entrypoint.
 - `worker/env.d.ts`: generated Cloudflare bindings and runtime types; refresh with `npm run types` after changing Wrangler configuration.
