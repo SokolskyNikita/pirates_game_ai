@@ -273,7 +273,21 @@ def _settle(policy, production, flow, prepared, arrays, price_index=1):
     )
 
 
-def _evaluate_chunk(inputs, us_policies, foreign_policies, foreign_objective, prepared, foreign_only=False):
+# Welfare level and its distribution do not affect production, prices or
+# investment. Evaluate each distinct production pair once per complete menu,
+# then settle every welfare package against that path in bounded cohort chunks.
+_PRODUCTION_KEYS = ("pace", "replacement", "laborTax", "capitalTax", "allowFreeTrade")
+_SETTLEMENT_FIELDS = ("allocation", "u", "output", "capital", "effort")
+
+
+def _production_key(policy):
+    return tuple(
+        policy.get(key, True) if key == "allowFreeTrade" else policy[key] for key in _PRODUCTION_KEYS
+    )
+
+
+def _production_paths(inputs, us_policies, foreign_policies, prepared):
+    """Calculate ten years for independent, already-deduplicated policy pairs."""
     count = len(us_policies)
     up = _policy_arrays(us_policies)
     fp = _policy_arrays(foreign_policies) if foreign_policies is not None else None
@@ -290,19 +304,13 @@ def _evaluate_chunk(inputs, us_policies, foreign_policies, foreign_objective, pr
         if fp is not None
         else None
     )
-    us_arrays = _settlement_arrays(prepared, up) if not foreign_only else None
-    foreign_arrays = _settlement_arrays(prepared, fp) if fp is not None else None
     us_state, foreign_state = _initial_state(count), _initial_state(count)
     if fp is not None:
         for state, reference in ((us_state, baseline_us), (foreign_state, baseline_foreign)):
             state["import_share"] = np.full(count, reference)
             state["export_volume"] = np.full(count, reference * 100)
             state["net_output"] = np.full(count, 100.0)
-    utilities = np.zeros((count, len(prepared.cells)))
-    us_score, foreign_score = np.zeros(count), np.zeros(count)
-    us_funded, foreign_funded = np.ones(count, dtype=bool), np.ones(count, dtype=bool)
-    us_boundary, foreign_boundary = np.full(count, np.inf), np.full(count, np.inf)
-    weight_total = 0
+    years = []
     for year in range(1, YEARS + 1):
         annual_bus = trade_retention_burden(
             bus,
@@ -424,6 +432,73 @@ def _evaluate_chunk(inputs, us_policies, foreign_policies, foreign_objective, pr
             )
             foreign["net_output"] = foreign["output"] - foreign["investment"] - foreign["adjustment"]
         us.setdefault("consumer_price_index", us_price)
+        years.append(
+            (
+                {key: us[key] for key in _SETTLEMENT_FIELDS},
+                {key: foreign[key] for key in _SETTLEMENT_FIELDS} if foreign is not None else None,
+                flow,
+                foreign_flow,
+                us_price,
+                foreign_price,
+            )
+        )
+        if foreign is not None:
+            foreign_state = foreign
+        us_state = us
+    return years
+
+
+def _menu_production_paths(inputs, us_policies, foreign_policies, prepared):
+    """Map all ballot rows to their shared economic trajectory."""
+    unique_us, unique_foreign, indices, by_pair = [], [], [], {}
+    for index, us in enumerate(us_policies):
+        foreign = foreign_policies[index] if foreign_policies is not None else None
+        key = (_production_key(us), _production_key(foreign) if foreign is not None else None)
+        if key not in by_pair:
+            by_pair[key] = len(unique_us)
+            unique_us.append(us)
+            if foreign is not None:
+                unique_foreign.append(foreign)
+        indices.append(by_pair[key])
+    paths = _production_paths(
+        inputs, unique_us, unique_foreign if foreign_policies is not None else None, prepared
+    )
+    return paths, np.asarray(indices, dtype=np.intp)
+
+
+def _evaluate_chunk(
+    inputs,
+    us_policies,
+    foreign_policies,
+    foreign_objective,
+    prepared,
+    foreign_only=False,
+    *,
+    us_only=False,
+    paths=None,
+    rows=None,
+):
+    """Settle a bounded cohort matrix using reused or directly calculated paths."""
+    count = len(us_policies)
+    up = _policy_arrays(us_policies)
+    fp = _policy_arrays(foreign_policies) if foreign_policies is not None else None
+    us_arrays = _settlement_arrays(prepared, up) if not foreign_only else None
+    foreign_arrays = _settlement_arrays(prepared, fp) if fp is not None and not us_only else None
+    if paths is None:
+        paths = _production_paths(inputs, us_policies, foreign_policies, prepared)
+    utilities = np.zeros((count, len(prepared.cells)))
+    us_score, foreign_score = np.zeros(count), np.zeros(count)
+    us_funded, foreign_funded = np.ones(count, dtype=bool), np.ones(count, dtype=bool)
+    us_boundary, foreign_boundary = np.full(count, np.inf), np.full(count, np.inf)
+    weight_total = 0
+    for year, path in enumerate(paths, start=1):
+        us, foreign, flow, foreign_flow, us_price, foreign_price = path
+        if rows is not None:
+            us = {key: values[rows] for key, values in us.items()}
+            foreign = {key: values[rows] for key, values in foreign.items()} if foreign is not None else None
+            flow, foreign_flow, us_price, foreign_price = (
+                values[rows] for values in (flow, foreign_flow, us_price, foreign_price)
+            )
         weight = (1 + DISCOUNT_RATE) ** -year
         weight_total += weight
         if not foreign_only:
@@ -432,14 +507,12 @@ def _evaluate_chunk(inputs, us_policies, foreign_policies, foreign_objective, pr
             us_score += weight * result[1]
             us_funded &= result[4]
             us_boundary = np.minimum(us_boundary, result[5])
-        if foreign is not None:
+        if foreign is not None and not us_only:
             result = _settle(fp, foreign, foreign_flow, prepared, foreign_arrays, foreign_price)
             score = result[1 if foreign_objective == "workers" else 3 if foreign_objective == "output" else 2]
             foreign_score += weight * score
             foreign_funded &= result[4]
             foreign_boundary = np.minimum(foreign_boundary, result[5])
-            foreign_state = foreign
-        us_state = us
     utilities /= weight_total
     us_score /= weight_total
     foreign_score /= weight_total
@@ -457,11 +530,12 @@ def _evaluate_chunk(inputs, us_policies, foreign_policies, foreign_objective, pr
             "usAdmissible": bool(us_funded[index]),
         }
         if foreign_policies is not None:
-            profile.update(
-                foreignPolicy=foreign_policies[index],
-                foreignScore=float(foreign_score[index]),
-                foreignAdmissible=bool(foreign_funded[index]),
-            )
+            profile["foreignPolicy"] = foreign_policies[index]
+            if not us_only:
+                profile.update(
+                    foreignScore=float(foreign_score[index]),
+                    foreignAdmissible=bool(foreign_funded[index]),
+                )
         profiles.append(profile)
     return profiles, us_boundary, foreign_boundary
 
@@ -480,6 +554,8 @@ def evaluate_us_menu(
     if chunk_size < 1:
         raise ValueError("Batch size must be positive.")
     profiles, checked = [], set()
+    foreign_menu = [foreign] * len(policies) if foreign is not None else None
+    paths, rows = _menu_production_paths(inputs, policies, foreign_menu, prepared)
     for start in range(0, len(policies), chunk_size):
         chunk = policies[start : start + chunk_size]
         values, boundaries, _ = _evaluate_chunk(
@@ -488,6 +564,9 @@ def evaluate_us_menu(
             [foreign] * len(chunk) if foreign is not None else None,
             foreign_objective,
             prepared,
+            paths=paths,
+            rows=rows[start : start + len(chunk)],
+            us_only=True,
         )
         for offset, boundary in enumerate(boundaries):
             if boundary <= FUNDING_RECHECK_GUARD:
@@ -519,10 +598,18 @@ def evaluate_foreign_menu(
     if chunk_size < 1:
         raise ValueError("Batch size must be positive.")
     scores, checked = [], set()
+    paths, rows = _menu_production_paths(inputs, [us] * len(policies), policies, prepared)
     for start in range(0, len(policies), chunk_size):
         chunk = policies[start : start + chunk_size]
         profiles, _, boundaries = _evaluate_chunk(
-            inputs, [us] * len(chunk), chunk, foreign_objective, prepared, True
+            inputs,
+            [us] * len(chunk),
+            chunk,
+            foreign_objective,
+            prepared,
+            True,
+            paths=paths,
+            rows=rows[start : start + len(chunk)],
         )
         for offset, profile in enumerate(profiles):
             score = profile["foreignScore"] if profile["foreignAdmissible"] else -math.inf

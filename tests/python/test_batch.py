@@ -154,7 +154,10 @@ class BatchTests(unittest.TestCase):
                 "usAdmissible": True,
             }
 
-        with patch("calculator.batch._evaluate_chunk", return_value=(profiles, np.ones(3), np.ones(3))):
+        with (
+            patch("calculator.batch._production_paths", return_value=[]),
+            patch("calculator.batch._evaluate_chunk", return_value=(profiles, np.ones(3), np.ones(3))),
+        ):
             actual = evaluate_us_menu({}, policies, None, "workers", scalar)
         self.assertEqual(calls, [p["id"] for p in policies[:2]])
         self.assertGreater(actual[0]["usUtilities"][0], actual[1]["usUtilities"][0])
@@ -170,7 +173,10 @@ class BatchTests(unittest.TestCase):
             return {"usPolicy": policy, "usUtilities": [0], "usAdmissible": policy == policies[1]}
 
         boundary = np.array([FUNDING_RECHECK_GUARD / 2, FUNDING_RECHECK_GUARD / 2, 1])
-        with patch("calculator.batch._evaluate_chunk", return_value=(profiles, boundary, boundary)):
+        with (
+            patch("calculator.batch._production_paths", return_value=[]),
+            patch("calculator.batch._evaluate_chunk", return_value=(profiles, boundary, boundary)),
+        ):
             actual = evaluate_us_menu({}, policies, None, "workers", scalar)
         self.assertEqual([p["usAdmissible"] for p in actual], [False, True, False])
 

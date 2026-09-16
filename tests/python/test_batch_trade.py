@@ -6,7 +6,7 @@ import unittest
 import numpy as np
 
 from calculator.ballot import tally_package_ballot
-from calculator.batch import _evaluate_chunk, evaluate_foreign_menu, evaluate_us_menu
+from calculator.batch import _evaluate_chunk, _menu_production_paths, evaluate_foreign_menu, evaluate_us_menu
 from calculator.config import normalize_inputs
 from calculator.model import solve_model
 from calculator.policies import current_policy, make_policy
@@ -65,6 +65,53 @@ class TradeBatchTests(unittest.TestCase):
                     )
                     self.assertAlmostEqual(profile["usScore"], expected["usScore"], places=12)
                     self.assertAlmostEqual(profile["foreignScore"], expected["foreignScore"], places=12)
+
+    def test_reused_production_paths_preserve_all_welfare_variants(self):
+        inputs = normalize_inputs({"reemployment": 0, "foreignGdpGrowth": 0.15})
+        menu = [
+            make_policy({**policy, "welfareScale": welfare, "benefitFormula": formula})
+            for policy in trade_menu()[::3]
+            for welfare in (0, 1, 2)
+            for formula in ("current", "flat", "prior-income")
+        ]
+        for foreign_menu in (None, [current_policy(2)] * len(menu), list(reversed(menu))):
+            paths, rows = _menu_production_paths(inputs, menu, foreign_menu, PREPARED)
+            self.assertLess(len(paths[0][0]["u"]), len(menu))
+            expected, eb_us, eb_foreign = _evaluate_chunk(inputs, menu, foreign_menu, "prosperity", PREPARED)
+            actual, ab_us, ab_foreign = _evaluate_chunk(
+                inputs,
+                menu,
+                foreign_menu,
+                "prosperity",
+                PREPARED,
+                paths=paths,
+                rows=rows,
+            )
+            np.testing.assert_array_equal(ab_us, eb_us)
+            np.testing.assert_array_equal(ab_foreign, eb_foreign)
+            for a, e in zip(actual, expected, strict=True):
+                np.testing.assert_array_equal(a["usUtilities"], e["usUtilities"])
+                self.assertEqual(a["usAdmissible"], e["usAdmissible"])
+                self.assertEqual(a["usScore"], e["usScore"])
+                if foreign_menu is not None:
+                    self.assertEqual(a["foreignScore"], e["foreignScore"])
+                    self.assertEqual(a["foreignAdmissible"], e["foreignAdmissible"])
+            if foreign_menu is not None:
+                us_only, _, _ = _evaluate_chunk(
+                    inputs,
+                    menu,
+                    foreign_menu,
+                    "prosperity",
+                    PREPARED,
+                    us_only=True,
+                    paths=paths,
+                    rows=rows,
+                )
+                for a, e in zip(us_only, expected, strict=True):
+                    np.testing.assert_array_equal(a["usUtilities"], e["usUtilities"])
+                    self.assertEqual(a["usAdmissible"], e["usAdmissible"])
+                    self.assertNotIn("foreignScore", a)
+                    self.assertNotIn("foreignAdmissible", a)
 
     def test_certified_ballot_agrees_including_both_trade_positions(self):
         inputs = normalize_inputs({"foreignGdpGrowth": 0.15, "usGdpGrowth": 0, "reemployment": 0})
