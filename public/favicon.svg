@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>AI Pirate’s Game</title>
+  <rect width="64" height="64" rx="14" fill="#28594e"/>
+  <path d="M13 41h38l-8 11H22z" fill="#f5f2ea"/>
+  <path d="M31 12v27M34 14l17 8-17 8" fill="#f5f2ea" stroke="#f5f2ea" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M13 57q8-5 16 0t18 0" fill="none" stroke="#f5f2ea" stroke-width="2" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,152 @@
+---
+import '../styles/pirates-game.css';
+export const prerender = true;
+const title = 'When AI does the work, what should happen to the job?';
+const description = 'Separate majority votes on employer retention, a government income floor and taxes on worker and owner households. A US economy simulator with international AI competition.';
+const canonical = new URL('/', Astro.site ?? 'https://ai-pirates-game.com').href;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Pirate’s Game · {title}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#f5f2ea" />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:site_name" content="AI Pirate’s Game" />
+    <meta property="og:title" content={`AI Pirate’s Game · ${title}`} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+  </head>
+  <body>
+    <a class="skip-link" href="#simulator">Skip to simulator</a>
+    <header class="site-header page-width"><a href="/">AI Pirate’s Game</a><a href="#notes">About the model ↗</a></header>
+    <main class="page-width">
+      <header class="introduction">
+        <p class="eyebrow">Work, automation & the majority vote</p>
+        <h1>When AI does the work,<br />what should happen to the job?</h1>
+        <div class="intro-bottom">
+          <p class="lede">Suppose mathematicians’ work is automated first. Should employers lay them off or retain their roles, and at what pay? Separately, should the government top up their income? Vote on rules that also apply when the next occupations are affected.</p>
+          <p class="model-note">A democratic thought experiment: 1,000 self-interested voters, 501 votes to change a decision. Employment, government support and each household tax have separate ballots. The numbers are scenarios, not US forecasts.</p>
+        </div>
+      </header>
+
+      <section id="simulator" aria-label="Automation policy simulator">
+        <fieldset class="mode-switch">
+          <legend>Choose the world</legend>
+          <label><input type="radio" name="world" value="us-only" checked /><span><strong>01 <span>The US on its own</span></strong><small>Ignore international competition</small></span></label>
+          <label><input type="radio" name="world" value="strategic" /><span><strong>02 <span>The US in a competing world</span></strong><small>Other countries can develop frontier AI</small></span></label>
+        </fieldset>
+        <noscript><p class="notice">Enable JavaScript to run the simulator. The assumptions and sources below are readable without it.</p></noscript>
+        <div class="workbench">
+          <aside class="controls" aria-label="Model assumptions">
+            <div class="control-heading"><h2>Your assumptions</h2><button id="reset" type="button" class="text-button">Reset</button></div>
+            <div class="voting-rule"><strong>501 votes decide</strong><p id="electorate-description">900 workers with different exposure times. 100 capital owners. Every voter considers ten years of their own income.</p><a href="#voting-rules">The voting rules ↓</a></div>
+            <div id="electorate-inputs"></div>
+            <fieldset class="presets"><legend>Try an assumption set</legend><button type="button" data-preset="shared">Gains widely shared</button><button type="button" data-preset="displacement">Few replacement jobs</button><button type="button" data-preset="rivalry">Strong foreign rivals</button><button type="button" data-preset="tax-response">When high taxes backfire</button></fieldset>
+            <div id="domestic-inputs"></div>
+            <details id="advanced-inputs"><summary>Ownership & AI deployment</summary><label class="objective-label" for="rollout">AI deployment</label><select id="rollout"><option value="1">Assume deployment proceeds</option><option value="0.67">Limit deployment to 67%</option><option value="0.33">Limit deployment to 33%</option><option value="0">Pause domestic deployment</option></select><p class="control-help">Choose the deployment target, then compare employment, support and tax decisions at that target. In international mode the same target applies to both countries.</p><div id="structural-inputs"></div></details>
+            <fieldset id="foreign-inputs" hidden><legend>International assumptions</legend><p class="control-help">The other player is an aggregate foreign bloc. Its frontier capability can range from none to the US level.</p><div id="international-inputs"></div></fieldset>
+            <p class="input-footnote">Every slider is an assumption. The model uses a ten-year horizon and discounts later outcomes by 3% a year.</p>
+          </aside>
+
+          <div class="results" id="results" aria-busy="true">
+            <div class="result-heading"><p class="eyebrow" id="result-label">The policy selected by voters</p><span class="status" id="solve-status" role="status">Calculating…</span></div>
+            <div class="policy-decisions">
+              <section class="policy-decision employment-decision" aria-labelledby="employment-decision-label"><p class="eyebrow" id="employment-decision-label">Employer</p><h2 id="recommendation">Comparing employment choices</h2></section>
+              <section class="policy-decision government-decision" aria-labelledby="government-decision-label"><p class="eyebrow" id="government-decision-label">Government</p><h2 id="safety-net-recommendation">Comparing income floors</h2></section>
+            </div>
+            <p id="recommendation-copy" class="result-explanation"></p>
+            <section class="decision-votes" aria-labelledby="decision-votes-heading"><h3 id="decision-votes-heading">A separate vote on each decision</h3><p class="small-copy">Each ballot changes one decision and holds the others fixed. A change needs 501 votes. The table shows the strongest alternative on each ballot.</p><div class="table-scroll"><table><thead><tr><th scope="col">Separate ballot</th><th scope="col">Strongest alternative</th><th scope="col">Votes to switch</th></tr></thead><tbody id="decision-votes"></tbody></table></div><p id="decision-votes-note" class="small-copy"></p><label id="equilibrium-picker-label" for="equilibrium-picker" hidden>Choose a pair stable on separate ballots <select id="equilibrium-picker"></select></label></section>
+            <div id="vote-verdict" class="vote-verdict"></div>
+            <div id="ballot-grid" class="ballot-grid" role="img" aria-label="Votes by 1,000 representative citizens"></div>
+            <p id="ballot-caption" class="small-copy"></p>
+            <details class="vote-audit"><summary>Inspect the voting result and agenda</summary><p id="selection-explanation" class="small-copy"></p><div id="agenda-order" class="small-copy"></div></details>
+            <div id="policy-strip" class="policy-strip"></div>
+            <p id="policy-meaning" class="small-copy"></p>
+            <div id="funding-verdict" class="funding-verdict" role="status"></div>
+            <div class="view-switch" id="view-switch" hidden aria-label="Policy comparison"></div>
+
+            <section class="salary-options" aria-label="Compare employment policies"><h3>What should employers do?</h3><p class="small-copy">Lay off the worker, or retain the obsolete role at a chosen share of its starting wage. These alternatives change the employment decision while keeping the government floor and household taxes fixed.</p><div class="table-scroll"><table><thead><tr><th scope="col">Employer decision</th><th scope="col">Employer pay*</th><th scope="col">Government floor</th><th scope="col">Worker / owner tax</th><th scope="col">Votes to switch</th></tr></thead><tbody id="salary-options"></tbody></table></div><p id="salary-options-note" class="small-copy"></p></section>
+
+            <section class="safety-options" aria-label="Compare government income floors"><h3>What should the government provide?</h3><p class="small-copy">A floor of 0%, 50% or 100% of the starting wage. Employer pay after the worker-household tax counts toward it; the government funds only the gap. These alternatives keep employment and both tax rates fixed.</p><div class="table-scroll"><table><thead><tr><th scope="col">Government floor</th><th scope="col">Government top-up*</th><th scope="col">Employment choice</th><th scope="col">Worker / owner tax</th><th scope="col">Votes to switch</th></tr></thead><tbody id="safety-options"></tbody></table></div><p id="safety-options-note" class="small-copy"></p></section>
+
+            <figure class="income-figure">
+              <figcaption><h3>Income after the work is automated</h3><p>Before AI = 100. Affected roles include laid-off workers and workers retained in obsolete roles, until they find productive work. Income is after household taxes and includes employer pay, government support, dividends and worker-owned capital.</p></figcaption>
+              <div class="legend"><span class="worker">Workers in affected roles</span><span class="owner">Workers in productive roles</span><span class="output">All worker households</span></div>
+              <div id="income-chart" class="chart" role="img" aria-label="Ten-year household income projection"></div>
+              <div id="endpoints" class="endpoints"></div>
+              <details class="chart-data"><summary>Read the chart as a table</summary><div class="table-scroll"><table><caption>Household income indices relative to year zero</caption><thead><tr><th scope="col">Year</th><th scope="col">Affected roles</th><th scope="col">Productive roles</th><th scope="col">All workers</th></tr></thead><tbody id="year-table"></tbody></table></div></details>
+            </figure>
+
+            <section class="cohort-section"><h3>As the next roles are affected</h3><p class="small-copy">The same employment rule and government floor apply to each group. Employer pay after household tax and government top-ups are shown separately, as shares of the starting wage. Their total excludes general dividends and capital income. “Mathematicians first” is the thought experiment, not an occupational forecast.</p><div class="table-scroll"><table><thead><tr><th scope="col">When</th><th scope="col">Affected roles</th><th scope="col">Employer pay</th><th scope="col">Government top-up</th><th scope="col">Total wage income</th></tr></thead><tbody id="cohort-table"></tbody></table></div></section>
+
+            <section id="international-result" class="international-result" hidden aria-label="International equilibrium">
+              <div class="section-heading"><h3>Two electorates, separate decisions</h3><span class="eyebrow">The international game</span></div>
+              <div id="country-policies" class="country-policies"></div>
+              <p id="equilibrium-explanation"></p>
+
+              <div id="deviation" class="deviation"></div>
+            </section>
+
+            <section class="comparison-section">
+              <h3 id="comparison-heading">What the winning policy does to incomes</h3>
+              <p class="small-copy">Net household income and gross output in year ten start from 100. Ten-year benefit is a worker-welfare benchmark; votes determine the policy.</p>
+              <div class="table-scroll"><table class="comparison-table"><thead><tr><th scope="col">Policy</th><th scope="col">Workers</th><th scope="col">Owners</th><th scope="col">Output</th><th scope="col">10-year benefit</th></tr></thead><tbody id="comparison-table"></tbody></table></div>
+              <p id="score-help" class="small-copy"></p>
+            </section>
+
+            <details class="accounting"><summary>Follow the money in year ten</summary><p class="small-copy">Annual real-resource units, with initial US output = 100. Transfers change who receives income; they do not create output.</p><div class="table-scroll"><table><tbody id="accounting-table"></tbody></table></div><p id="ownership-note" class="small-copy"></p></details>
+
+            <details class="manual-policy"><summary>Choose employment, support and each household tax</summary><p class="small-copy">Set the employer’s decision, the government income floor, the worker-household tax and the owner-household tax. Government payments top up employer pay after tax, as far as receipts allow. Deployment stays at your chosen target. In international mode, the foreign policy stays fixed for this comparison.</p><div id="manual-inputs"></div><button type="button" id="apply-manual">Compare this policy</button><p id="manual-result" role="status"></p></details>
+            <div class="result-actions"><button type="button" id="share" class="text-button">Copy scenario link ↗</button><button type="button" id="download" class="text-button">Download results ↓</button><span id="action-status" role="status"></span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="reading-section" id="notes">
+        <div class="reading-label"><p class="eyebrow">Reading the result</p><h2>The rules change<br />the answer.</h2></div>
+        <div class="reading-copy">
+          <h3 id="voting-rules">A majority choice, with explicit voting rules</h3>
+          <p>There are 1,000 representative citizens. The starting split is 900 workers and 100 capital owners; the worker-share slider changes that ratio one voter at a time. A change needs <strong>501 votes</strong>. Workers know their position in the order of exposure. They compare policies using their own expected income over ten years, including the chance of finding replacement work. Everyone keeps their vote after losing a job. These are equal-weight representatives, not a claim about the size of any actual profession.</p>
+          <p>Voters are perfectly rational and entirely self-interested: each values only their own expected income, including losses from weaker investment, reduced production or international competition. Their utility is logarithmic, so losing income when already poor matters more than the same loss when rich. Rationality alone does not specify that preference; it is an assumption. A 1% offset keeps the calculation finite when income reaches zero, without adding any money to a household’s budget. The vote values income only: formal job retention has no separate value when net income is identical.</p>
+          <p>Employment, the government floor, the worker-household tax and the owner-household tax each have a <strong>separate ballot</strong>. A policy is stable under this procedure when no change to one decision can get 501 votes while the other decisions stay fixed. This is narrower than a <strong>Condorcet winner</strong>, which defeats every alternative package in a pairwise majority vote. A package that changes several decisions together can win even when every separate ballot is stable.</p>
+          <p>If no policy is stable under separate ballots, the result depends on the amendment agenda. The fallback changes one decision at each step and works backward through the stated agenda, so voters consider the eventual outcome. Indifference keeps the existing decision. The page reports the fallback and any remaining majority challenge.</p>
+          <p>In international mode, each country has 1,000 representative voters with the chosen worker-owner ratio. A pair is stable when neither country has 501 votes to change one of its decisions while all other decisions, including the foreign country’s, stay fixed. The joint-package challenge is a separate check. The worker-welfare benchmark asks what would maximize workers’ average utility; it does not determine these votes.</p>
+          <h3>Employment and government support are separate choices</h3>
+          <p>The employment rule allows the employer to lay off a worker or requires it to retain the obsolete role at 50%, 100% or 125% of its starting wage before tax. Retaining the role adds no output. Finding replacement productive work is a separate transition, governed by the annual return-to-work assumption. Required employer payments reduce capital income and can slow investment, much as a tax can.</p>
+          <p>The government can set a floor of 0%, 50% or 100% of the starting wage for affected workers. It counts employer pay <strong>after the worker-household tax</strong> and tops up the gap. For example, a retained worker paid 100% by the employer keeps 50% after a 50% worker tax. A 100% floor then calls for a 50% government top-up. The floor excludes capital income and the universal dividend.</p>
+          <p>Separate tax rates of 0%, 50% or 100% apply to worker-household and owner-household income. The worker tax reaches productive wages, retention pay and worker-owned capital income. The owner tax reaches owner-household capital income. Government transfers are exempt. The universal dividend is a fixed rule of this simulation; choosing a higher targeted floor leaves less revenue for it. Receipts fund top-ups first; the remainder becomes an equal dividend for all 1,000 voters, including owners. If receipts cannot fund the floor, the actual top-up is smaller.</p>
+          <p>Worker and owner are household groups, not labels for two tax bases. A worker can own capital and still pays the worker-household rate on that income. The model allows a 100% tax, which removes that group’s private income before government payments. Pay and floor percentages use the wage at the start of the simulation; later pay rises are excluded.</p>
+          <h3>The connection to the pirate game</h3>
+          <p>The pirate puzzle asks who can secure enough support to divide a fixed treasure. Automation changes the amount produced, the income from work and who owns the machines. People who lose jobs remain consumers and citizens. This simulator therefore models economic production and government incentives; it does not turn workers into pirates who disappear from the electorate.</p>
+          <h3>Real mechanisms, simplified economies</h3>
+          <p>The starting economy has output of 100: 60 goes to labour and 40 to capital. The worker-share slider changes the population split; the same starting income is divided among the chosen number of households. Workers receive all labour income and the chosen share of capital income. Workers can own capital, so this voter ratio is separate from their share of capital income. Both groups must remain present; the slider allows 10–990 workers. These are illustrative accounting assumptions, not estimates of the current US income distribution.</p>
+          <p>Deployment raises productivity and makes some roles obsolete. Workers can find productive work at the assumed annual rate. Household taxes and mandatory retention costs can reduce investment. The economic-response slider also controls how strongly the worker tax reduces productive labor effort. These responses are specified assumptions; the solver optimizes votes, without solving household labor supply or firms’ investment choices from first principles. International mode adds imported productivity gains and competition for mobile AI rents. Foreign frontier capability and market size are assumptions, not country rankings. These policies do not reproduce the current US tax or benefit system.</p>
+          <details class="method-details"><summary>Equations, policy choices and solution method</summary><div id="model-method"></div></details>
+          <p>The vote commits the country to a policy for ten years, and the model assumes governments can implement it. It leaves out campaigns, repeated elections, lobbying, monetary policy, debt, sector-specific skills and AI safety or military outcomes. It does not solve prices or unemployment in a full general-equilibrium economy. No demand collapse is hard-coded. A different model, policy menu or voting procedure can select a different answer.</p>
+        </div>
+      </section>
+
+      <section class="reading-section sources" id="sources">
+        <div class="reading-label"><p class="eyebrow">Sources & credits</p><h2>Where this<br />started.</h2></div>
+        <div class="reading-copy">
+          <p>Inspired by <a href="https://nunosempere.com/">Nuño Sempere (@NunoSempere)</a> and <a href="https://p3humansonai.substack.com/p/humans-on-ai-53-september-15th-2026">Humans on AI #53, September 15, 2026</a>. The model and its numerical assumptions are this page’s own; the inspiration credit does not imply endorsement.</p>
+          <ol class="source-list">
+            <li><a href="https://doi.org/10.1257/jep.33.2.3">Daron Acemoglu and Pascual Restrepo, “Automation and New Tasks” (2019)</a><p>Automation can raise productivity while displacing labour. New tasks can restore labour demand. These are separate mechanisms in the simulator.</p></li>
+            <li><a href="https://www.elibrary.imf.org/view/journals/006/2024/002/article-A001-en.xml">IMF, “Broadening the Gains from Generative AI: The Role of Fiscal Policies” (2024)</a><p>Income support, capital taxation and the international constraints on raising revenue from mobile profits inform the policy choices here.</p></li>
+            <li><a href="https://www.nber.org/papers/w23806">João Guerreiro, Sergio Rebelo and Pedro Teles, “Should Robots Be Taxed?”</a><p>The preferred tax depends on workers’ ability to adjust. This page taxes household income, so its tax rates should not be read as the paper’s robot-tax results.</p></li>
+            <li><a href="https://www.oecd.org/en/publications/oecd-employment-outlook-2018_empl_outlook-2018-en/full-report/component-8.html">OECD Employment Outlook 2018, chapter 4</a><p>Distinguishes support during unemployment, wage insurance after taking lower-paid work and schemes that preserve an existing employment relationship.</p></li>
+            <li><a href="https://omohundro.files.wordpress.com/2009/03/stewart99_a_puzzle_for_pirates.pdf">Ian Stewart, “A Puzzle for Pirates” (1999)</a><p>The original voting puzzle behind the analogy. Its solution is not an economic policy prescription.</p></li>
+          </ol>
+        </div>
+      </section>
+    </main>
+    <footer class="page-width site-footer"><a href="https://sokolsky.me">Nikita Sokolsky</a><span>September 2026 · Calculations run in your browser</span></footer>
+    <script>import '../components/economy/pirates-game';</script>
+  </body>
+</html>
