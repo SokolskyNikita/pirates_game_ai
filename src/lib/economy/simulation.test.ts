@@ -8,6 +8,7 @@ describe('weighted scenario snapshots',()=>{
   const clone=structuredClone(s);expect(clone.selected.usUtilities).toEqual(s.selected.usUtilities);
   expect(s.policyCount).toBeGreaterThan(1000);expect(s.alternatives.length).toBeLessThan(30);
   for(const a of s.alternatives)expect(changedPolicyAxes(a.usPolicy,s.selected.usPolicy)).toHaveLength(1);
+  expect(s.treaty).toBeUndefined();
   expect(s.statusQuo.usPolicy.welfareScale).toBe(1);expect(s.statusQuo.usPolicy.benefitFormula).toBe('current');
   expect(s.baseline.us.at(-1)!.allIncomeIndex).toBeCloseTo(100,8);
   if(s.selection==='verified-stable')expect(hasMajority(s.selected.usDeviationVotes)).toBe(false);
@@ -26,10 +27,33 @@ describe('weighted scenario snapshots',()=>{
   expect(strongest).toBeCloseTo(s.selected.usDeviationVotes,10);
   if(s.selection==='verified-stable') {expect(strongest).toBeLessThanOrEqual(50+1e-10);expect(best-s.selected.foreignScore!).toBeLessThanOrEqual(EQUILIBRIUM_TOLERANCE);}
   for(const y of [...s.selected.us,...s.selected.foreign!])expect(y.resourceResidual).toBeCloseTo(0,6);
- },15000);
+  expect(s.treaty).toBeDefined();
+  expect(s.treaty!.noTreaty.id).toBe(s.selected.id);
+  if(s.selection==='verified-stable')expect(s.treaty!.status).not.toBe('not-evaluated');
+  if(s.treaty!.status==='signed') {
+   const treaty=s.treaty!,p=treaty.proposal!;
+   const independent=model.evaluate(p.usPolicy,p.foreignPolicy);
+   const support=countVotes(independent.usUtilities,s.selected.usUtilities);
+   expect(support).toBeCloseTo(treaty.support,10);expect(hasMajority(support)).toBe(true);
+   expect(independent.foreignScore!-s.selected.foreignScore!).toBeCloseTo(treaty.foreignGain,12);
+   expect(treaty.foreignGain).toBeGreaterThan(EQUILIBRIUM_TOLERANCE);
+   expect(p.usAdmissible).toBe(true);expect(p.foreignAdmissible).toBe(true);
+   for(const y of [...p.us,...p.foreign!])expect(y.resourceResidual).toBeCloseTo(0,6);
+   for(let y=0;y<p.us.length;y++)expect(p.us[y]!.netRentFlow+s.inputs.foreignMarketSize*p.foreign![y]!.netRentFlow).toBeCloseTo(0,6);
+  }
+ },60000);
  it('lets the foreign actor deploy when the US scenario is paused',()=>{
   const s=solveScenario({id:3,inputs:{...DEFAULT_INPUTS,displacement:0,investmentResponse:0},mode:'strategic',foreignObjective:'output',pace:0});
   expect(s.selected.usPolicy.pace).toBe(0);expect(s.selected.foreignPolicy!.pace).toBe(1);
   expect(s.selected.us.at(-1)!.exposure).toBeGreaterThan(0);
- },15000);
+  // Ratification can change the US deployment assumption while preserving the
+  // separately verified no-treaty counterfactual and ordinary accounting.
+  expect(s.treaty!.status).toBe('signed');
+  const treaty=s.treaty!,p=treaty.proposal!;
+  expect(p.usPolicy.pace).toBe(1);expect(s.selected.usPolicy.pace).toBe(0);
+  expect(hasMajority(treaty.support)).toBe(true);
+  expect(treaty.foreignGain).toBeGreaterThan(EQUILIBRIUM_TOLERANCE);
+  for(const y of [...p.us,...p.foreign!])expect(y.resourceResidual).toBeCloseTo(0,6);
+  for(let y=0;y<p.us.length;y++)expect(p.us[y]!.netRentFlow+s.inputs.foreignMarketSize*p.foreign![y]!.netRentFlow).toBeCloseTo(0,6);
+ },60000);
 });

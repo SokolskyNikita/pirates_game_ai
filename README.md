@@ -2,9 +2,11 @@
 
 [Live simulator](https://ai-pirates-game.com) · [Source repository](https://github.com/SokolskyNikita/pirates_game_ai)
 
-An interactive automation-policy simulator at [ai-pirates-game.com](https://ai-pirates-game.com/), by [Nikita Sokolsky](https://sokolsky.me).
+A game-theory simulation of automation and majority voting at [ai-pirates-game.com](https://ai-pirates-game.com/), by [Nikita Sokolsky](https://sokolsky.me).
 
-When AI makes a job obsolete, should the employer retain the worker, should the government provide income, and who should pay? This model compares separate majority votes on those decisions. It includes a US-only scenario and a scenario with international AI competition.
+When AI makes jobs obsolete, which job protections, benefits and taxes would perfectly rational, self-interested voters choose? This model compares separate majority votes on those decisions. It includes a US-only scenario and a scenario with international AI competition.
+
+The players are idealized: they understand all modeled consequences and maximize only their own objective. Each US voter maximizes expected household-income utility over ten years, with no separate concern for anyone else’s welfare. The results describe hypothetical outcomes under these assumptions; they are not policy recommendations or predictions of real elections.
 
 ## Run locally
 
@@ -38,7 +40,7 @@ See [the data definitions and reproduction instructions](docs/us-electorate-data
 
 ## What the model decides
 
-Five separate majority ballots choose:
+Without a treaty, five separate majority ballots choose:
 
 1. Allow layoffs or require employers to retain obsolete roles at 50%, 100% or 125% of prior wages.
 2. Set the modeled benefit budget to 0%, 50%, 100%, 150% or 200% of its 2025 reference.
@@ -60,6 +62,12 @@ The solver searches from several starting policies. A reported stable result is 
 
 In international mode the rest of the world is one actor choosing its own complete policy and deployment pace. Its objective is worker-household income, population-weighted income utility, or modeled output. Verification checks its full policy menu at the selected US policy. The foreign economy uses the US household structure as an explicit simplifying assumption; its GDP size, trade exposure and frontier capability differ.
 
+Treaty negotiation runs automatically in international mode after a verified outcome without an agreement. The foreign actor makes one offer and US citizens vote on the whole package. It is signed only if more than 50% strictly prefer it and the foreign objective strictly improves relative to that fallback. Ties keep the outcome without a treaty. The foreign actor selects its highest-scoring ratifiable offer, breaking equal scores by US support then fixed menu order. This proposal rule determines bargaining power; it is a modeling assumption, not a consequence of rationality alone.
+
+The treaty menu contains every common policy package, every package for either side with the other side's fallback policy unchanged, and all pairs of single-decision changes from the fallback. Both AI deployment targets are negotiable. Every offer in this finite menu is checked, but it does not contain all asymmetric combinations of two policy packages. A failure to find an agreement does not establish that none exists outside this menu. Without a verified fallback, treaty negotiation is marked unevaluated.
+
+Treaties bind both sides for ten years, with no withdrawal, renegotiation or cross-border side payments. They create no resources themselves. The displayed policies, income chart and accounting use the signed agreement when there is one. Separate US ballots and foreign unilateral deviations describe only the fallback; individual treaty terms need not survive those tests. See [Wolitzky's bargaining lecture, pages 15–17](https://ocw.mit.edu/courses/14-15-networks-spring-2022/mit14_15s22_lec18.pdf#page=15) for the role of proposal rules in a take-it-or-leave-it bargaining game. The majority referendum and finite policy menu are this simulator's assumptions.
+
 International size and trade references use 2025 World Bank and BEA data. Investment and labor responses are measured relative to the current-tax baseline, so a no-AI/current-policy run reproduces reference incomes. High policy burdens can reduce adoption, labor effort and productive capacity. The 5% capacity-renewal rate and behavioral responses are assumptions, not estimated elasticities.
 
 This is a finite policy model, not a calibrated general-equilibrium forecast. Its dollar amounts describe household resources, which include pension withdrawals and capital gains; its output index is not observed GDP. It does not solve prices, debt, firm investment decisions, repeated elections, or the value of individual public services.
@@ -72,6 +80,7 @@ The page includes expandable equations, accounting, comparisons and survey defin
 - `src/components/economy/pirates-game.ts`: browser controls, charts and results.
 - `src/lib/economy/pirates-model.ts`: economic outcomes and resource accounting.
 - `src/lib/economy/pirates-voting.ts`: individual preferences and majority voting.
+- `src/lib/economy/pirates-treaty.ts`: binding offers, majority ratification and foreign acceptance.
 - `src/lib/economy/simulation.ts` and `simulation.worker.ts`: compact results and cancellable background calculation.
 - `src/lib/economy/us-electorate.ts` and `us-electorate-data.json`: weighted survey groups and reference statistics.
 - `scripts/build-us-electorate.py`: reproducible Census microdata aggregation.

@@ -289,3 +289,9 @@ tr.selected th, tr.selected td { color: var(--green); font-weight: 650; }
 @media (prefers-reduced-motion: no-preference) {
   button, a { transition: color .15s, background-color .15s, border-color .15s; }
 }
+
+/* Treaty ratification is an outcome, not an input switch. */
+.treaty-result { margin: 18px 0 28px; padding-block: 18px; border-block: 1px solid var(--line); }
+.treaty-verdict { margin-top: 8px; font-size: 18px; font-weight: 600; color: var(--green); }
+.treaty-result > .small-copy, .treaty-result details p + p { margin-top: 9px; }
+.treaty-result details { margin-top: 4px; }
