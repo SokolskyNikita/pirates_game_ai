@@ -3,11 +3,12 @@ export type ModelMode = 'us-only' | 'strategic';
 export type Objective = 'prosperity' | 'output' | 'workers';
 export type BenefitFormula = 'current' | 'flat' | 'prior-income';
 export interface ModelInputs {
-  usGdpGrowth: number;
-  foreignGdpGrowth: number;
+  usAiGrowth: number;
+  foreignAiGrowth: number;
   productivityGain: number;
-  displacement: number;
-  reemployment: number;
+  jobsAffected: number;
+  jobChange: number;
+  jobSearch: number;
   capitalMobility: number;
   investmentResponse: number;
   foreignStrength: number;
@@ -75,6 +76,15 @@ export interface RegionYear {
   longTermDisplacedIncomeIndex: number;
   cohortIncome: number[];
   unemployment: number;
+  jobsAffected: number;
+  jobSlots: number;
+  productiveEmployment: number;
+  retainedWorkers: number;
+  jobSeekers: number;
+  exitedWorkers: number;
+  marketWageFactor: number;
+  averageWageFactor: number;
+  competitionDisplaced: number;
   aiUnemployment: number;
   tradeUnemployment: number;
   consumerPriceIndex: number;
@@ -234,6 +244,7 @@ export type PolicyAxis =
 export type PolicyOptions = Record<PolicyAxis, { value: number | BenefitFormula | boolean; idPart: string }[]>;
 
 export interface CalculatorConfig {
+  growthBaseline: { us: number; foreign: number };
   defaults: ModelInputs;
   inputSpecs: InputSpec[];
   policyOptions: PolicyOptions;

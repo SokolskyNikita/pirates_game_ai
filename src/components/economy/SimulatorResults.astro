@@ -1,3 +1,6 @@
+---
+import LaborMarketDetails from './LaborMarketDetails.astro';
+---
 <div class="result-column">
   <p id="computation-message" class="computation-message" role="status" aria-live="polite">Calculating…</p>
   <div class="results" id="results" aria-busy="true">
@@ -18,11 +21,12 @@
 
     <figure class="income-figure">
       <figcaption><h3 id="income-heading">What people take home</h3><p>Household income after tax and consumer-price changes, including pay, government benefits and capital income. Each group’s income before AI = 100.</p><p id="workforce-summary"></p></figcaption>
-      <div class="legend"><span class="worker">Affected workers</span><span class="owner">Productive workers</span><span class="output">All adult citizens</span></div>
+      <div class="legend"><span class="worker">Outside productive jobs</span><span class="owner">In productive jobs</span><span class="output">All adult citizens</span></div>
       <div id="income-chart" class="chart" role="img" aria-label="Ten-year income projection" aria-describedby="chart-note"></div>
       <p id="chart-note" class="chart-note"></p>
       <div id="endpoints" class="endpoints"></div>
-      <details class="chart-data"><summary>Read the chart as a table</summary><div class="table-scroll" tabindex="0" role="region" aria-label="Income by year"><table><caption>Income relative to each group’s starting income</caption><thead><tr><th scope="col">Year</th><th scope="col">Workers affected</th><th scope="col">Income: affected workers</th><th scope="col">Income: productive workers</th><th scope="col">All adult citizens</th></tr></thead><tbody id="year-table"></tbody></table></div></details>
+      <details class="chart-data"><summary>Read the chart as a table</summary><div class="table-scroll" tabindex="0" role="region" aria-label="Income by year"><table><caption>Income relative to each group’s starting income</caption><thead><tr><th scope="col">Year</th><th scope="col">Outside productive jobs</th><th scope="col">Income: outside productive jobs</th><th scope="col">Income: in productive jobs</th><th scope="col">All adult citizens</th></tr></thead><tbody id="year-table"></tbody></table></div></details>
+      <LaborMarketDetails />
     </figure>
 
     <section id="international-result" class="international-result" hidden aria-labelledby="international-heading">
@@ -34,12 +38,13 @@
       <div id="foreign-policy-decisions" class="policy-decisions" role="group" aria-label="Seven terms of foreign policy"></div>
       <div id="foreign-policy-strip" class="policy-strip"></div>
       <p id="foreign-reference-note" class="small-copy"></p>
+      <LaborMarketDetails prefix="foreign-" region="Foreign" />
       <h3 id="trade-verdict"></h3>
       <p id="trade-impact"></p>
       <details class="chart-data"><summary>How trade affects this result</summary>
-        <p>When trade is open, buyers can substitute foreign goods and services for domestic ones. Cheaper imports raise purchasing power, while changing import competition and export sales can displace workers. Closing the border removes imported varieties and export markets. The model follows affected workers as they return to productive work.</p>
+        <p>When trade is open, buyers can substitute foreign goods and services for domestic ones. Cheaper imports raise purchasing power, while changing import competition and export sales can displace workers. Closing the border removes imported varieties and export markets. Displaced workers can search for the jobs that remain; searching does not restore lost jobs.</p>
         <p id="trade-price-note"></p>
-        <div class="table-scroll" tabindex="0" role="region" aria-label="Annual US trade effects"><table><caption>US trade and adjustment. Consumer prices start at 100. Imports are a share of total spending; exports are a share of net output at producer prices.</caption><thead><tr><th scope="col">Year</th><th scope="col">Consumer prices</th><th scope="col">Import share</th><th scope="col">Export share</th><th scope="col">Workers affected by trade</th></tr></thead><tbody id="trade-table"></tbody></table></div>
+        <div class="table-scroll" tabindex="0" role="region" aria-label="Annual US trade effects"><table><caption>US trade and available jobs. Consumer prices start at 100. Imports are a share of total spending; exports are a share of net output at producer prices. Job slots are relative to the initial count and reflect all modeled effects, not just trade.</caption><thead><tr><th scope="col">Year</th><th scope="col">Consumer prices</th><th scope="col">Import share</th><th scope="col">Export share</th><th scope="col">Productive job slots</th></tr></thead><tbody id="trade-table"></tbody></table></div>
         <a href="#trade-assumptions">Trade assumptions and limits</a>
       </details>
       <div id="deviation" class="deviation"></div>

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from calculator.config import DEFAULT_INPUTS
+from calculator.config import DEFAULT_INPUTS, GROWTH_BASELINE, YEARS
 from calculator.model import evaluate_profile
 from calculator.policies import current_policy, make_policy
 from calculator.trade import baseline_trade, competition_displacement, trade_market
@@ -42,7 +42,6 @@ class TradeModelTests(unittest.TestCase):
         self.assertLess(grown["foreignExportShare"], baseline["foreignExportShare"])
         displacement = competition_displacement(
             0,
-            0,
             grown["foreignImportShare"],
             grown["foreignExportVolume"],
             baseline["foreignImportShare"],
@@ -72,21 +71,21 @@ class TradeModelTests(unittest.TestCase):
 
     def test_us_pause_can_lose_trade_jobs_with_faster_foreign_ai(self):
         outcome = evaluate_profile(
-            {**DEFAULT_INPUTS, "foreignGdpGrowth": 0.2, "reemployment": 0},
+            {**DEFAULT_INPUTS, "foreignAiGrowth": 0.2, "jobSearch": 0},
             policy(pace=0),
             policy(pace=2),
         )
         final = outcome["us"][-1]
-        self.assertEqual(final["aiUnemployment"], 0)
+        self.assertEqual(final["jobsAffected"], 0)
         self.assertEqual(final["exposure"], 0)
         self.assertGreater(final["tradeUnemployment"], 0)
         self.assertLess(final["consumerPriceIndex"], 1)
-        self.assertLess(final["output"], 100)
+        self.assertLess(final["output"], 100 * (1 + GROWTH_BASELINE["us"]) ** YEARS)
 
     def test_trade_closure_isolates_us_from_foreign_growth_assumption(self):
         common = {**DEFAULT_INPUTS, "investmentResponse": 0}
-        a = evaluate_profile({**common, "foreignGdpGrowth": 0}, policy(allowFreeTrade=False), policy())
-        b = evaluate_profile({**common, "foreignGdpGrowth": 0.2}, policy(allowFreeTrade=False), policy())
+        a = evaluate_profile({**common, "foreignAiGrowth": 0}, policy(allowFreeTrade=False), policy())
+        b = evaluate_profile({**common, "foreignAiGrowth": 0.2}, policy(allowFreeTrade=False), policy())
         self.assertEqual(a["us"], b["us"])
 
     def test_zero_tradable_share_disables_trade_and_imported_ai(self):
@@ -103,7 +102,13 @@ class TradeModelTests(unittest.TestCase):
         self.assertEqual(outcome["foreign"][-1]["exposure"], 0)
 
     def test_joint_unemployment_transitions_and_real_resource_ledgers_close(self):
-        inputs = {**DEFAULT_INPUTS, "reemployment": 0.2, "displacement": 0.7, "foreignGdpGrowth": 0.2}
+        inputs = {
+            **DEFAULT_INPUTS,
+            "jobSearch": 0.2,
+            "jobsAffected": 0.7,
+            "jobChange": -0.7,
+            "foreignAiGrowth": 0.2,
+        }
         outcome = evaluate_profile(inputs, policy(), policy(pace=2))
         for side in ["us", "foreign"]:
             previous = 0
@@ -132,7 +137,7 @@ class TradeModelTests(unittest.TestCase):
             )
 
     def test_trade_retention_costs_reduce_next_year_investment_capacity(self):
-        inputs = {**DEFAULT_INPUTS, "foreignGdpGrowth": 0.2, "investmentResponse": 0.7, "reemployment": 0}
+        inputs = {**DEFAULT_INPUTS, "foreignAiGrowth": 0.2, "investmentResponse": 0.7, "jobSearch": 0}
         laid_off = evaluate_profile(inputs, policy(pace=0), policy(pace=2))
         retained = evaluate_profile(inputs, policy(pace=0, replacement=1), policy(pace=2))
         self.assertEqual(retained["us"][1]["capacityFactor"], laid_off["us"][1]["capacityFactor"])
@@ -142,20 +147,29 @@ class TradeModelTests(unittest.TestCase):
     def test_trade_retention_investment_shock_cannot_uninstall_ai(self):
         inputs = {
             **DEFAULT_INPUTS,
-            "displacement": 0,
+            "jobsAffected": 1,
+            "jobChange": 0,
+            "jobSearch": 0,
             "investmentResponse": 1,
-            "tradableShare": 0.8,
-            "foreignMarketSize": 1,
+            "usAiGrowth": 0,
+            "foreignAiGrowth": 0.2,
+            "capitalMobility": 1,
+            "tradableShare": 1,
             "tradeIntensity": 1,
-            "foreignTradeIntensity": 1,
+            "foreignTradeIntensity": 0.5,
+            "foreignMarketSize": 3,
+            "productivityGain": 1,
         }
-        selected = policy(replacement=1, allowFreeTrade=False)
-        result = evaluate_profile(inputs, selected, selected)
-        for side in ["us", "foreign"]:
-            installed = [point["adoption"] for point in result[side]]
-            self.assertEqual(installed, sorted(installed))
-            self.assertEqual(installed[1], installed[2])
-            self.assertEqual(installed[-1], 1)
+        # Foreign competition creates an actual retained-payroll burden after
+        # year one. The new burden would imply less installed AI without the
+        # irreversible-installation constraint, so deployment must plateau.
+        result = evaluate_profile(inputs, policy(replacement=1.25), policy(pace=2, capitalTax=0))
+        installed = [point["adoption"] for point in result["us"]]
+        self.assertGreater(result["us"][1]["retainedWorkers"], 0)
+        self.assertGreater(result["us"][2]["investmentBurden"], 0.625)
+        self.assertEqual(installed, sorted(installed))
+        self.assertEqual(installed[1], installed[2])
+        self.assertEqual(installed[-1], 1)
 
     def test_closure_keeps_real_benefit_promise_and_checks_real_funding(self):
         outcome = evaluate_profile(

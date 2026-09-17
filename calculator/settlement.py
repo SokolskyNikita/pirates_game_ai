@@ -29,13 +29,15 @@ def settle(
     unit = c["marketIncome"] / 100 / price
     gross_resources = (p.output - p.investment - p.adjustment + flow) * unit
     capital_before = (p.capital + flow) * unit
-    required_employer = c["laborIncome"] * p.unemployment * policy["replacement"]
+    required_employer = c["laborIncome"] * p.labor_state["retained"] * policy["replacement"]
     employer_pay = min(required_employer, max(0, capital_before))
     obsolete_wages = c["laborIncome"] * p.unemployment
+    retained_wages = c["laborIncome"] * p.labor_state["retained"]
     employer_ratio = employer_pay / obsolete_wages if obsolete_wages > 0 else 0
+    retained_ratio = employer_pay / retained_wages if retained_wages > 0 else 0
     capital_after = capital_before - employer_pay
     capital_factor = capital_after / c["capitalIncome"]
-    productive_wage_factor = p.income_allocation_factor * p.effort / price
+    productive_wage_factor = p.income_allocation_factor * p.average_wage_factor * p.effort / price
     employed_net = []
     obsolete_net = []
     labor_tax_revenue = capital_tax_revenue = 0.0
@@ -138,6 +140,15 @@ def settle(
             else 100,
             "cohortIncome": income,
             "unemployment": p.unemployment,
+            "jobsAffected": p.jobs_affected,
+            "jobSlots": p.labor_state["slots"],
+            "productiveEmployment": p.labor_state["employment"],
+            "retainedWorkers": p.labor_state["retained"],
+            "jobSeekers": p.labor_state["searching"],
+            "exitedWorkers": p.labor_state["exited"],
+            "marketWageFactor": p.labor_state["market_wage"],
+            "averageWageFactor": p.average_wage_factor,
+            "competitionDisplaced": p.labor_state["competitive_displacement"],
             "aiUnemployment": p.ai_unemployment,
             "tradeUnemployment": p.trade_unemployment,
             "consumerPriceIndex": price,
@@ -150,8 +161,8 @@ def settle(
             "longTermDisplaced": max(0, p.unemployment - p.newly),
             "reemployed": p.reemployed,
             "employerPay": employer_pay,
-            "employerPayRatio": employer_ratio,
-            "employerNetPayRatio": net_employer_total / obsolete_wages if obsolete_wages > 0 else 0,
+            "employerPayRatio": retained_ratio,
+            "employerNetPayRatio": net_employer_total / retained_wages if retained_wages > 0 else 0,
             "employerFundingGap": required_employer - employer_pay,
             "benefitsRequired": benefits_required,
             "benefitsPaid": benefits_paid,

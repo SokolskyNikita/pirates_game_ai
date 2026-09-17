@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { incomeScale, incomeSeries, yearTicks, type ChartYear } from './chart-layout';
 
 function point(year: number, unemployment: number, income = 100): ChartYear {
-  return { year, unemployment, displacedIncomeIndex: income, employedIncomeIndex: income, allIncomeIndex: 100 };
+  return { year, productiveEmployment: 1 - unemployment, displacedIncomeIndex: income, employedIncomeIndex: income, allIncomeIndex: 100 };
 }
 
 describe('income chart presentation', () => {

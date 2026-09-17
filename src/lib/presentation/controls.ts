@@ -1,11 +1,16 @@
 import type { ModelInputs, ModelMode, Objective } from '../api/types';
 import { DEFAULT_INPUTS, INPUT_SPECS, POLICY_OPTIONS } from './config';
 import { el } from './dom';
-import { formatInput, policyAxes, axisLabels, axisOptionValue, paceName } from './format';
-import { objectiveHelp, type ScenarioState } from './state';
+import { formatInput, inputRangeValue, policyAxes, axisLabels, axisOptionValue, paceName } from './format';
+import {
+  inputSliderChoices,
+  normalizeInputConstraints,
+  objectiveHelp,
+  type ScenarioState,
+} from './state';
 
 const foreignKeys = new Set<string>([
-  'foreignGdpGrowth',
+  'foreignAiGrowth',
   'capitalMobility',
   'foreignStrength',
   'tradeIntensity',
@@ -76,13 +81,18 @@ export class ScenarioControls {
         spec.key +
         '">' +
         spec.description +
-        '</p>';
+        '</p>' +
+        (spec.key === 'jobSearch'
+          ? '<p><a href="#job-search-source">BLS participation reference</a></p>'
+          : '');
       el(target).append(node);
       el<HTMLInputElement>('input-' + spec.key).addEventListener('input', (event) => {
         this.state.inputs[spec.key] = this.sliderValues.get(spec.key)![
           Number((event.target as HTMLInputElement).value)
         ]!;
+        this.state.inputs = normalizeInputConstraints(this.state.inputs);
         this.updateInputLabel(spec.key);
+        if (spec.key === 'jobChange') this.syncInput('jobsAffected');
         this.updateElectorate();
         this.updateCalibration();
         this.clearPreset();
@@ -116,7 +126,9 @@ export class ScenarioControls {
   private updateInputLabel(key: keyof ModelInputs) {
     const text = formatInput(key, this.state.inputs[key]);
     el('value-' + key).textContent = text;
-    el<HTMLInputElement>('input-' + key).setAttribute('aria-valuetext', text);
+    const slider = el<HTMLInputElement>('input-' + key);
+    slider.setAttribute('aria-valuetext', text);
+    slider.setAttribute('aria-valuenow', String(inputRangeValue(key, this.state.inputs[key])));
   }
 
   private updateElectorate() {
@@ -157,21 +169,35 @@ export class ScenarioControls {
     pace.value = this.state.pauseUnavailable && previous === '0' ? '1' : previous || '1';
   }
 
+  private syncInput(key: keyof ModelInputs) {
+    const spec = INPUT_SPECS.find((input) => input.key === key)!;
+    const choices = inputSliderChoices(spec, this.state.inputs);
+    this.sliderValues.set(key, choices);
+    const slider = el<HTMLInputElement>('input-' + key);
+    slider.min = '0';
+    slider.max = String(choices.length - 1);
+    slider.value = String(choices.indexOf(this.state.inputs[key]));
+    // The native value is an index into discrete stops; expose the displayed units to assistive tech.
+    slider.setAttribute('aria-valuemin', String(inputRangeValue(key, choices[0]!)));
+    slider.setAttribute('aria-valuemax', String(inputRangeValue(key, choices[choices.length - 1]!)));
+    this.updateInputLabel(key);
+    if (key === 'jobsAffected') {
+      const minimum = Math.max(0, -this.state.inputs.jobChange);
+      el('help-' + key).textContent =
+        spec.description +
+        (minimum > 0
+          ? ' With the selected job reduction, at least ' +
+            formatInput(key, minimum) +
+            ' of current jobs must be affected.'
+          : '');
+    }
+  }
+
   private syncInputs() {
+    this.state.inputs = normalizeInputConstraints(this.state.inputs);
     this.updateElectorate();
     this.syncPauseControl();
-    for (const spec of visibleInputSpecs) {
-      const step = spec.step;
-      const values = [spec.min, spec.max, DEFAULT_INPUTS[spec.key], this.state.inputs[spec.key]];
-      for (let value = Math.ceil(spec.min / step) * step; value <= spec.max + 1e-9; value += step)
-        values.push(Number(value.toFixed(8)));
-      const choices = [...new Set(values)].sort((a, b) => a - b);
-      this.sliderValues.set(spec.key, choices);
-      const slider = el<HTMLInputElement>('input-' + spec.key);
-      slider.max = String(choices.length - 1);
-      slider.value = String(choices.indexOf(this.state.inputs[spec.key]));
-      this.updateInputLabel(spec.key);
-    }
+    for (const spec of visibleInputSpecs) this.syncInput(spec.key);
     document.querySelectorAll<HTMLInputElement>('input[name="world"]').forEach((radio) => {
       radio.checked = radio.value === this.state.mode;
     });
@@ -228,29 +254,30 @@ export class ScenarioControls {
         this.state.inputs = { ...DEFAULT_INPUTS };
         if (button.dataset.preset === 'shared')
           Object.assign(this.state.inputs, {
-            usGdpGrowth: 0.06,
-            foreignGdpGrowth: 0.06,
+            usAiGrowth: 0.05,
+            foreignAiGrowth: 0.05,
             productivityGain: 0.1,
-            displacement: 0.3,
-            reemployment: 0.5,
+            jobsAffected: 1,
+            jobChange: 0.2,
             investmentResponse: 0.1,
           });
         if (button.dataset.preset === 'displacement')
           Object.assign(this.state.inputs, {
-            usGdpGrowth: 0.025,
-            foreignGdpGrowth: 0.025,
+            usAiGrowth: 0,
+            foreignAiGrowth: 0,
             productivityGain: 0.25,
-            displacement: 0.7,
-            reemployment: 0.05,
+            jobsAffected: 1,
+            jobChange: -0.9,
           });
         if (button.dataset.preset === 'tax-response') {
           this.state.mode = 'us-only';
           Object.assign(this.state.inputs, {
             investmentResponse: 1,
-            usGdpGrowth: 0.1,
-            foreignGdpGrowth: 0.1,
+            usAiGrowth: 0.1,
+            foreignAiGrowth: 0.1,
             productivityGain: 0.4,
-            displacement: 0.35,
+            jobsAffected: 0.5,
+            jobChange: -0.35,
           });
         }
         if (button.dataset.preset === 'rivalry') {

@@ -21,9 +21,11 @@ from typing import Any
 
 import numpy as np
 
-from .config import CAPACITY_RENEWAL_RATE, DISCOUNT_RATE, UTILITY_OFFSET, YEARS
+from .config import DISCOUNT_RATE, GROWTH_BASELINE, UTILITY_OFFSET, YEARS
+from .labor_market import initial_labor
 from .policies import checked_policy
 from .population import PREPARED
+from .production import policy_burden_values, production_values
 from .trade import baseline_trade, competition_displacement, trade_market, trade_retention_burden
 from .types import Policy, Prepared
 
@@ -57,30 +59,10 @@ def _deployment(target, pace, year, response, burden):
     return target * progress * (1 - response * burden * (1 - progress))
 
 
-def _exposure(pace, adoption, other_adoption, trade, progress):
-    return np.where(
-        pace == 0,
-        0,
-        np.clip(adoption + trade * np.clip(progress, 0, 1) * other_adoption * (1 - adoption), 0, 1),
-    )
-
-
 def _burden(inputs, policy, other_pace, other_strength, strength, trade, calibration):
-    affected = np.zeros_like(policy["pace"])
-    previous = np.zeros_like(affected)
-    for year in range(1, YEARS + 1):
-        own = _deployment(strength, np.where(policy["pace"] == 0, 0, 1), year, 0, 0)
-        other = _deployment(other_strength, np.where(other_pace == 0, 0, 1), year, 0, 0)
-        exposure = _exposure(policy["pace"], own, other, trade, year / YEARS)
-        affected = affected * (1 - inputs["reemployment"]) + inputs["displacement"] * np.maximum(
-            0, exposure - previous
-        )
-        previous = exposure
-    retained = np.clip(
-        calibration["laborIncome"] * affected * policy["replacement"] / calibration["capitalIncome"], 0, 1
+    return policy_burden_values(
+        inputs, policy, other_pace, other_strength, strength, trade, calibration, xp=np
     )
-    shift = policy["capitalTax"] - calibration["capitalTaxRate"]
-    return np.clip(shift + (1 - np.maximum(0, shift)) * retained, -1, 1)
 
 
 def _initial_state(count):
@@ -93,6 +75,7 @@ def _initial_state(count):
         "adoption": np.zeros(count),
         "growth": np.ones(count),
         "output": np.full(count, 100.0),
+        "labor_state": initial_labor(np.zeros(count)),
     }
 
 
@@ -108,56 +91,23 @@ def _produce(
     calibration,
     growth_rate,
     trade_adjustment=None,
+    baseline_growth=0.02,
 ):
-    exposure = _exposure(policy["pace"], adoption, other_adoption, trade, policy["pace"] * year / YEARS)
-    delta = np.maximum(0, exposure - old["exposure"])
-    delta_adoption = np.maximum(0, adoption - old["adoption"])
-    newly = inputs["displacement"] * delta
-    reemployed = old["ai_u"] * inputs["reemployment"]
-    ai_unemployment = np.clip(old["ai_u"] - reemployed + newly, 0, 1)
-    recovered_trade = old["trade_adjustment"] * (1 - inputs["reemployment"])
-    trade_adjustment = recovered_trade if trade_adjustment is None else trade_adjustment
-    trade_unemployment = (1 - ai_unemployment) * trade_adjustment
-    unemployment = ai_unemployment + trade_unemployment
-    recovered_ai = old["ai_u"] - reemployed
-    recovered_total = recovered_ai + (1 - recovered_ai) * recovered_trade
-    newly = np.where(trade_adjustment == 0, newly, unemployment - recovered_total)
-    effort = np.clip(
-        1 - inputs["investmentResponse"] * (policy["laborTax"] - calibration["laborTaxRate"]), 0, 1.5
+    return production_values(
+        inputs,
+        policy,
+        old,
+        adoption,
+        other_adoption,
+        burden,
+        trade,
+        year,
+        calibration,
+        growth_rate,
+        baseline_growth,
+        trade_adjustment,
+        xp=np,
     )
-    capacity = np.clip(
-        1 - inputs["investmentResponse"] * burden * (1 - (1 - CAPACITY_RENEWAL_RATE) ** year), 0, 1.5
-    )
-    labor_share = calibration["laborIncome"] / calibration["marketIncome"] * 100
-    passive_share = calibration["passiveIncome"] / calibration["marketIncome"] * 100
-    growth = old["growth"] * (1 + growth_rate * exposure)
-    base = (
-        100 + labor_share * (1 - ai_unemployment) * (effort - 1) - labor_share * trade_unemployment * effort
-    )
-    output = capacity * growth * base
-    raw_claims = base + inputs["productivityGain"] * labor_share * ai_unemployment
-    allocation = output / raw_claims
-    labor = allocation * labor_share * (1 - unemployment) * effort
-    passive = allocation * passive_share
-    investment = 12 * delta_adoption + 40 * delta_adoption**2
-    adjustment = 0.5 * labor_share * newly
-    capital = output - labor - passive - investment - adjustment
-    return {
-        "allocation": allocation,
-        "growth": growth,
-        "adoption": adoption,
-        "exposure": exposure,
-        "u": unemployment,
-        "ai_u": ai_unemployment,
-        "trade_adjustment": trade_adjustment,
-        "output": output,
-        "investment": investment,
-        "adjustment": adjustment,
-        "burden": burden,
-        "capital": capital,
-        "effort": effort,
-        "rents": np.maximum(0, capital - (100 - labor_share - passive_share) * allocation),
-    }
 
 
 def _tax_rates(baseline, target, mean):
@@ -208,7 +158,7 @@ def _settlement_arrays(prepared, policy):
 def _settle(policy, production, flow, prepared, arrays, price_index=1):
     c = prepared.calibration
     capital_before = (production["capital"] + flow) * (c["marketIncome"] / 100 / price_index)
-    required_employer = c["laborIncome"] * production["u"] * policy["replacement"]
+    required_employer = c["laborIncome"] * production["retained"] * policy["replacement"]
     employer_pay = np.minimum(required_employer, np.maximum(0, capital_before))
     denominator = c["laborIncome"] * production["u"]
     employer_ratio = np.divide(
@@ -217,7 +167,7 @@ def _settle(policy, production, flow, prepared, arrays, price_index=1):
     capital_factor = (capital_before - employer_pay) / c["capitalIncome"]
     real_allocation = production["allocation"] / price_index
     allocation = real_allocation[:, None]
-    productive = real_allocation * production["effort"]
+    productive = real_allocation * production["average_wage"] * production["effort"]
     work = arrays["labor"] * productive[:, None]
     retained = arrays["labor"] * employer_ratio[:, None]
     passive = arrays["passive"] * allocation
@@ -277,7 +227,7 @@ def _settle(policy, production, flow, prepared, arrays, price_index=1):
 # investment. Evaluate each distinct production pair once per complete menu,
 # then settle every welfare package against that path in bounded cohort chunks.
 _PRODUCTION_KEYS = ("pace", "replacement", "laborTax", "capitalTax", "allowFreeTrade")
-_SETTLEMENT_FIELDS = ("allocation", "u", "output", "capital", "effort")
+_SETTLEMENT_FIELDS = ("allocation", "u", "output", "capital", "effort", "average_wage", "retained")
 
 
 def _production_key(policy):
@@ -314,8 +264,8 @@ def _production_paths(inputs, us_policies, foreign_policies, prepared):
     for year in range(1, YEARS + 1):
         annual_bus = trade_retention_burden(
             bus,
-            us_state["ai_u"],
-            us_state["trade_adjustment"],
+            us_state["labor_state"]["retained"],
+            us_state["labor_state"]["nominal_slots"],
             us_state["consumer_price_index"],
             up["replacement"],
             c,
@@ -324,8 +274,8 @@ def _production_paths(inputs, us_policies, foreign_policies, prepared):
         annual_bf = (
             trade_retention_burden(
                 bf,
-                foreign_state["ai_u"],
-                foreign_state["trade_adjustment"],
+                foreign_state["labor_state"]["retained"],
+                foreign_state["labor_state"]["nominal_slots"],
                 foreign_state["consumer_price_index"],
                 fp["replacement"],
                 c,
@@ -349,7 +299,17 @@ def _production_paths(inputs, us_policies, foreign_policies, prepared):
             else np.zeros(count)
         )
         us = _produce(
-            inputs, up, us_state, adopt_us, adopt_foreign, annual_bus, trade, year, c, inputs["usGdpGrowth"]
+            inputs,
+            up,
+            us_state,
+            adopt_us,
+            adopt_foreign,
+            annual_bus,
+            trade,
+            year,
+            c,
+            inputs["usAiGrowth"],
+            baseline_growth=GROWTH_BASELINE["us"],
         )
         foreign = (
             _produce(
@@ -362,7 +322,8 @@ def _production_paths(inputs, us_policies, foreign_policies, prepared):
                 foreign_trade,
                 year,
                 c,
-                inputs["foreignGdpGrowth"],
+                inputs["foreignAiGrowth"],
+                baseline_growth=GROWTH_BASELINE["foreign"],
             )
             if fp is not None
             else None
@@ -373,7 +334,6 @@ def _production_paths(inputs, us_policies, foreign_policies, prepared):
             first_market = trade_market(inputs, up, fp, us, foreign, xp=np)
             us_adjustment = competition_displacement(
                 us_state["trade_adjustment"],
-                inputs["reemployment"],
                 first_market["usImportShare"],
                 first_market["usExportVolume"],
                 us_state["import_share"],
@@ -384,7 +344,6 @@ def _production_paths(inputs, us_policies, foreign_policies, prepared):
             )
             foreign_adjustment = competition_displacement(
                 foreign_state["trade_adjustment"],
-                inputs["reemployment"],
                 first_market["foreignImportShare"],
                 first_market["foreignExportVolume"],
                 foreign_state["import_share"],
@@ -403,8 +362,9 @@ def _production_paths(inputs, us_policies, foreign_policies, prepared):
                 trade,
                 year,
                 c,
-                inputs["usGdpGrowth"],
+                inputs["usAiGrowth"],
                 us_adjustment,
+                GROWTH_BASELINE["us"],
             )
             foreign = _produce(
                 inputs,
@@ -416,8 +376,9 @@ def _production_paths(inputs, us_policies, foreign_policies, prepared):
                 foreign_trade,
                 year,
                 c,
-                inputs["foreignGdpGrowth"],
+                inputs["foreignAiGrowth"],
                 foreign_adjustment,
+                GROWTH_BASELINE["foreign"],
             )
             market = trade_market(inputs, up, fp, us, foreign, xp=np)
             flow, foreign_flow = market["usFlow"], market["foreignFlow"]

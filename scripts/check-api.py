@@ -23,7 +23,7 @@ def check_api(base: str) -> None:
             headers={"Content-Type": "application/json", "User-Agent": "AI-Pirates-Game-API-Check/1.0"},
         )
         try:
-            response = urlopen(req, timeout=60)
+            response = urlopen(req, timeout=180)
         except HTTPError as error:
             response = error
         with response:
@@ -40,7 +40,7 @@ def check_api(base: str) -> None:
     ):
         scenario = {
             "id": 73,
-            "inputs": {**DEFAULT_INPUTS, "productivityGain": 0.45, "displacement": 0.4},
+            "inputs": {**DEFAULT_INPUTS, "productivityGain": 0.45, "jobsAffected": 0.4, "jobChange": -0.35},
             "mode": mode,
             "foreignObjective": objective,
             "pauseUnavailable": False,
@@ -78,7 +78,7 @@ def check_api(base: str) -> None:
             assert actual["policyCount"] == 6480
         print(f"Passed native/runtime ballot parity and manual comparison: {mode}/{objective}/plurality={plurality}", flush=True)
     for payload in (
-        {"inputs": {"usGdpGrowth": 10**400}}, {"pauseUnavailable": 1},
+        {"inputs": {"usAiGrowth": 10**400}}, {"pauseUnavailable": 1},
         {"statusQuoUnavailable": "true"}, {"mode": []},
     ):
         assert "error" in request("/api/simulate", payload, 400)

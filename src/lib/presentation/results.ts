@@ -1,5 +1,5 @@
 import type { ProfileOutcome, ScenarioSnapshot } from '../api/types';
-import { POLICY_OPTIONS } from './config';
+import { GROWTH_BASELINE, POLICY_OPTIONS } from './config';
 import { el } from './dom';
 import {
   pct,
@@ -14,6 +14,7 @@ import {
 } from './format';
 import { objectiveLabels } from './state';
 import { renderChart } from './charts';
+import { renderLaborMarket } from './labor-market';
 import { policyDecisions } from './policy-decisions';
 
 export class ResultsView {
@@ -28,7 +29,7 @@ export class ResultsView {
     this.manual = profile;
     el('manual-result').textContent =
       (paymentRange(profile) === 'not applicable'
-        ? 'No roles are displaced in this scenario. '
+        ? 'No employer retention pay is due in this scenario. '
         : 'Employer pay after tax: ' + paymentRange(profile) + ' of prior wages. ') +
       'Funded government benefits: ' +
       pct(last(profile).benefitsScalePaid) +
@@ -117,13 +118,9 @@ export class ResultsView {
       pct(end.capacityFactor) +
       ' of the starting level.';
     el('growth-summary').textContent =
-      'Year-ten US GDP growth: ' +
-      pct(end.gdpGrowthRate) +
-      '/year, with ' +
-      pct(end.exposure) +
-      ' AI exposure. The full-AI growth assumption is ' +
-      pct(current.inputs.usGdpGrowth) +
-      '/year; investment and work incentives can change the realized rate.';
+      'Year-ten US GDP growth: ' + pct(end.gdpGrowthRate) + '/year. AI adds up to ' +
+      num(current.inputs.usAiGrowth * 100) + ' percentage points a year on top of the ' +
+      pct(GROWTH_BASELINE.us) + ' background growth assumption. Policy, labor-market and trade effects can outweigh that boost and shrink the economy.';
     const verdict = el('funding-verdict');
     const shortfall = !active.usAdmissible;
     verdict.hidden = !shortfall || plurality;
@@ -201,6 +198,7 @@ export class ResultsView {
     if (!strategic) return;
     const active = this.snapshot.selected;
     const end = active.foreign!.at(-1)!;
+    renderLaborMarket(active.foreign!, 'foreign-');
     el('foreign-policy-objective').textContent = 'One actor chooses a fully funded package to maximize ' +
       objectiveLabels[current.foreignObjective].toLowerCase() + ' over ten years, given the US choice.';
     el('foreign-policy-decisions').innerHTML = policyDecisions(active.foreignPolicy!, end, {
@@ -212,7 +210,7 @@ export class ResultsView {
       [change(end.output), 'Year-ten economic output'],
     ].map(([value, label]) => '<div class="policy-item"><strong>' + value +
       '</strong><span>' + label + '</span></div>').join('');
-    el('foreign-reference-note').textContent = 'Changes are relative to the foreign economy’s own starting values. Benefit shares and tax benchmarks use the US-based model reference, not measured foreign welfare systems or tax rates.';
+    el('foreign-reference-note').textContent = 'Changes are relative to the foreign economy’s own starting values. Year-ten GDP growth: ' + pct(end.gdpGrowthRate) + '/year, with AI adding up to ' + num(current.inputs.foreignAiGrowth * 100) + ' percentage points to the ' + pct(GROWTH_BASELINE.foreign) + ' background growth assumption. Benefit shares and tax benchmarks use the US-based model reference, not measured foreign welfare systems or tax rates.';
     el('equilibrium-explanation').textContent =
       'Foreign objective: ' +
       objectiveLabels[current.foreignObjective].toLowerCase() +
@@ -246,9 +244,7 @@ export class ResultsView {
           : !active.usPolicy.allowFreeTrade ? 'the US bans it.' : 'the foreign actor bans it.');
     el('trade-impact').textContent =
       'Year ten: US consumer prices are ' + pct(us.consumerPriceIndex) +
-      ' of their starting level, relative to US producer prices. ' + pct(us.tradeUnemployment) +
-      ' of workers are still affected by trade adjustment; ' + pct(us.aiUnemployment) +
-      ' by domestic or imported AI. Income figures already include these price and employment effects.';
+      ' of their starting level, relative to US producer prices. Income figures include the modeled effects of trade on purchasing power and competition for jobs.';
     el('trade-price-note').textContent =
       'Foreign consumer prices: ' + pct(foreign.consumerPriceIndex) +
       ' of their starting level, relative to foreign producer prices. Lower consumer prices increase what income can buy; they are not extra physical GDP. Trade within the foreign bloc continues even if this border closes.';
@@ -257,7 +253,7 @@ export class ResultsView {
       '</th><td>' + num(point.consumerPriceIndex * 100) +
       '</td><td>' + pct(point.importShare) +
       '</td><td>' + pct(point.exportShare) +
-      '</td><td>' + pct(point.tradeUnemployment) + '</td></tr>',
+      '</td><td>' + pct(point.jobSlots) + '</td></tr>',
     ).join('');
   }
   private renderComparison() {

@@ -1,7 +1,8 @@
-"""Domestic regression oracle from the TypeScript engine.
+"""Preserve calibration and verify revised elections against scalar evaluation.
 
-International trajectories deliberately changed with the trade model; their
-accounting, response directions and scalar/batch parity have separate tests.
+The archived TypeScript fixture supplies regression scenarios and the unchanged
+initial economy. Its post-AI trajectories are superseded by scarce job slots,
+sticky wage contracts and baseline-plus-AI growth.
 """
 
 import json
@@ -9,12 +10,26 @@ import math
 import unittest
 from pathlib import Path
 
-from calculator.model import evaluate_profile
-from calculator.policies import POLICIES
+from calculator.ballot import tally_package_ballot
+from calculator.config import DEFAULT_INPUTS
+from calculator.model import evaluate_profile, solve_model
+from calculator.policies import POLICIES, current_policy, policies_for_mode
 from calculator.population import CALIBRATION
 from calculator.simulation import solve_scenario
 
 ORACLE = json.loads((Path(__file__).parents[1] / "fixtures/typescript-parity.json").read_text())
+
+
+def revised_inputs(old):
+    """Translate old scenario intent explicitly, without relying on URL aliases."""
+    return {
+        **{key: value for key, value in old.items() if key in DEFAULT_INPUTS},
+        "usAiGrowth": old["usGdpGrowth"],
+        "foreignAiGrowth": old["foreignGdpGrowth"],
+        "jobsAffected": old["displacement"],
+        "jobChange": -old["displacement"],
+        "jobSearch": old["reemployment"],
+    }
 
 
 class MigrationParity(unittest.TestCase):
@@ -39,31 +54,48 @@ class MigrationParity(unittest.TestCase):
         self.assertEqual(CALIBRATION, ORACLE["calibration"])
         self.assertEqual([policy["id"] for policy in POLICIES], ORACLE["policyIds"])
 
-    def test_domestic_economic_trajectories(self):
+    def test_domestic_initial_economy_and_materialized_scalar_utilities(self):
         for case in ORACLE["profiles"]:
             if case["mode"] != "us-only":
                 continue
             with self.subTest(case=case["name"]):
-                actual = evaluate_profile(case["inputs"], case["us"], case.get("foreign"), case["mode"])
-                self.assert_structure(actual, case["outcome"], case["name"])
+                inputs = revised_inputs(case["inputs"])
+                actual = evaluate_profile(inputs, case["us"], mode="us-only")
+                self.assert_structure(actual["us"][0], case["outcome"]["us"][0], case["name"])
+                scalar = solve_model(inputs, {"mode": "us-only", "objective": "workers"})
+                light = scalar["evaluateLight"](case["us"])
+                self.assertEqual(actual["usUtilities"], light["usUtilities"])
+                self.assertEqual(actual["usAdmissible"], light["usAdmissible"])
+                self.assertEqual(actual["usScore"], light["usScore"])
 
-    def test_domestic_common_scenario_ballots_and_trajectories(self):
+    def test_domestic_common_ballots_match_full_scalar_menu(self):
         for case in ORACLE["snapshots"]:
             if case["request"]["mode"] != "us-only":
                 continue
-            with self.subTest(request=case["request"]):
-                actual = solve_scenario(case["request"])
-                expected = case["expected"]
-                # Vote allocations, not merely outcomes, are an exact migration contract.
-                self.assertEqual(
-                    {key: actual["ballot"][key] for key in expected["ballot"]}, expected["ballot"]
+            request = {**case["request"], "inputs": revised_inputs(case["request"]["inputs"])}
+            with self.subTest(request=request):
+                actual = solve_scenario(request)
+                model = solve_model(request["inputs"], {"mode": "us-only", "objective": "workers"})
+                menu = policies_for_mode("us-only", request.get("pauseUnavailable", False))
+                profiles = [model["evaluateLight"](policy) for policy in menu]
+                expected = tally_package_ballot(
+                    [
+                        {
+                            "id": p["usPolicy"]["id"],
+                            "utilities": p["usUtilities"],
+                            "fullyFunded": p["usAdmissible"],
+                        }
+                        for p in profiles
+                    ],
+                    CALIBRATION["weights"],
+                    current_policy()["id"],
                 )
-                # Newly added rule/exclusion metadata does not change any legacy vote.
-                self.assertEqual(actual["ballot"]["votingRule"], "majority")
-                self.assertFalse(actual["ballot"]["statusQuoExcluded"])
-                self.assertEqual(actual["ballot"]["excludedCandidateCount"], 0)
-                self.assert_structure(actual["selected"]["usPolicy"], expected["selected"]["usPolicy"])
-                self.assert_structure(actual, expected)
+                # Exact vote allocations and funding eligibility, not merely the winner.
+                self.assertEqual(actual["ballot"], expected)
+                self.assertEqual(actual["selected"]["usPolicy"]["id"], expected["enactedPolicyId"])
+                selected = model["evaluate"](actual["selected"]["usPolicy"])
+                self.assertEqual(actual["selected"]["us"], selected["us"])
+                self.assertEqual(actual["selected"]["usUtilities"], selected["usUtilities"])
 
 
 if __name__ == "__main__":

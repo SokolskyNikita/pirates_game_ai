@@ -1,4 +1,4 @@
-"""Two-region trade prices and temporary employment adjustment.
+"""Two-region trade prices and persistent productive job-capacity adjustment.
 
 This is an Armington-inspired approximation: one tradable basket and one local
 basket per region, calibrated to a balanced bilateral flow. It is not a sectoral
@@ -40,7 +40,6 @@ def baseline_trade(inputs: dict[str, float]) -> tuple[float, float, float]:
 
 def competition_displacement(
     previous_fraction: Any,
-    reemployment: float,
     import_share: Any,
     export_volume: Any,
     previous_import_share: Any,
@@ -50,35 +49,38 @@ def competition_displacement(
     *,
     xp: Any = None,
 ) -> Any:
-    """One point of new trade pressure displaces one point of remaining workers.
+    """Signed trade pressure changes available productive job capacity.
 
-    The coefficient is an assumption. Existing adjustment unemployment recovers at
-    this scenario's annual reemployment rate; exposure cannot exceed tradable roles.
+    The one-for-one coefficient is an assumption, bounded by tradable exposure.
+    Import retreat or export recovery can restore slots; merely looking for work
+    cannot. Opposing import/export changes may offset, including import
+    substitution following a bilateral ban. Lost varieties still affect prices.
     """
     xp = xp or _Scalar
-    pressure = xp.maximum(0, import_share - previous_import_share) + xp.maximum(
-        0, previous_export_volume - export_volume
-    ) / xp.maximum(previous_net_output, 1e-9)
-    pressure = xp.where(pressure < 1e-12, 0, pressure)
-    return xp.minimum(tradable_share, xp.maximum(0, previous_fraction * (1 - reemployment) + pressure))
+    pressure = (
+        import_share
+        - previous_import_share
+        + (previous_export_volume - export_volume) / xp.maximum(previous_net_output, 1e-9)
+    )
+    pressure = xp.where(xp.maximum(pressure, -pressure) < 1e-12, 0, pressure)
+    return xp.minimum(tradable_share, xp.maximum(0, previous_fraction + pressure))
 
 
 def trade_retention_burden(
     baseline_burden: Any,
-    previous_ai: Any,
-    previous_adjustment: Any,
+    previous_retained: Any,
+    previous_nominal_slots: Any,
     previous_price: Any,
     replacement: Any,
     calibration: dict[str, Any],
     *,
     xp: Any = None,
 ) -> Any:
-    """Apply observed trade-retention costs to next year's investment response."""
+    """Add actual retained payroll beyond domestic lost slots to investment costs."""
     xp = xp or _Scalar
     extra = (
         calibration["laborIncome"]
-        * (1 - previous_ai)
-        * previous_adjustment
+        * xp.maximum(0, previous_retained - xp.maximum(0, 1 - previous_nominal_slots))
         * replacement
         * previous_price
         / calibration["capitalIncome"]

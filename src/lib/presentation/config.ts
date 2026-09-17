@@ -8,3 +8,5 @@ export const POLICY_OPTIONS = config.policyOptions;
 export const CALIBRATION = config.calibration;
 export const US_ELECTORATE = config.electorate;
 export const MODEL_NOTES = config.modelNotes;
+
+export const GROWTH_BASELINE = config.growthBaseline;

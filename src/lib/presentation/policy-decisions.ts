@@ -17,18 +17,19 @@ export function policyDecisions(
   const details: Record<PolicyAxis, string> = {
     pace:
       p.pace === 0
-        ? 'No domestic or imported AI use for ten years.' +
+        ? 'No domestic or imported AI use for ten years. Background economic growth continues.' +
           (mode === 'strategic'
             ? ' Open trade can still displace workers if foreign firms become more competitive.'
-            : ' No AI job replacement occurs.')
+            : ' There are no AI-driven changes to jobs.')
         : p.pace === 2
-          ? 'AI replacement runs twice as fast. Full domestic deployment and its full annual growth potential arrive by year five.'
-          : 'AI replacement proceeds over ten years. Full domestic deployment and its full annual growth potential arrive by year ten.',
+          ? 'AI-driven job changes happen twice as fast. Full domestic deployment and the full additional annual growth boost arrive by year five.'
+          : 'AI-driven job changes happen over ten years. Full domestic deployment and the full additional annual growth boost arrive by year ten.',
     replacement: p.replacement
-      ? 'Employers fund the retained wages. This is a gross wage target; the modeled take-home payment is ' +
-        employerPayment +
-        ' of prior wages after tax.'
-      : 'Employers may dismiss affected workers. Government benefits are shown below.',
+      ? 'Employers fund retained wages at the selected share of the pre-AI wage. Retained workers can move into new productive jobs; competition cannot be used to fire them.' +
+        (employerPayment && employerPayment !== 'not applicable'
+          ? ' Retention pay after tax: ' + employerPayment + ' of prior wages.'
+          : ' No retention pay is needed in this scenario.')
+      : 'Employers may dismiss affected workers and replace incumbents with cheaper hires. Laid-off workers who seek work compete for the available jobs. Government benefits are shown below.',
     welfareScale:
       'Reference: ' +
       dollars(baselineBenefits) +
@@ -45,7 +46,7 @@ export function policyDecisions(
         ? 'Keep the survey’s relative allocation of cash benefits and consumption support. Recipients’ shares stay fixed as jobs change; this does not simulate future eligibility under every US program.'
         : p.benefitFormula === 'flat'
           ? 'Divide the funded budget equally among all adults, including workers, retirees and investors. This replaces the modeled Social Security and assistance payment pattern.'
-          : 'Divide the same budget in proportion to each adult’s pre-AI disposable household income. Higher prior income means a larger payment. This uses prior-year income, not lifetime earnings.',
+          : 'Divide the same budget in proportion to each adult’s pre-AI disposable household income. Higher prior income means a larger payment. Later wage changes do not change these shares.',
     laborTax:
       'Selected benchmark: ' +
       pct(p.laborTax) +
@@ -73,11 +74,11 @@ export function policyDecisions(
 
   if (region === 'foreign') {
     details.replacement = p.replacement
-      ? 'Employers fund retained wages at the gross target above. ' +
-        (end.unemployment > 1e-9
-          ? 'In year ten, employer pay after tax averages ' + pct(end.employerNetPayRatio) + ' of affected workers’ prior wages.'
-          : 'No workers are affected in year ten, so no retention pay is needed then.')
-      : 'Employers may dismiss affected workers. Government benefits are shown below.';
+      ? 'Employers fund retained wages at the selected share of the pre-AI wage. Retained workers can move into new productive jobs; competition cannot be used to fire them. ' +
+        (end.retainedWorkers > 1e-9
+          ? 'In year ten, retention pay after tax averages ' + pct(end.employerNetPayRatio) + ' of retained workers’ prior wages.'
+          : 'No workers are retained in year ten, so no retention pay is needed then.')
+      : 'Employers may dismiss affected workers and replace incumbents with cheaper hires. Laid-off workers who seek work compete for the available jobs. Government benefits are shown below.';
     details.welfareScale = 'Target: ' + pct(p.welfareScale) +
       ' of the model’s reference benefit budget. Funded in year ten: ' + pct(end.benefitsScalePaid) +
       '. The same total budget does not preserve each person’s payment.' +
@@ -86,7 +87,7 @@ export function policyDecisions(
       ? 'Keep the reference shares of cash benefits and consumption support. Those shares use the US household distribution as a proxy; they are not a survey of foreign welfare systems.'
       : p.benefitFormula === 'flat'
         ? 'Divide the funded budget equally among all adults in the foreign economy, including workers, retirees and investors. This replaces the reference allocation.'
-        : 'Divide the funded budget in proportion to each adult’s pre-AI disposable household income. Higher prior income means a larger payment.';
+        : 'Divide the funded budget in proportion to each adult’s pre-AI disposable household income. Higher prior income means a larger payment. Later wage changes do not change these shares.';
     for (const axis of ['laborTax', 'capitalTax'] as const) {
       details[axis] = details[axis].replace('the 2025 reference', 'the US-based model reference');
     }
@@ -94,10 +95,10 @@ export function policyDecisions(
       ? 'The rest of the world permits trade with the US. Goods, services and imported AI cross this border only if the US also permits it. Trade within the foreign bloc continues.'
       : 'The rest of the world closes its border with the US, including imported AI and cross-border AI profit payments. Trade within the foreign bloc continues.';
     details.pace = p.pace === 0
-      ? 'No domestic or imported AI use for ten years. Open trade can still displace workers if US firms become more competitive.'
+      ? 'No domestic or imported AI use for ten years. Background economic growth continues. Open trade can still displace workers if US firms become more competitive.'
       : p.pace === 2
-        ? 'AI replacement runs twice as fast. The foreign economy reaches its assumed deployment limit by year five, bringing its growth gains forward.'
-        : 'AI replacement proceeds over ten years. The foreign economy reaches its assumed deployment limit by year ten.';
+        ? 'AI-driven job changes happen twice as fast. The foreign economy reaches its assumed deployment limit by year five, bringing the additional growth boost forward.'
+        : 'AI-driven job changes happen over ten years. The foreign economy reaches its assumed deployment limit by year ten.';
   }
   return policyAxes
     .filter((axis) => mode === 'strategic' || axis !== 'allowFreeTrade')

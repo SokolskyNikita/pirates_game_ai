@@ -12,13 +12,19 @@ import re
 import time
 from pathlib import Path
 
-from .config import DEFAULT_INPUTS, INPUT_SPECS, MODEL_NOTES, normalize_inputs
+from .config import DEFAULT_INPUTS, GROWTH_BASELINE, INPUT_SPECS, MODEL_NOTES, normalize_inputs
 from .policies import INTERNATIONAL_POLICIES, current_policy
 from .population import CALIBRATION, PREPARED, US_ELECTORATE
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 POLICY_AXES = (
-    "pace", "replacement", "welfareScale", "benefitFormula", "laborTax", "capitalTax", "allowFreeTrade"
+    "pace",
+    "replacement",
+    "welfareScale",
+    "benefitFormula",
+    "laborTax",
+    "capitalTax",
+    "allowFreeTrade",
 )
 
 
@@ -50,6 +56,7 @@ def presentation_config() -> dict:
             options[axis].setdefault(part, {"value": policy[axis], "idPart": part})
     return {
         "defaults": DEFAULT_INPUTS,
+        "growthBaseline": GROWTH_BASELINE,
         "inputSpecs": INPUT_SPECS,
         "policyOptions": {axis: list(values.values()) for axis, values in options.items()},
         "calibration": CALIBRATION,
@@ -81,8 +88,14 @@ def common_scenarios():
     cases = (
         ("default", DEFAULT_INPUTS),
         (
-            "all-roles-obsolete",
-            {**DEFAULT_INPUTS, "productivityGain": 0.5, "displacement": 1, "reemployment": 0},
+            "no-productive-jobs",
+            {
+                **DEFAULT_INPUTS,
+                "productivityGain": 0.5,
+                "jobsAffected": 1,
+                "jobChange": -1,
+                "jobSearch": 0.85,
+            },
         ),
     )
     for name, inputs in cases:
@@ -94,7 +107,7 @@ def common_scenarios():
                             name,
                             {
                                 "id": 0,
-                                "inputs": inputs,
+                                "inputs": normalize_inputs(inputs),
                                 "mode": mode,
                                 "foreignObjective": objective,
                                 "pauseUnavailable": pause,

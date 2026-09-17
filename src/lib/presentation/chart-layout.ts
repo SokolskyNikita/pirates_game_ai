@@ -2,20 +2,20 @@
 import type { RegionYear } from '../api/types';
 
 export type ChartYear = Pick<RegionYear,
-  'year' | 'unemployment' | 'displacedIncomeIndex' | 'employedIncomeIndex' | 'allIncomeIndex'>;
+  'year' | 'productiveEmployment' | 'displacedIncomeIndex' | 'employedIncomeIndex' | 'allIncomeIndex'>;
 export interface ChartPoint { year: number; value: number }
 export interface IncomeSeries {
   kind: 'worker' | 'owner' | 'output';
   label: string;
   segments: ChartPoint[][];
 }
-export const hasAffectedWorkers = (point: ChartYear) => point.unemployment > 1e-9;
-export const hasProductiveWorkers = (point: ChartYear) => point.unemployment < 1 - 1e-9;
+export const hasNonproductiveWorkers = (point: ChartYear) => point.productiveEmployment < 1 - 1e-9;
+export const hasProductiveWorkers = (point: ChartYear) => point.productiveEmployment > 1e-9;
 
 export function incomeSeries(years: readonly ChartYear[]): IncomeSeries[] {
   const definitions = [
-    { kind: 'worker' as const, label: 'Affected workers', key: 'displacedIncomeIndex' as const, present: hasAffectedWorkers },
-    { kind: 'owner' as const, label: 'Productive workers', key: 'employedIncomeIndex' as const, present: hasProductiveWorkers },
+    { kind: 'worker' as const, label: 'Outside productive jobs', key: 'displacedIncomeIndex' as const, present: hasNonproductiveWorkers },
+    { kind: 'owner' as const, label: 'In productive jobs', key: 'employedIncomeIndex' as const, present: hasProductiveWorkers },
     { kind: 'output' as const, label: 'All adult citizens', key: 'allIncomeIndex' as const, present: (_: ChartYear) => true },
   ];
   return definitions.map(({ kind, label, key, present }) => {

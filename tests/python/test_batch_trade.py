@@ -43,9 +43,9 @@ class TradeBatchTests(unittest.TestCase):
         cases = (
             ({}, current_policy(2)),
             ({}, make_policy({**current_policy(2), "allowFreeTrade": False})),
-            ({"displacement": 1, "reemployment": 0}, current_policy(2)),
+            ({"jobsAffected": 1, "jobChange": -1, "jobSearch": 0}, current_policy(2)),
             ({"tradeIntensity": 0, "foreignTradeIntensity": 0}, current_policy(2)),
-            ({"foreignGdpGrowth": 0.2, "usGdpGrowth": 0, "capitalMobility": 1}, current_policy(2)),
+            ({"foreignAiGrowth": 0.2, "usAiGrowth": 0, "capitalMobility": 1}, current_policy(2)),
             ({"tradableShare": 0, "tradeElasticity": 2}, current_policy(1)),
             ({"tradableShare": 1, "tradeElasticity": 8, "investmentResponse": 1}, current_policy(0)),
         )
@@ -67,7 +67,7 @@ class TradeBatchTests(unittest.TestCase):
                     self.assertAlmostEqual(profile["foreignScore"], expected["foreignScore"], places=12)
 
     def test_reused_production_paths_preserve_all_welfare_variants(self):
-        inputs = normalize_inputs({"reemployment": 0, "foreignGdpGrowth": 0.15})
+        inputs = normalize_inputs({"jobSearch": 0, "foreignAiGrowth": 0.15})
         menu = [
             make_policy({**policy, "welfareScale": welfare, "benefitFormula": formula})
             for policy in trade_menu()[::3]
@@ -114,7 +114,7 @@ class TradeBatchTests(unittest.TestCase):
                     self.assertNotIn("foreignAdmissible", a)
 
     def test_certified_ballot_agrees_including_both_trade_positions(self):
-        inputs = normalize_inputs({"foreignGdpGrowth": 0.15, "usGdpGrowth": 0, "reemployment": 0})
+        inputs = normalize_inputs({"foreignAiGrowth": 0.15, "usAiGrowth": 0, "jobSearch": 0})
         menu, foreign = trade_menu(), current_policy(2)
         model = solve_model(
             inputs, {"mode": "strategic", "objective": "workers", "foreignObjective": "workers"}
@@ -127,7 +127,7 @@ class TradeBatchTests(unittest.TestCase):
             self.assertEqual(ballot(actual), ballot(expected))
 
     def test_foreign_optimum_agrees_for_every_objective_and_trade_position(self):
-        inputs = normalize_inputs({"displacement": 1, "reemployment": 0})
+        inputs = normalize_inputs({"jobsAffected": 1, "jobChange": -1, "jobSearch": 0})
         menu = trade_menu()
         for open_trade in (False, True):
             us = make_policy({**current_policy(0), "allowFreeTrade": open_trade})

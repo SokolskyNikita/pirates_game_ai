@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from .config import INPUT_SPECS, normalize_inputs
+from .config import INPUT_SPECS, LEGACY_INPUT_KEYS, normalize_inputs
 from .policies import policy_by_id
 
 MODES = {"us-only", "strategic"}
@@ -31,7 +31,7 @@ def scenario_request(value: Any) -> dict:
     supplied = value.get("inputs", {})
     if not isinstance(supplied, dict):
         raise ValueError("inputs must be an object.")
-    allowed = {spec["key"] for spec in INPUT_SPECS}
+    allowed = {spec["key"] for spec in INPUT_SPECS} | LEGACY_INPUT_KEYS
     if set(supplied) - allowed:
         raise ValueError("The request contains an unknown assumption.")
     for key, number in supplied.items():

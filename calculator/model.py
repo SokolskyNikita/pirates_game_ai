@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .config import DISCOUNT_RATE, YEARS, normalize_inputs
+from .config import DISCOUNT_RATE, GROWTH_BASELINE, YEARS, normalize_inputs
 from .policies import (
     BASELINE_POLICY,
     checked_policy,
@@ -134,8 +134,8 @@ def simulate(
     for year in range(1, YEARS + 1):
         annual_burden_us = trade_retention_burden(
             burden_us,
-            state_us.unemployment,
-            state_us.trade_adjustment,
+            state_us.labor_state["retained"],
+            state_us.labor_state["nominal_slots"],
             state_us.consumer_price_index,
             us_policy["replacement"],
             c,
@@ -143,8 +143,8 @@ def simulate(
         annual_burden_foreign = (
             trade_retention_burden(
                 burden_foreign,
-                state_foreign.unemployment,
-                state_foreign.trade_adjustment,
+                state_foreign.labor_state["retained"],
+                state_foreign.labor_state["nominal_slots"],
                 state_foreign.consumer_price_index,
                 foreign_policy["replacement"],
                 c,
@@ -190,8 +190,9 @@ def simulate(
                 trade,
                 current_year,
                 c,
-                inputs["usGdpGrowth"],
+                inputs["usAiGrowth"],
                 adjustment,
+                GROWTH_BASELINE["us"],
             )
 
         def produce_foreign(
@@ -213,20 +214,20 @@ def simulate(
                 foreign_trade,
                 current_year,
                 c,
-                inputs["foreignGdpGrowth"],
+                inputs["foreignAiGrowth"],
                 adjustment,
+                GROWTH_BASELINE["foreign"],
             )
 
         production_us = produce_us()
         production_foreign = produce_foreign() if foreign_policy is not None else None
         flow = foreign_flow = 0.0
         if production_foreign is not None and foreign_policy is not None:
-            # Price first at recovered employment, then apply this year's new
-            # trade adjustment and clear the market again at actual production.
+            # Price first using existing job capacity, then apply this year's
+            # trade capacity change and clear the market at actual production.
             first_market = trade_market(inputs, us_policy, foreign_policy, production_us, production_foreign)
             new_us_adjustment = competition_displacement(
                 state_us.trade_adjustment,
-                inputs["reemployment"],
                 first_market["usImportShare"],
                 first_market["usExportVolume"],
                 state_us.import_share,
@@ -236,7 +237,6 @@ def simulate(
             )
             new_foreign_adjustment = competition_displacement(
                 state_foreign.trade_adjustment,
-                inputs["reemployment"],
                 first_market["foreignImportShare"],
                 first_market["foreignExportVolume"],
                 state_foreign.import_share,

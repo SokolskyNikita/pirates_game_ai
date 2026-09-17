@@ -4,8 +4,15 @@ const pct = (n: number) => Number((n * 100).toFixed(1)) + '%';
 const num = (n: number) => n.toFixed(1);
 const change = (index: number) => (index >= 100 ? '+' : '−') + Math.abs(index - 100).toFixed(1) + '%';
 const last = (profile: ProfileOutcome) => profile.us[profile.us.length - 1]!;
+/** Numeric range values in the same units as their human-readable labels. */
+function inputRangeValue(key: keyof ModelInputs, value: number) {
+  const isRatio = ['foreignMarketSize', 'foreignPopulationRatio', 'tradeElasticity'].includes(key);
+  return Number((isRatio ? value : value * 100).toPrecision(12));
+}
 function formatInput(key: keyof ModelInputs, value: number) {
-  if (key === 'usGdpGrowth' || key === 'foreignGdpGrowth') return pct(value) + '/year';
+  if (key === 'usAiGrowth' || key === 'foreignAiGrowth')
+    return '+' + Number((value * 100).toFixed(1)) + ' pp/year';
+  if (key === 'jobChange') return (value > 0 ? '+' : value < 0 ? '−' : '') + pct(Math.abs(value));
   if (key === 'foreignMarketSize') return Number(value.toFixed(2)) + '× US';
   if (key === 'tradeElasticity') return String(value);
   if (key === 'foreignStrength') return pct(value) + ' of US';
@@ -102,6 +109,7 @@ export {
   change,
   last,
   formatInput,
+  inputRangeValue,
   replacementName,
   dollars,
   voteShare,

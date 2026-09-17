@@ -54,7 +54,7 @@ class BatchTests(unittest.TestCase):
         rng = random.Random(417)
         scenarios = [
             normalize_inputs(),
-            normalize_inputs({"displacement": 1, "reemployment": 0}),
+            normalize_inputs({"jobsAffected": 1, "jobChange": -1, "jobSearch": 0}),
             normalize_inputs({s["key"]: s["min"] for s in INPUT_SPECS}),
             normalize_inputs({s["key"]: s["max"] for s in INPUT_SPECS}),
         ]
@@ -93,7 +93,9 @@ class BatchTests(unittest.TestCase):
         self.assertLess(max_score_error, UTILITY_RECHECK_GUARD / 1000)
 
     def test_certified_full_domestic_ballot_exactly_matches_scalar(self):
-        inputs = normalize_inputs({"productivityGain": 0.5, "displacement": 1, "reemployment": 0})
+        inputs = normalize_inputs(
+            {"productivityGain": 0.5, "jobsAffected": 1, "jobChange": -1, "jobSearch": 0}
+        )
         model = solve_model(inputs, {"mode": "us-only", "objective": "workers"})
         expected = [model["evaluateLight"](policy) for policy in POLICIES]
         actual = evaluate_us_menu(inputs, POLICIES, None, "prosperity", model["evaluateLight"])
@@ -114,7 +116,13 @@ class BatchTests(unittest.TestCase):
 
     def test_foreign_best_responses_have_exact_scalar_scores_and_funding(self):
         inputs = normalize_inputs(
-            {"displacement": 1, "reemployment": 0, "capitalMobility": 1, "investmentResponse": 1}
+            {
+                "jobsAffected": 1,
+                "jobChange": -1,
+                "jobSearch": 0,
+                "capitalMobility": 1,
+                "investmentResponse": 1,
+            }
         )
         for objective in ("workers", "prosperity", "output"):
             model = solve_model(

@@ -159,6 +159,13 @@ details summary:hover { color: var(--green); }
 .endpoint-detail { display: block; }
 .chart-data { border-top: 1px solid var(--line); }
 .chart-data summary { color: var(--muted); font-size: 13px; font-weight: 400; }
+.labor-market-data > p { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+.labor-market-data .table-scroll + .table-scroll { margin-top: 24px; }
+.labor-market-data table { min-width: 560px; }
+.labor-market-data th { white-space: normal; vertical-align: bottom; }
+.labor-market-data th:first-child { min-width: 60px; width: 60px; }
+.labor-market-data > .small-copy { margin-top: 14px; }
+
 
 @container income (max-width: 560px) {
   .legend { gap: 8px 18px; font-size: 14px; }

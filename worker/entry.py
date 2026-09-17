@@ -88,7 +88,7 @@ async def precomputed_snapshot(env, url: str, scenario: dict):
         artifact = await response.json()
         if (
             not isinstance(artifact, dict)
-            or artifact.get("schemaVersion") != 3
+            or artifact.get("schemaVersion") != 4
             or artifact.get("fingerprint") != MODEL_FINGERPRINT
             or artifact.get("key") != key
             or not isinstance(artifact.get("snapshot"), dict)

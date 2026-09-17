@@ -6,8 +6,10 @@ records only describe intermediate quantities and never cross that boundary.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
+
+from .labor_market import initial_labor
 
 Policy = dict[str, Any]
 ModelInputs = dict[str, float]
@@ -52,6 +54,7 @@ class TrajectoryState:
     export_volume: float = 0
     net_output: float = 100
     consumer_price_index: float = 1
+    labor_state: dict[str, Any] = field(default_factory=initial_labor)
 
 
 @dataclass(slots=True)
@@ -76,6 +79,9 @@ class Production:
     burden: float
     capacity: float
 
+    labor_state: dict[str, Any] = field(default_factory=initial_labor)
+    jobs_affected: float = 0
+    average_wage_factor: float = 1
     ai_unemployment: float = 0
     trade_unemployment: float = 0
     trade_adjustment: float = 0
@@ -89,17 +95,18 @@ class Production:
 
     def next_state(self) -> TrajectoryState:
         return TrajectoryState(
-            self.ai_unemployment,
-            self.exposure,
-            self.adoption,
-            self.growth,
-            self.output,
-            self.trade_adjustment,
-            self.import_share,
-            self.export_share,
-            self.export_volume,
-            self.output - self.investment - self.adjustment,
-            self.consumer_price_index,
+            unemployment=self.unemployment,
+            exposure=self.exposure,
+            adoption=self.adoption,
+            growth=self.growth,
+            output=self.output,
+            trade_adjustment=self.trade_adjustment,
+            import_share=self.import_share,
+            export_share=self.export_share,
+            export_volume=self.export_volume,
+            net_output=self.output - self.investment - self.adjustment,
+            consumer_price_index=self.consumer_price_index,
+            labor_state=self.labor_state,
         )
 
 

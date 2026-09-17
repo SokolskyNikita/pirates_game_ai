@@ -4,7 +4,7 @@ import itertools
 import unittest
 
 from calculator.artifacts import common_scenarios, presentation_config, scenario_key
-from calculator.config import DEFAULT_INPUTS
+from calculator.config import DEFAULT_INPUTS, GROWTH_BASELINE, normalize_inputs
 from calculator.policies import INTERNATIONAL_POLICIES, POLICIES, current_policy
 from calculator.requests import comparison_request, scenario_request
 
@@ -14,7 +14,49 @@ class RequestValidation(unittest.TestCase):
         self.assertEqual(scenario_request({})["inputs"], DEFAULT_INPUTS)
         self.assertFalse(scenario_request({})["statusQuoUnavailable"])
         self.assertTrue(scenario_request({"statusQuoUnavailable": True})["statusQuoUnavailable"])
-        self.assertEqual(scenario_request({"inputs": {"displacement": 2}})["inputs"]["displacement"], 1)
+        self.assertEqual(scenario_request({"inputs": {"jobsAffected": 2}})["inputs"]["jobsAffected"], 1)
+
+    def test_job_count_constraint_holds_for_every_published_grid_combination(self):
+        for change in (step / 20 for step in range(-20, 21)):
+            for affected in (step / 20 for step in range(21)):
+                supplied = {"jobChange": change, "jobsAffected": affected}
+                direct = normalize_inputs(supplied)
+                requested = scenario_request({"inputs": supplied})["inputs"]
+                with self.subTest(change=change, affected=affected):
+                    self.assertEqual(direct, requested)
+                    self.assertEqual(direct["jobChange"], change)
+                    self.assertEqual(direct["jobsAffected"], max(affected, -change, 0))
+        self.assertEqual(normalize_inputs({"jobChange": -1, "jobsAffected": 0})["jobsAffected"], 1)
+        self.assertEqual(normalize_inputs({"jobChange": 1, "jobsAffected": 0})["jobsAffected"], 0)
+
+    def test_precomputed_and_default_inputs_are_canonical_and_physically_possible(self):
+        self.assertEqual(DEFAULT_INPUTS["jobChange"], -0.9)
+        self.assertEqual(DEFAULT_INPUTS["jobsAffected"], 1)
+        self.assertEqual(DEFAULT_INPUTS["jobSearch"], 0.85)
+        for _, request in common_scenarios():
+            inputs = request["inputs"]
+            self.assertEqual(inputs, normalize_inputs(inputs))
+            self.assertEqual(set(inputs), set(DEFAULT_INPUTS))
+            self.assertGreaterEqual(inputs["jobsAffected"], max(0, -inputs["jobChange"]))
+        self.assertEqual(
+            scenario_key({"inputs": {"jobChange": -1, "jobsAffected": 0}}),
+            scenario_key({"inputs": {"jobChange": -1, "jobsAffected": 1}}),
+        )
+
+    def test_old_success_rates_do_not_become_search_preferences(self):
+        for old_rate in (0, 0.5, 1):
+            request = scenario_request({"inputs": {"reemployment": old_rate}})
+            self.assertEqual(request["inputs"]["jobSearch"], DEFAULT_INPUTS["jobSearch"])
+            self.assertNotIn("reemployment", request["inputs"])
+        old = scenario_request(
+            {"inputs": {"displacement": 0.7, "usGdpGrowth": 0.05, "foreignGdpGrowth": 0.05}}
+        )["inputs"]
+        self.assertEqual(old["jobChange"], -0.7)
+        self.assertEqual(old["jobsAffected"], 0.7)
+        self.assertAlmostEqual(old["usAiGrowth"], 0.05 - GROWTH_BASELINE["us"])
+        self.assertAlmostEqual(old["foreignAiGrowth"], 0.05 - GROWTH_BASELINE["foreign"])
+        explicit = scenario_request({"inputs": {"reemployment": 0, "jobSearch": 0.6}})["inputs"]
+        self.assertEqual(explicit["jobSearch"], 0.6)
 
     def test_invalid_values_are_rejected(self):
         invalid = [
@@ -30,13 +72,16 @@ class RequestValidation(unittest.TestCase):
             {"statusQuoUnavailable": None},
             {"inputs": []},
             {"inputs": {"unknown": 1}},
-            {"inputs": {"displacement": True}},
-            {"inputs": {"displacement": float("nan")}},
-            {"inputs": {"displacement": float("inf")}},
+            {"inputs": {"jobsAffected": True}},
+            {"inputs": {"jobsAffected": float("nan")}},
+            {"inputs": {"jobsAffected": float("inf")}},
+            {"inputs": {"jobChange": True}},
+            {"inputs": {"jobSearch": float("nan")}},
+            {"inputs": {"reemployment": True}},
             {"id": True},
             {"id": 2**53},
             {"id": 1.5},
-            {"inputs": {"usGdpGrowth": 10**400}},
+            {"inputs": {"usAiGrowth": 10**400}},
         ]
         for value in invalid:
             with self.subTest(value=value), self.assertRaises(ValueError):
@@ -70,7 +115,7 @@ class RequestValidation(unittest.TestCase):
             scenario_key({"mode": "us-only", "foreignObjective": "output"}),
         )
         self.assertEqual(
-            scenario_key({"inputs": {"displacement": 1}}), scenario_key({"inputs": {"displacement": 1.0}})
+            scenario_key({"inputs": {"jobsAffected": 1}}), scenario_key({"inputs": {"jobsAffected": 1.0}})
         )
         self.assertEqual(len({scenario_key(value) for _, value in common_scenarios()}), 32)
 
