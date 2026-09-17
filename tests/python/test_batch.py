@@ -89,8 +89,12 @@ class BatchTests(unittest.TestCase):
                         max_score_error = max(
                             max_score_error, abs(profile["foreignScore"] - expected["foreignScore"])
                         )
-        self.assertLess(max_utility_error, UTILITY_RECHECK_GUARD / 1000)
-        self.assertLess(max_score_error, UTILITY_RECHECK_GUARD / 1000)
+        # NumPy and scalar libm rounding differ across supported platforms.
+        # Keep raw errors at least 100 times below the scalar-recheck guard;
+        # the separate certification tests still require exactly equal ballots.
+        raw_error_limit = UTILITY_RECHECK_GUARD / 100
+        self.assertLess(max_utility_error, raw_error_limit)
+        self.assertLess(max_score_error, raw_error_limit)
 
     def test_certified_full_domestic_ballot_exactly_matches_scalar(self):
         inputs = normalize_inputs(
