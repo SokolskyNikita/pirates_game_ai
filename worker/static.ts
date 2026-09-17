@@ -1,5 +1,5 @@
 /** Canonical redirects and static assets only. No calculation endpoint. */
-interface Env { ASSETS: { fetch(request: Request): Promise<Response> } }
+/// <reference path="./environment.d.ts" />
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);

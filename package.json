@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "astro dev --host 127.0.0.1",
     "build": "npm run precompute && astro build",
-    "check": "astro check && node scripts/python-tool.mjs ruff check calculator worker/entry.py scripts/build-precomputed.py scripts/stage-worker.py scripts/check-api.py tests/python scripts/precompute-local.py scripts/static_grid.py scripts/build-static-library.py",
+    "check": "astro check && node scripts/python-tool.mjs ruff check calculator worker/entry.py scripts/build-precomputed.py scripts/stage-worker.py scripts/check-api.py tests/python scripts/precompute-local.py scripts/static_grid.py scripts/build-static-library.py && tsc --ignoreConfig --noEmit --skipLibCheck --lib ES2022 --module ESNext --moduleResolution bundler worker/static.ts worker/environment.d.ts",
     "test": "npm run test:python && npm run test:ui",
     "test:python": "node scripts/python-tool.mjs python -m unittest discover -s tests/python -v",
     "test:ui": "vitest run src/lib/api src/lib/presentation",
