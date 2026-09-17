@@ -9,7 +9,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from .ballot import NoFundedPoliciesError, tally_package_ballot
+from .ballot import NoFundedPoliciesError
+from .strategic_ballot import strategic_package_ballot
 
 Policy = dict[str, Any]
 
@@ -78,7 +79,24 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
                 }
 
         try:
-            ballot = tally_package_ballot(candidates(), model["weights"], current_id, status_quo_unavailable)
+
+            def exact_candidate(policy_id):
+                nonlocal evaluations
+                profile = model["evaluateLight"](policies[policy_id], foreign)
+                evaluations += 1
+                return {
+                    "id": policy_id,
+                    "utilities": profile["usUtilities"],
+                    "fullyFunded": profile["usAdmissible"],
+                }
+
+            ballot = strategic_package_ballot(
+                candidates(),
+                model["weights"],
+                current_id,
+                status_quo_unavailable,
+                exact_candidate=exact_candidate if model.get("evaluateLightBatch") else None,
+            )
         except NoFundedPoliciesError:
             ineligible_ballots.add(key)
             search["ineligibleBallots"] += 1
@@ -91,8 +109,8 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
     if model["mode"] == "us-only":
         ballot = ballot_at()
         search["reason"] = (
-            "Every full US package was evaluated. Each citizen casts one vote for their personal "
-            "favorite funded package; "
+            "Every full US package was evaluated. Voters can consolidate behind a funded compromise they strictly prefer "
+            "to the anticipated outcome under the disclosed coalition protocol; "
             + (
                 "the largest vote share wins, with no majority threshold or status-quo fallback. "
                 "The exact current-policy package is excluded from US voting."
@@ -100,10 +118,14 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
                 else "a strict majority is required to change current policy."
             )
         )
+        if not ballot["coordination"]["stable"]:
+            search["reason"] += (
+                " The fixed resolution rule selects the most-supported passing package among recorded ballots, with canonical tie-breaking."
+            )
         return {
             "usPolicy": policies[ballot["enactedPolicyId"]],
             "ballot": ballot,
-            "selection": "domestic-ballot",
+            "selection": "domestic-ballot" if ballot["coordination"]["stable"] else "selected-by-rule",
             "evaluations": evaluations,
             "search": search,
         }
@@ -178,8 +200,7 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
         raise ValueError("Search rounds must be a positive integer.")
 
     consistent: dict[str, dict[str, Any]] = {}
-    diagnostic: dict[str, Any] | None = None
-    no_funded_response = False
+    examined: list[dict[str, Any]] = []
     for seed in seeds:
         search["startsTried"] += 1
         foreign = foreign_policies[seed["id"]]
@@ -206,18 +227,22 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
             foreign_score = profile.get("foreignScore")
             gain = (
                 max(0, best["score"] - foreign_score)
-                if best.get("policy") and foreign_score is not None and math.isfinite(foreign_score)
+                if best.get("policy")
+                and profile.get("foreignAdmissible")
+                and foreign_score is not None
+                and math.isfinite(foreign_score)
                 else math.inf
             )
             pair = {"usPolicy": us, "foreignPolicy": foreign, "ballot": ballot, "best": best, "gain": gain}
-            if diagnostic is None:
-                diagnostic = pair
+            examined.append(pair)
             if not best.get("policy"):
-                no_funded_response = True
                 stopped = True
                 break
-            if profile.get("foreignAdmissible") and gain == 0:
+            if profile.get("foreignAdmissible") and gain == 0 and ballot["coordination"]["stable"]:
                 consistent[us["id"] + "::" + foreign["id"]] = pair
+                stopped = True
+                break
+            if gain == 0 and not ballot["coordination"]["stable"]:
                 stopped = True
                 break
             foreign = best["policy"]
@@ -225,31 +250,43 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
             search["exhaustedStarts"] += 1
 
     search["consistentPairsFound"] = len(consistent)
-    selected = next(iter(consistent.values()), diagnostic)
+    if consistent:
+        selected = next(iter(consistent.values()))
+    else:
+        # Explicit bounded-selection convention for response cycles: among
+        # funded foreign choices examined, minimize its remaining improvement,
+        # then prefer greater US support and canonical policy IDs.
+        funded_pairs = [pair for pair in examined if pair["gain"] < math.inf]
+        selected = min(
+            funded_pairs,
+            key=lambda pair: (
+                pair["gain"],
+                -pair["ballot"]["topSupportPercent"],
+                pair["usPolicy"]["id"],
+                pair["foreignPolicy"]["id"],
+            ),
+            default=None,
+        )
     if selected is None:
         raise NoFundedPoliciesError(
-            "No fully funded US package was available at any foreign choice reached by the search. "
+            "No eligible policy pair was reached within this custom search. "
             "No plurality outcome could be calculated; change the assumptions or allow the "
             "status-quo fallback. The bounded search does not prove no funded pair exists."
         )
-    selection = "verified-consistent" if consistent else "search-incomplete"
+    selection = "verified-consistent" if consistent else "selected-by-rule"
     if consistent:
         count = len(consistent)
         search["reason"] = (
             f"Verified {count} mutually consistent policy pair{'s' if count != 1 else ''} "
             f"from {search['startsTried']} starting choices. The displayed pair passes a complete US ballot "
-            "and a complete funded foreign best-response check. Other consistent pairs may exist."
+            "and a complete funded foreign best-response check, with no further profitable coalition switch under the disclosed US protocol. Other outcomes may exist."
         )
     else:
-        funding_note = (
-            "; at least one enacted US policy had no fully funded foreign response"
-            if no_funded_response
-            else ""
-        )
         search["reason"] = (
-            f"The bounded search did not verify mutually consistent choices{funding_note}. "
-            "The displayed ballot is conditional on the displayed foreign policy, not an equilibrium. "
-            "This does not prove that no consistent pair exists."
+            "The fixed international resolution rule selects the examined funded foreign choice "
+            "with the smallest remaining improvement from switching, then the greatest US ballot "
+            "support, then canonical policy IDs. US compromises use the declared coalition rule. "
+            "This is a rule-selected outcome, not a claim that neither side could profitably deviate."
         )
     if search["ineligibleBallots"]:
         search["reason"] += (

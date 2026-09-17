@@ -188,8 +188,13 @@ MODEL_NOTES = [
     },
     {
         "title": "One vote on a complete package",
-        "detail": "Each citizen chooses the fully funded package that maximizes their own expected "
-        "household-resource utility. The package with the largest support wins only if it receives "
+        "detail": "Voters initially favor their highest-utility funded package, then may coordinate "
+        "on an enactable compromise they strictly prefer to the anticipated outcome. Nonmembers "
+        "keep their intended votes. Funded challengers are checked in fixed policy-ID order until "
+        "no profitable single-package coalition switch remains, a cycle repeats, or 64 switches "
+        "are reached. A fixed rule resolves cycles or limits by selecting the most-supported "
+        "passing package among recorded ballots, with canonical tie-breaking. This is a specified "
+        "coordination protocol, not a proof of a unique Nash or strong equilibrium. The package with the largest support wins only if it receives "
         "strictly more than half of adult-citizen population weight; otherwise current US policy "
         "continues. If the status-quo fallback is disabled, the funded alternative package with the "
         "most votes wins at any vote share, and the exact current-policy package is excluded from "

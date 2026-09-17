@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 from static_grid import CHOICES, lookup_key, requests  # noqa: E402
 
-from calculator.artifacts import scenario_key  # noqa: E402
+from calculator.artifacts import model_fingerprint, scenario_key  # noqa: E402
 from calculator.model import evaluate_profile  # noqa: E402
 from calculator.policies import current_policy  # noqa: E402
 
@@ -72,3 +72,30 @@ class StaticLibraryTests(unittest.TestCase):
             self.assertEqual(result["schema"], 2)
             self.assertEqual(scenario_key(result["snapshot"]), scenario_key(request))
             self.assertEqual(len(result["snapshot"]["selected"]["us"]), 11)
+
+    def test_every_supported_scenario_has_a_valid_selected_outcome(self):
+        import gzip
+        import json
+        library = json.loads(gzip.decompress((ROOT / "src/generated/results.json.gz").read_bytes()))
+        fingerprint = model_fingerprint(ROOT)
+        for result in library.values():
+            self.assertEqual(result["fingerprint"], fingerprint)
+            snapshot = result["snapshot"]
+            ballot = snapshot["ballot"]
+            selected = snapshot["selected"]
+            self.assertIn(snapshot["selection"], {"domestic-ballot", "verified-consistent", "selected-by-rule"})
+            self.assertEqual(selected["usPolicy"]["id"], ballot["enactedPolicyId"])
+            self.assertNotIn("history", ballot["coordination"])
+            self.assertGreaterEqual(ballot["topSupportPercent"], 0)
+            self.assertLessEqual(ballot["topSupportPercent"], 100)
+            if ballot["winnerId"]:
+                self.assertTrue(selected["usAdmissible"])
+                if not snapshot["statusQuoUnavailable"]:
+                    self.assertGreater(ballot["topSupportPercent"], 50)
+            else:
+                self.assertFalse(snapshot["statusQuoUnavailable"])
+                self.assertEqual(selected["usPolicy"]["id"], current_policy()["id"])
+            if snapshot["mode"] == "strategic":
+                self.assertTrue(selected["foreignAdmissible"])
+            if not ballot["coordination"]["stable"]:
+                self.assertEqual(snapshot["selection"], "selected-by-rule")

@@ -26,10 +26,8 @@ export class ResultsView {
     const p = active.usPolicy;
     const end = last(active);
     const ballot = current.ballot;
-    const verified = current.selection !== 'search-incomplete';
-    el('result-label').textContent = verified
-      ? 'The simulated one-ballot outcome'
-      : 'Unverified international outcome';
+    const coordinated = ballot.coordination.stable;
+    el('result-label').textContent = 'The simulated one-ballot outcome';
     el('solve-status').textContent = ballot.eligibleCandidateCount.toLocaleString() + ' funded packages';
     const passed = ballot.winnerId !== null;
     const plurality = current.statusQuoUnavailable;
@@ -54,16 +52,23 @@ export class ResultsView {
             ? 'It passes the required majority.'
             : 'It needs more than 50% to pass; there is no second vote.')
       : 'No available package can fund every promise in every year under these assumptions.';
+    el('coordination-summary').textContent = coordinated
+      ? (ballot.coordination.steps
+          ? voteShare(ballot.coordination.strategicVoterPercent) + ' of voters choose a different package from their first choice. ' +
+            (ballot.coordination.changedOutcome ? 'Compromise changes the outcome. ' : 'Compromise leaves the enacted outcome unchanged. ')
+          : 'No winning compromise improves on the initial outcome for its supporters. ') +
+        'No further profitable coalition switch to a funded package was found under the stated coordination rule. There is one final ballot.'
+      : 'The coordination rule selects the most-supported passing package among the ballots considered, with fixed tie-breaking. This resolves competing coalitions; it does not imply that no voter could prefer a different agreement.';
     el('ballot-leading').hidden = passed || !current.leading;
     el('ballot-leading').textContent =
       current.leading && !passed
         ? 'Leading package: ' + policyDescription(current.leading.usPolicy, current.mode === 'strategic')
         : '';
     el('decision-votes-note').textContent =
-      (verified ? '' : 'The two sides’ choices are not yet verified as mutually consistent. ') +
+      (current.selection === 'selected-by-rule' ? 'The fixed resolution rule selects this outcome. ' : '') +
       'These terms belong to ' +
-      (passed ? 'the winning package' : 'the current-policy fallback') +
-      ' and remain in place for ten years. Each voter chooses one fully funded package that maximizes their own expected income utility. Everyone knows the voting rule before making their choice.';
+      (passed ? 'the selected winning package' : 'the current-policy fallback') +
+      ' and remain in place for ten years. Voters may support a funded compromise to achieve a better outcome for themselves than insisting on their first choice. Everyone knows the voting rule before making their choice.';
     el('policy-decisions').setAttribute(
       'aria-label',
       current.mode === 'strategic' ? 'Seven terms of the enacted US policy' : 'Six terms of the enacted US policy',
@@ -106,7 +111,7 @@ export class ResultsView {
   private renderVotingDetails() {
     const current = this.snapshot;
     el('selection-explanation').textContent =
-      'There is one vote over complete packages. Each citizen chooses the fully funded package giving their household the highest ten-year income utility, taking the voting rule and the foreign choice as known. ' +
+      'There is one vote over complete packages. Initial intentions favor each citizen’s highest-utility funded package. Before the single ballot, voters who strictly prefer an enactable challenger to the anticipated outcome can consolidate their votes behind it; everyone else keeps their intended vote. ' +
       (current.statusQuoUnavailable
         ? 'The exact current-policy package is excluded. The remaining fully funded package with the most population-weighted votes wins at any vote share. There is no current-policy fallback.'
         : 'A package passes only with more than 50% of the population-weighted vote. Otherwise the exact current-tax, current-benefit policy with current AI pace remains.');
@@ -114,9 +119,9 @@ export class ResultsView {
       (current.statusQuoUnavailable
         ? 'Exact personal utility ties use a fixed policy-ID ordering. If packages tie for the most votes, the same ordering selects the winner. '
         : 'Exact personal utility ties prefer current policy when eligible, then the first package in a fixed policy-ID ordering. ') +
-      'This specifies how people cast their votes; perfect rationality alone does not select a unique strategic-voting equilibrium. ' +
+      'Compromise proposals use fixed policy-ID priority. The search stops when no profitable single-package coalition switch remains; a repeated ballot or 64 switches invokes the fixed resolution rule, selecting the most-supported passing package recorded, then canonical tie-breaking. This protocol does not search all possible coordinated deviations, deliberate vote-splitting to trigger fallback, or alternative agendas. Perfect rationality alone does not select a unique equilibrium. ' +
       (current.mode === 'strategic'
-        ? 'The search checks whether the foreign actor’s best choice and the US ballot outcome are mutually consistent. ' +
+        ? 'The foreign actor anticipates US compromise voting. Mutually consistent choices are preferred; otherwise the fixed international resolution rule selects a pair. ' +
           current.search.reason +
           ' '
         : '') +
@@ -154,13 +159,11 @@ export class ResultsView {
         : 'Each policy stays in place for ten years. If both independently choose to pause, both pauses last the decade. ') +
       'Trade stays open only when both independently allow it. A domestic AI pause can still leave workers exposed to foreign competition. The foreign actor uses the US household distribution and behavioral rules as a modeling assumption, with separate economic size, trade exposure and frontier capability.';
     const verified = current.selection === 'verified-consistent';
-    el('deviation').classList.toggle('unstable', !verified);
+    el('deviation').classList.remove('unstable');
     this.renderTrade();
     el('deviation').textContent = verified
-      ? 'The choices are mutually consistent: this foreign package maximizes its objective among fully funded options given the enacted US package, and the US ballot gives the displayed result given this foreign package.'
-      : 'These choices are unverified. ' +
-        current.search.reason +
-        ' A consistent pair may exist outside the search; this result is not a verified equilibrium.';
+      ? 'The choices are mutually consistent under the stated US coordination rule: this foreign package maximizes its objective among fully funded options given the enacted US package, and the US ballot gives the displayed result given this foreign package.'
+      : current.search.reason;
   }
   private renderTrade() {
     const active = this.snapshot.selected;

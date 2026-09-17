@@ -40,6 +40,7 @@ def pack(artifact):
     selected["us"] = [display_year(year) for year in source["us"]]
     if source.get("foreignPolicy"):
         selected["foreignPolicy"] = source["foreignPolicy"]
+        selected["foreignAdmissible"] = source["foreignAdmissible"]
         # Foreign UI only displays year ten.
         selected["foreign"] = [display_year(source["foreign"][-1])]
     snapshot["selected"] = selected
@@ -47,6 +48,8 @@ def pack(artifact):
         snapshot["leading"] = {"usPolicy": original["leading"]["usPolicy"]}
     snapshot["ballot"] = {k: v for k, v in original["ballot"].items()
                           if k not in {"tallies", "voterChoices"}}
+    if "coordination" in snapshot["ballot"]:
+        snapshot["ballot"]["coordination"] = {k: v for k, v in snapshot["ballot"]["coordination"].items() if k != "history"}
     return {"schema": 2, "fingerprint": artifact["fingerprint"], "snapshot": snapshot}
 
 

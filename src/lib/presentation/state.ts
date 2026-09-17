@@ -101,7 +101,7 @@ export function scenarioURL(state: ScenarioState, href = location.href): URL {
   const url = new URL(href);
   url.search = '';
   url.hash = 'simulator';
-  url.searchParams.set('v', '15');
+  url.searchParams.set('v', '16');
   url.searchParams.set('world', state.mode);
   url.searchParams.set('pauseUnavailable', state.pauseUnavailable ? '1' : '0');
   url.searchParams.set('statusQuoUnavailable', state.statusQuoUnavailable ? '1' : '0');

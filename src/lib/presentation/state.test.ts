@@ -8,7 +8,7 @@ describe('finite static scenario grid', () => {
     for (const spec of INPUT_SPECS) for (const value of STATIC_CHOICES[spec.key]) {
       const state = { ...defaultState(), inputs: normalizeInputConstraints({ ...DEFAULT_INPUTS, [spec.key]: value }) };
       const url = scenarioURL(state, 'https://ai-pirates-game.com/');
-      expect(url.searchParams.get('v')).toBe('15');
+      expect(url.searchParams.get('v')).toBe('16');
       expect(readScenarioURL(url.search)).toEqual(state);
       expect(unsupportedURLValues(url.search)).toBe(false);
     }

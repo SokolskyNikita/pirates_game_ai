@@ -107,7 +107,7 @@ el('share').addEventListener('click', async () => {
 el('download').addEventListener('click', () => {
   if (pending || !snapshot) return;
   const payload = {
-    model: 'pirates-single-ballot-v13',
+    model: 'pirates-strategic-coalitions-v16',
     interpretation: 'Finite policy model with illustrative economic responses; not a forecast.',
     scenario: {
       inputs: snapshot.inputs,

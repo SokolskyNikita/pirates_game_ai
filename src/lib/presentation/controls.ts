@@ -105,7 +105,7 @@ export class ScenarioControls {
       ? 'One vote. The most votes wins.'
       : 'One vote. More than 50% to pass.';
     el('electorate-description').textContent =
-      'Every adult US citizen casts one vote for their preferred complete funded package. ' +
+      'Every adult US citizen casts one vote. Voters can back a funded compromise instead of their first choice to secure a better outcome. ' +
       (this.state.statusQuoUnavailable
         ? 'The current-policy package is excluded. The alternative with the most votes passes at any share, and all players know this rule.'
         : 'More than 50% must choose the same package for it to pass; otherwise current policy remains.');

@@ -94,6 +94,17 @@ export interface PackageBallotTally {
 
 export interface PackageBallotResult {
   votingRule: 'majority' | 'plurality';
+  coordination: {
+    method: 'strictly-improving-coalitions';
+    stable: boolean;
+    reason: 'stable' | 'cycle' | 'step-limit';
+    steps: number;
+    resolution: 'coalition-stable' | 'most-supported-recorded-ballot';
+    sincereEnactedPolicyId: string;
+    sincereTopSupportPercent: number;
+    changedOutcome: boolean;
+    strategicVoterPercent: number;
+  };
   /** Eligible packages only, sorted by ID, including those receiving zero votes. */
   /** Canonical ID breaks an exact tie for this descriptive leading position. */
   leadingPolicyId: string | null;
@@ -144,7 +155,7 @@ export interface ScenarioSnapshot {
   selected: ProfileOutcome;
   leading?: { usPolicy: Policy };
   ballot: PackageBallotResult;
-  selection: 'domestic-ballot' | 'verified-consistent' | 'search-incomplete';
+  selection: 'domestic-ballot' | 'verified-consistent' | 'selected-by-rule';
   policyCount: number;
   foreignPolicyCount: number;
   evaluations: number;

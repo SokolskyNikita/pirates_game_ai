@@ -10,12 +10,12 @@ import math
 import unittest
 from pathlib import Path
 
-from calculator.ballot import tally_package_ballot
 from calculator.config import DEFAULT_INPUTS
 from calculator.model import evaluate_profile, solve_model
 from calculator.policies import POLICIES, current_policy, policies_for_mode
 from calculator.population import CALIBRATION
 from calculator.simulation import solve_scenario
+from calculator.strategic_ballot import strategic_package_ballot
 
 ORACLE = json.loads((Path(__file__).parents[1] / "fixtures/typescript-parity.json").read_text())
 
@@ -78,7 +78,7 @@ class MigrationParity(unittest.TestCase):
                 model = solve_model(request["inputs"], {"mode": "us-only", "objective": "workers"})
                 menu = policies_for_mode("us-only", request.get("pauseUnavailable", False))
                 profiles = [model["evaluateLight"](policy) for policy in menu]
-                expected = tally_package_ballot(
+                expected = strategic_package_ballot(
                     [
                         {
                             "id": p["usPolicy"]["id"],

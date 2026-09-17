@@ -17,7 +17,7 @@ The static edition covers **all 768 valid selectable scenarios**. It does not ca
 
 All other economic parameters remain at their disclosed references, including a 5-point foreign growth increment, 35% investment response and 50% capital mobility. The interface shows these as fixed assumptions. There are 48 valid economic input combinations × four mode/objective combinations × four checkbox combinations. Invalid job-count/affected-share pairs are never generated or offered.
 
-Each scenario evaluates the unchanged full policy menu: 6,480 domestic packages or 12,960 international packages when pausing is available. The foreign actor's choice remains independent. Precomputation does not turn an incomplete bounded equilibrium search into a verified outcome; search diagnostics are preserved.
+Each scenario evaluates the unchanged full policy menu: 6,480 domestic packages or 12,960 international packages when pausing is available. The foreign actor's choice remains independent. Every supported scenario returns a selected outcome. Stable coalitions and mutually consistent international choices are preferred; fixed selection rules resolve cycling or limited searches. The method is disclosed rather than claiming all selected outcomes are unique equilibria.
 
 The page retains the enacted US and foreign policy decisions, the US income chart and its accessible table, year-ten summaries, the leading package’s vote share, funding warnings and search limitations. Alternative comparisons, detailed labor and trade tables, and the accounting table are removed. Full-precision calculation records remain local.
 
@@ -36,11 +36,11 @@ Results checkpoint atomically in `.precompute/<model-fingerprint>/`. Interrupted
 
 On the user's 14-core, 48-GB M4 Pro, generating the 768-case manifest with 12 processes took **401.8 seconds** (6 minutes 42 seconds), including compression. Sixteen previously calculated common cases were reused. The 752 new cases all ran locally.
 
-A fresh run of all 768 scenarios on September 16 took **406.4 seconds** using 12 processes, with no reused checkpoints.
+The strategic-compromise recalculation of all 768 scenarios on September 16 took **430.0 seconds** using 12 processes, with no reused checkpoints. All 768 return an outcome: 486 satisfy the stated coalition-stability checks (374 international and 112 domestic), and 282 use the declared cycle-resolution rule. Every ballot winner and every selected foreign package passes the funding checks.
 
 ## Size and delivery
 
-The complete presentation library is **324,912 bytes gzip** for all 768 scenarios, below the enforced **3,500,000-byte** limit. The earlier 212.8 MB export included alternative trajectories, cohort arrays and ballot tallies that the compact interface no longer needs.
+The complete presentation library is **368,116 bytes gzip** for all 768 scenarios, below the enforced **3,500,000-byte** limit. The earlier 212.8 MB export included alternative trajectories, cohort arrays and ballot tallies that the compact interface no longer needs.
 
 `src/generated/results.json.gz` is the committed, reproducible source. The build validates coverage and the model fingerprint, then embeds every result in the page. Controls perform local lookups, without scenario downloads or a calculation backend. The old per-scenario public assets are removed.
 

@@ -30,7 +30,7 @@ The full suite also checks scalar/batch ballot agreement, resource conservation,
 
 ## What the result means
 
-- This is one **sincere favorite-package ballot**. Perfect information and self-interest do not by themselves imply sincere voting in a strategic plurality election. Tactical voting, coalitions and agenda setting are outside this model.
+- The initial intentions use a **sincere favorite-package ballot**. Perfect information and self-interest do not by themselves imply sincere voting in a strategic plurality election. This historical limitation is superseded by the strategic coalition protocol described in README.md: funded compromises are checked before the final vote, with deterministic resolution of cycles/limits. Other strategic deviations and alternative agendas remain outside that protocol.
 - Every package in the declared finite menu is evaluated for a domestic ballot. The menu is not every possible continuous policy. International search tries bounded best-response paths; a verified pair passes the complete menus, but an incomplete search does not prove that no equilibrium exists. Multiple consistent pairs need not have a unique prediction.
 - Only fully funded packages can receive votes. The separate, user-requested majority fallback can retain current policy even when it becomes underfunded; the result reports its funding gap. Removing that fallback instead requires an eligible plurality winner.
 - Citizen weights come from the survey calibration. Labor outcomes and wage contracts are aggregated; they are not individual employment histories. The workforce is fixed, search behavior and economic responses are assumptions, and foreign households reuse the US cohort structure. Results are conditional simulations rather than forecasts.
