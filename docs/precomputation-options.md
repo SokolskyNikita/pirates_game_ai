@@ -53,8 +53,8 @@ npm run precompute:import -- --source .precompute-refresh
 npm run build
 ```
 
-Cloudflare serves the static page and canonical redirects. No Python Worker or calculation endpoint is deployed. Old links are snapped to supported choices with a visible notice; no interpolation is performed.
+Cloudflare serves the static page and canonical redirects. No Python Worker or calculation endpoint is deployed. Scenario URL parameters are ignored and the browser address is not rewritten. No interpolation is performed.
 
 Pause AI packages fix employer retention to None (0%). This restriction applies independently to both countries, including when open trade permits foreign competition. Other AI paces retain all wage-retention options.
 
-The public status-quo-exclusion control was removed on September 17. The 384 majority-rule results were repackaged from the validated calculation records above; no economic recalculation was needed. Legacy plurality links now select majority voting and display a migration notice.
+The public status-quo-exclusion control was removed on September 17. The 384 majority-rule results were repackaged from the validated calculation records above; no economic recalculation was needed. Scenario-link support has also been removed; a new page load starts with defaults.

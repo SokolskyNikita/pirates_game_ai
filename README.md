@@ -68,7 +68,7 @@ Employer retention is paid from capital resources and creates no extra productio
 
 ## Voting and international competition
 
-Every citizen begins with the fully funded package giving their household the greatest ten-year expected utility, but can support a strategically preferable compromise through the coordination protocol below. By default, the package with the most votes passes only if **more than half** the population chooses it; otherwise the exact current-tax/current-benefit package with current AI pace remains. The public simulator always uses this majority rule. Legacy links selecting plurality are migrated to majority voting with a visible notice. There is one vote, with no runoff. Utility uses a 3% discount rate, a logarithm and a small offset at zero income. Displacement risk is equal across labor-income groups. The model computes expected utility across work/no-work states, not utility of average income.
+Every citizen begins with the fully funded package giving their household the greatest ten-year expected utility, but can support a strategically preferable compromise through the coordination protocol below. By default, the package with the most votes passes only if **more than half** the population chooses it; otherwise the exact current-tax/current-benefit package with current AI pace remains. The public simulator always uses this majority rule. The page starts with default assumptions; controls keep their state in memory without reading or updating scenario URLs. There is one vote, with no runoff. Utility uses a 3% discount rate, a logarithm and a small offset at zero income. Displacement risk is equal across labor-income groups. The model computes expected utility across work/no-work states, not utility of average income.
 
 Exact personal-utility ties prefer current policy when eligible, then a fixed policy-ID order. The Python research API retains a separately tested plurality rule, but it is not offered by the public site. Initial intentions are sincere. `strategic_ballot.py` then checks funded challengers in fixed policy-ID order: every citizen strictly preferring an enactable challenger to the anticipated outcome can switch, while nonmembers keep their intentions. Only one final ballot is cast. A repeated ballot or 64 switches invokes a fixed rule selecting the most-supported recorded passing package, with canonical tie-breaking. The result identifies whether it was coalition-stable or selected by this rule. This explicit single-package coalition protocol does not exhaust all strategic deviations or determine a unique Nash equilibrium. Deliberately splitting votes to trigger fallback is outside the protocol.
 
@@ -124,13 +124,13 @@ Annual results report job availability and worker outcomes alongside consumer pr
 
 All 384 valid combinations in the reduced grid are saved. US AI growth offers 0 or 5 additional points, employer gain 0 or 40%, net jobs −100%, −90%, 0% or +100%, affected roles 0 or 100%, and search participation 0 or 85%. The job constraint removes invalid combinations. The pause setting remains selectable; international mode retains all three foreign objectives. Advanced assumptions remain at their disclosed defaults.
 
-Every scenario still evaluates the full policy ballot. The compact interface shows enacted policies, the main income chart and outcome summaries; detailed alternative comparisons are retained only in local calculation records. Old off-grid links move to supported choices with a visible notice. There is no interpolation or calculation fallback.
+Every scenario still evaluates the full policy ballot. The compact interface shows enacted policies, the main income chart and outcome summaries; detailed alternative comparisons are retained only in local calculation records. Scenario URL parameters are ignored; controls do not update the address bar. There is no interpolation or calculation fallback.
 
 See [coverage, timings and regeneration](docs/precomputation-options.md).
 
 ## Architecture
 
-All economic calculations, utility comparisons, ballots, international responses and manual policy comparisons live in `calculator/`. Astro creates the page markup. Browser TypeScript handles controls, links, formatting, charts and embedded-data lookup; it contains no second implementation of the calculator.
+All economic calculations, utility comparisons, ballots, international responses and manual policy comparisons live in `calculator/`. Astro creates the page markup. Browser TypeScript handles controls, formatting, charts and embedded-data lookup; it contains no second implementation of the calculator.
 
 | Area | Files and responsibility |
 | --- | --- |

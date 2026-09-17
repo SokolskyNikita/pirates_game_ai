@@ -33,11 +33,6 @@ export class ScenarioControls {
     this.bindEvents();
     this.syncInputs();
   }
-  replaceState(next: ScenarioState) {
-    Object.assign(this.state, next);
-    this.clearPreset();
-    this.syncInputs();
-  }
   private buildInputs() {
     for (const spec of visibleInputSpecs) {
       if (STATIC_CHOICES[spec.key].length === 1) {

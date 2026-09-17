@@ -7,20 +7,16 @@ import { el } from '../../lib/presentation/dom';
 import { renderChart } from '../../lib/presentation/charts';
 import { renderMethod, renderPopulation } from '../../lib/presentation/population';
 import { ResultsView } from '../../lib/presentation/results';
-import { readScenarioURL, scenarioRequest, scenarioURL, unsupportedURLValues } from '../../lib/presentation/state';
+import { defaultState, scenarioRequest } from '../../lib/presentation/state';
 
-const state = readScenarioURL(location.search);
-el('grid-link-notice').hidden = !unsupportedURLValues(location.search);
-if (new URLSearchParams(location.search).get('statusQuoUnavailable') === '1') {
-  el('grid-link-notice').textContent = 'This older link used a voting option that has been removed. The simulator now requires a majority, with current policy as the fallback. The controls show the supported assumptions being used.';
-}
+const state = defaultState();
 const view = new ResultsView();
 let snapshot: ScenarioSnapshot | undefined;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let calculation: AbortController | undefined;
 let revision = 0;
 let pending = true;
-const controls = new ScenarioControls(state, scheduleSolve);
+new ScenarioControls(state, scheduleSolve);
 renderPopulation();
 renderMethod();
 
@@ -29,8 +25,7 @@ function setBusy(busy: boolean) {
   el('computation-message').classList.remove('error');
   el('results').setAttribute('aria-busy', String(busy));
   el('results').classList.toggle('is-stale', busy && Boolean(snapshot));
-  for (const id of ['download', 'share'])
-    el<HTMLButtonElement>(id).disabled = busy || !snapshot;
+  el<HTMLButtonElement>('download').disabled = busy || !snapshot;
 }
 
 function failCalculation(error: unknown, displayFailure = false) {
@@ -41,7 +36,7 @@ function failCalculation(error: unknown, displayFailure = false) {
     snapshot = undefined;
     el('results').hidden = true;
     el('computation-message').textContent = error.message;
-    for (const id of ['download', 'share']) el<HTMLButtonElement>(id).disabled = true;
+    el<HTMLButtonElement>('download').disabled = true;
     return;
   }
   el('results').classList.add('is-stale');
@@ -51,7 +46,7 @@ function failCalculation(error: unknown, displayFailure = false) {
     : snapshot
       ? 'The saved result could not be loaded. The result below uses the previous assumptions. Change an input or Reset to try again.'
       : 'The saved result is unavailable. Check your connection, then reload the page or Reset to try again.';
-  for (const id of ['download', 'share']) el<HTMLButtonElement>(id).disabled = true;
+  el<HTMLButtonElement>('download').disabled = true;
   console.error(error);
 }
 
@@ -84,9 +79,6 @@ async function run(id: number) {
         response.source === 'precomputed'
           ? 'Precomputed for these exact assumptions.'
           : 'Calculated by the Python model for these assumptions.';
-      const url = scenarioURL(state);
-      url.hash = location.hash;
-      history.replaceState(null, '', url);
     } catch (error) {
       failCalculation(error, true);
     }
@@ -98,15 +90,6 @@ async function run(id: number) {
   }
 }
 
-el('share').addEventListener('click', async () => {
-  if (pending) return;
-  try {
-    await navigator.clipboard.writeText(scenarioURL(state).href);
-    el('action-status').textContent = 'Scenario link copied, including AI pause availability and the voting rule.';
-  } catch {
-    el('action-status').textContent = 'Copy this page’s address to share the scenario.';
-  }
-});
 el('download').addEventListener('click', () => {
   if (pending || !snapshot) return;
   const payload = {
@@ -133,15 +116,6 @@ el('download').addEventListener('click', () => {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   el('action-status').textContent = 'Scenario and annual results downloaded.';
 });
-window.addEventListener('popstate', () => {
-  el('grid-link-notice').hidden = !unsupportedURLValues(location.search);
-if (new URLSearchParams(location.search).get('statusQuoUnavailable') === '1') {
-  el('grid-link-notice').textContent = 'This older link used a voting option that has been removed. The simulator now requires a majority, with current policy as the fallback. The controls show the supported assumptions being used.';
-}
-  controls.replaceState(readScenarioURL(location.search));
-  scheduleSolve();
-});
-
 let chartWidth = 0;
 let chartFrame = 0;
 new ResizeObserver((entries) => {
