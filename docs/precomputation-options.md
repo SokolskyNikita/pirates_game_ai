@@ -6,7 +6,7 @@ The static edition covers **all 384 valid selectable scenarios**. It does not ca
 
 | Control | Choices |
 | --- | --- |
-| Extra annual US growth from AI | 0 or 5 percentage points |
+| Extra annual growth from AI, both economies | 0 or 5 percentage points |
 | Employer gain from AI | 0% or 40% |
 | Net change in productive jobs | −100%, −90%, 0%, +100% |
 | Current roles eventually affected | 0% or 100%, constrained to cover job losses |
@@ -14,7 +14,7 @@ The static edition covers **all 384 valid selectable scenarios**. It does not ca
 | Mode | Domestic; international workers, prosperity or output objective |
 | Pause unavailable | Off or on |
 
-All other economic parameters remain at their disclosed references, including a 5-point foreign growth increment, 35% investment response and 50% capital mobility. The interface shows these as fixed assumptions. There are 48 valid economic input combinations × four mode/objective combinations × two pause settings. Invalid job-count/affected-share pairs are never generated or offered.
+All other economic parameters remain at their disclosed references, including 35% investment response and 50% capital mobility. The foreign AI growth increment is derived from the shared growth control, not held at a separate reference. The interface shows these as fixed assumptions. There are 48 valid economic input combinations × four mode/objective combinations × two pause settings. Invalid job-count/affected-share pairs are never generated or offered.
 
 Each scenario evaluates the full valid policy menu: 4,860 domestic packages or 9,720 international packages when pausing is available. The foreign actor's choice remains independent. Every supported scenario returns a selected outcome. Stable coalitions and mutually consistent international choices are preferred; fixed selection rules resolve cycling or limited searches. The method is disclosed rather than claiming all selected outcomes are unique equilibria.
 
@@ -39,7 +39,7 @@ The pause-retention restriction recalculation of all 768 scenarios on September 
 
 ## Size and delivery
 
-The complete presentation library is **176,107 bytes gzip** for all 384 scenarios, below the enforced **3,500,000-byte** limit. The earlier 212.8 MB export included alternative trajectories, cohort arrays and ballot tallies that the compact interface no longer needs.
+The complete presentation library is **173,321 bytes gzip** for all 384 scenarios, below the enforced **3,500,000-byte** limit. The earlier 212.8 MB export included alternative trajectories, cohort arrays and ballot tallies that the compact interface no longer needs.
 
 `src/generated/results.json.gz` is the committed, reproducible source. The build validates coverage and the model fingerprint, then embeds every result in the page. Controls perform local lookups, without scenario downloads or a calculation backend. The old per-scenario public assets are removed.
 
@@ -58,3 +58,5 @@ Cloudflare serves the static page and canonical redirects. No Python Worker or c
 Pause AI packages fix employer retention to None (0%). This restriction applies independently to both countries, including when open trade permits foreign competition. Other AI paces retain all wage-retention options.
 
 The public status-quo-exclusion control was removed on September 17. The 384 majority-rule results were repackaged from the validated calculation records above; no economic recalculation was needed. Scenario-link support has also been removed; a new page load starts with defaults.
+
+After linking the AI growth assumptions, all 384 public scenarios were recalculated with twelve processes in 181.2 seconds. Every saved result uses equal US and foreign AI growth increments.

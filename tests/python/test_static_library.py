@@ -26,6 +26,7 @@ class StaticLibraryTests(unittest.TestCase):
         self.assertEqual(len({scenario_key(r) for r in scenarios}), 384)
         for request in scenarios:
             inputs = request["inputs"]
+            self.assertEqual(inputs["foreignAiGrowth"], inputs["usAiGrowth"])
             self.assertGreaterEqual(inputs["jobsAffected"], max(0, -inputs["jobChange"]))
             for key, choices in CHOICES.items():
                 self.assertIn(inputs[key], choices)

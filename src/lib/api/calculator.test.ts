@@ -33,6 +33,12 @@ describe('embedded result delivery', () => {
     await expect(simulateScenario(request, new AbortController().signal)).rejects.toThrow('outside');
     expect(fetch).not.toHaveBeenCalled();
   });
+  it('rejects an unlinked foreign growth assumption', async () => {
+    const { staticScenarioKey } = await setup();
+    const state = defaultState();
+    state.inputs.foreignAiGrowth = 0;
+    expect(() => staticScenarioKey(state)).toThrow();
+  });
   it('honors cancellation', async () => {
     const { simulateScenario } = await setup();
     const controller = new AbortController(); controller.abort();

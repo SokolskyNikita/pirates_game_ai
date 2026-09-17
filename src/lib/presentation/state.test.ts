@@ -26,6 +26,13 @@ describe('finite static scenario grid', () => {
     state.inputs.jobSearch = 0;
     expect(request.inputs.jobSearch).toBe(.85);
   });
+  it('links the foreign AI growth increment to the US setting', () => {
+    for (const growth of [0, .05]) {
+      const state = defaultState();
+      state.inputs.usAiGrowth = growth;
+      expect(scenarioRequest(state, 1).inputs.foreignAiGrowth).toBe(growth);
+    }
+  });
   it('formats the displayed units', () => {
     expect(inputRangeValue('jobChange', -.9)).toBe(-90);
     expect(formatInput('usAiGrowth', .05)).toBe('+5 pp/year');

@@ -38,6 +38,7 @@ export function normalizeInputConstraints(inputs: ModelInputs): ModelInputs {
     result[spec.key] = choices.reduce((best, value) =>
       Math.abs(value - inputs[spec.key]) < Math.abs(best - inputs[spec.key]) ? value : best, choices[0]!);
   }
+  result.foreignAiGrowth = result.usAiGrowth;
   const allowed = STATIC_CHOICES.jobsAffected.filter(value => value >= Math.max(0, -result.jobChange));
   if (!allowed.includes(result.jobsAffected)) result.jobsAffected = allowed[0]!;
   return result;

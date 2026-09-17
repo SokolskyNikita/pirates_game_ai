@@ -18,6 +18,8 @@ export function staticScenarioKey(request: Scenario): string {
   for (const key of Object.keys(STATIC_CHOICES) as (keyof typeof STATIC_CHOICES)[])
     if (!STATIC_CHOICES[key].includes(request.inputs[key]))
       throw new CalculationError('These assumptions are outside the saved scenario grid. Reset to supported choices.', 400);
+  if (request.inputs.foreignAiGrowth !== request.inputs.usAiGrowth)
+    throw new CalculationError('Both economies must use the same AI growth increment.', 400);
   if (request.inputs.jobsAffected < Math.max(0, -request.inputs.jobChange))
     throw new CalculationError('Affected jobs must cover the job reduction.', 400);
   return [request.mode, request.mode === 'strategic' ? request.foreignObjective : '-',

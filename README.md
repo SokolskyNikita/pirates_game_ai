@@ -94,7 +94,7 @@ New layoffs add searchers according to `jobSearch`. Active searchers compete for
 
 The 85% default rounds the BLS estimate that 86.9% of all workers displaced during 2023–25 were employed or unemployed in January 2026: 67.6% employed plus 19.3% unemployed. This is a participation proxy, not a measured median or immediate willingness to search. It covers displaced workers aged 20+ across all tenures. See [BLS table 8, released August 27, 2026](https://www.bls.gov/news.release/disp.t08.htm).
 
-The GDP controls `usAiGrowth` and `foreignAiGrowth` set **AI’s addition to annual real growth at full exposure**, defaulting to 5 percentage points each. Potential output compounds by `1 + backgroundGrowth + aiGrowth × AIExposure`. Background growth is assumed to be 2% in the US and 3% abroad. A pause leaves that background growth in place. At full exposure the default US potential growth rate is therefore 7%, before policy effects. Weaker investment, work incentives and trade losses can still make realized output fall.
+The shared GDP control sets both `usAiGrowth` and `foreignAiGrowth` to the same value for every public scenario. These fields represent **AI’s addition to annual real growth at full exposure**, defaulting to 5 percentage points each. Potential output compounds by `1 + backgroundGrowth + aiGrowth × AIExposure`. Background growth is assumed to be 2% in the US and 3% abroad. A pause leaves that background growth in place. At full exposure the default US potential growth rate is therefore 7%, before policy effects. Weaker investment, work incentives and trade losses can still make realized output fall.
 
 The background rates are rounded modeling assumptions. [CBO’s February 2026 outlook](https://www.cbo.gov/publication/62050) projects 1.8% US real growth from 2027 onward and already includes a small AI productivity contribution. [The World Bank’s June 2026 outlook](https://www.worldbank.org/en/news/press-release/2026/06/11/global-economic-prospects-june-2026-press-release) projects 2.8% world growth in 2027. These forecasts inform the scale of the background assumptions; they do not identify growth in a world without AI.
 
@@ -122,7 +122,7 @@ Annual results report job availability and worker outcomes alongside consumer pr
 
 ## Complete static library
 
-All 384 valid combinations in the reduced grid are saved. US AI growth offers 0 or 5 additional points, employer gain 0 or 40%, net jobs −100%, −90%, 0% or +100%, affected roles 0 or 100%, and search participation 0 or 85%. The job constraint removes invalid combinations. The pause setting remains selectable; international mode retains all three foreign objectives. Advanced assumptions remain at their disclosed defaults.
+All 384 valid combinations in the reduced grid are saved. Shared AI growth offers 0 or 5 additional points, employer gain 0 or 40%, net jobs −100%, −90%, 0% or +100%, affected roles 0 or 100%, and search participation 0 or 85%. The job constraint removes invalid combinations. The pause setting remains selectable; international mode retains all three foreign objectives. Advanced assumptions remain at their disclosed defaults.
 
 Every scenario still evaluates the full policy ballot. The compact interface shows enacted policies, the main income chart and outcome summaries; detailed alternative comparisons are retained only in local calculation records. Scenario URL parameters are ignored; controls do not update the address bar. There is no interpolation or calculation fallback.
 
@@ -161,3 +161,5 @@ The site uses Cloudflare Workers Static Assets. The tiny `worker/static.ts` only
 HTTP and `www` requests redirect to `https://ai-pirates-game.com`, preserving paths and query strings. Scenario files are gzip-compressed JSON fetched individually and decompressed by the browser. The full library is embedded only when its measured compressed size is below 3,500,000 bytes. Otherwise the site remains static and fetches the chosen file; there is still no calculation backend.
 
 Pause AI packages fix employer retention to None (0%). This restriction applies independently to both countries, including when open trade permits foreign competition. Other AI paces retain all wage-retention options.
+
+The public grid links foreign AI growth to US AI growth rather than holding foreign growth at +5 points. Employer gain was already a common parameter in the shared production equations. Controlled pause/continue/accelerate tests check domestic adoption stays zero during a US pause while open-trade prices, jobs and incomes respond; closing trade removes these cross-border pace effects. The research Python model still accepts distinct regional growth fields for sensitivity tests.

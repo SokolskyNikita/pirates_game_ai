@@ -12,12 +12,15 @@ CHOICES.update(
     jobsAffected=[0, 1],
     jobSearch=[0, 0.85],
 )
-VARIABLE_KEYS = [key for key, values in CHOICES.items() if len(values) > 1]
+CHOICES["foreignAiGrowth"] = CHOICES["usAiGrowth"].copy()
+# The foreign growth increment is derived, not an independent assumption axis.
+VARIABLE_KEYS = [key for key, values in CHOICES.items() if len(values) > 1 and key != "foreignAiGrowth"]
 
 
 def requests():
     for values in product(*(CHOICES[key] for key in VARIABLE_KEYS)):
         inputs = {**DEFAULT_INPUTS, **dict(zip(VARIABLE_KEYS, values, strict=True))}
+        inputs["foreignAiGrowth"] = inputs["usAiGrowth"]
         if inputs["jobsAffected"] < max(0, -inputs["jobChange"]):
             continue
         for mode, objective in [

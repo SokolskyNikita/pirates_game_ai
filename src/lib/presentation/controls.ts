@@ -21,7 +21,7 @@ const foreignKeys = new Set<string>([
   'tradeElasticity',
 ]);
 const structuralKeys = new Set<string>(['investmentResponse']);
-const visibleInputSpecs = INPUT_SPECS.filter((spec) => spec.key !== 'foreignPopulationRatio');
+const visibleInputSpecs = INPUT_SPECS.filter((spec) => spec.key !== 'foreignPopulationRatio' && spec.key !== 'foreignAiGrowth');
 
 export class ScenarioControls {
   private sliderValues = new Map<keyof ModelInputs, number[]>();

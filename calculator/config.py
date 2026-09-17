@@ -39,12 +39,12 @@ DEFAULT_INPUTS = {
 INPUT_SPECS = [
     {
         "key": "usAiGrowth",
-        "label": "Extra US GDP growth from AI",
+        "label": "Extra GDP growth from AI (both economies)",
         "min": 0,
         "max": 0.2,
         "step": 0.05,
-        "description": "Additional percentage points of annual real growth at full AI exposure, above the 2% "
-        "background trend. Investment, labor-market and trade effects can still make actual "
+        "description": "The same additional annual growth applies to both economies at full AI exposure, above "
+        "their background trends (US 2%, rest of world 3%). Investment, labor-market and trade effects can still make actual "
         "output shrink.",
     },
     {
@@ -63,7 +63,7 @@ INPUT_SPECS = [
         "min": 0,
         "max": 1,
         "step": 0.05,
-        "description": "Extra employer return per automated role. At 50%, a $100,000 role yields $150,000 "
+        "description": "The same employer gain applies in both economies. Extra return per automated role: at 50%, a $100,000 role yields $150,000 "
         "from AI or $50,000 after keeping its $100,000 wage, before GDP scaling, taxes and "
         "costs.",
     },

@@ -14,6 +14,7 @@ if (Object.keys(library).length !== manifest.scenarioCount) throw new Error('Inc
 if (gzipSync(match[1], { level: 9 }).length >= 3_500_000) throw new Error('Embedded library exceeds 3.5 MB');
 for (const value of Object.values(library)) {
   if (value.fingerprint !== manifest.fingerprint || value.schema !== 2) throw new Error('Stale data');
+  if (value.snapshot.inputs.foreignAiGrowth !== value.snapshot.inputs.usAiGrowth) throw new Error('Mismatched AI growth assumptions');
   if (value.snapshot.statusQuoUnavailable) throw new Error('Removed plurality scenario remains');
   if (!value.snapshot.ballot.coordination) throw new Error('Missing strategic voting result');
   if (!['domestic-ballot', 'verified-consistent', 'selected-by-rule'].includes(value.snapshot.selection)) throw new Error('Missing selected outcome');
