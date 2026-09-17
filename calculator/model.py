@@ -35,7 +35,7 @@ def initial_point(prepared: Prepared) -> dict[str, Any]:
         {
             **BASELINE_POLICY,
             "laborTax": c["laborTaxRate"],
-            "capitalTax": c["capitalTaxRate"],
+            "aiProfitTax": 0,
         }
     )
     production = Production(

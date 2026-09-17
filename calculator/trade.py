@@ -119,19 +119,26 @@ def trade_market(
             "foreignFlow": zero,
             "residual": zero,
         }
-    q_us = xp.maximum(1e-9, _field(us, "output") - _field(us, "investment") - _field(us, "adjustment"))
+    q_us = xp.maximum(
+        1e-9,
+        _field(us, "output") - _field(us, "investment") - _field(us, "adjustment") - _field(us, "operating"),
+    )
     q_foreign = xp.maximum(
-        1e-9, _field(foreign, "output") - _field(foreign, "investment") - _field(foreign, "adjustment")
+        1e-9,
+        _field(foreign, "output")
+        - _field(foreign, "investment")
+        - _field(foreign, "adjustment")
+        - _field(foreign, "operating"),
     )
     mobile = 0.6 * inputs["capitalMobility"] * inputs["foreignStrength"]
     attract_us = (0.15 + _field(us, "adoption")) * xp.exp(
-        -4 * inputs["capitalMobility"] * _field(us, "burden")
+        -4 * inputs["capitalMobility"] * (_field(us, "burden") + us_policy["aiProfitTax"])
     )
     attract_foreign = (
         size
         * inputs["foreignStrength"]
         * (0.15 + _field(foreign, "adoption"))
-        * xp.exp(-4 * inputs["capitalMobility"] * _field(foreign, "burden"))
+        * xp.exp(-4 * inputs["capitalMobility"] * (_field(foreign, "burden") + foreign_policy["aiProfitTax"]))
     )
     attraction = attract_us / (attract_us + attract_foreign)
 

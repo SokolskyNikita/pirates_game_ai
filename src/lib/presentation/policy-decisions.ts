@@ -40,7 +40,7 @@ export function policyDecisions(
       ' (' +
       pct(end.benefitsScalePaid) +
       ' of the reference). The same total budget does not preserve each person’s payment.' +
-      (p.welfareScale === 2 ? ' This is the highest budget tested.' : ''),
+      '',
     benefitFormula:
       p.benefitFormula === 'current'
         ? 'Keep the survey’s relative allocation of cash benefits and consumption support. Recipients’ shares stay fixed as jobs change; this does not simulate future eligibility under every US program.'
@@ -60,16 +60,12 @@ export function policyDecisions(
     allowFreeTrade: p.allowFreeTrade
       ? 'The US permits trade. Goods, services and imported AI can cross this border only if the foreign actor also permits it.'
       : 'The US closes this border even if the foreign actor permits trade. The ban also stops imported AI and the model’s cross-border AI profit payments.',
-    capitalTax:
-      'Selected benchmark: ' +
-      pct(p.capitalTax) +
-      ', ' +
-      changeFromReference(p.capitalTax, CALIBRATION.capitalTaxRate) +
-      ' of ' +
-      pct(CALIBRATION.capitalTaxRate) +
-      '. Actual year-ten average: ' +
-      pct(end.effectiveCapitalTax) +
-      '. Applies to investment income even when its recipient also works.',
+    aiProfitTax:
+      'Tax ' + pct(p.aiProfitTax) + ' of additional AI profits after ordinary investment tax. ' +
+      'The base is profits above a matched no-AI economy, net of wages, retention and AI costs. ' +
+      'Year-ten receipts: ' + dollars(end.aiProfitTaxRevenue) + ' per adult in reference purchasing-power units. Ordinary investment tax rates remain at their reference levels (about ' + pct(CALIBRATION.capitalTaxRate) +
+      ' initially). Higher AI taxes reduce private deployment incentives, not all investment equally.',
+
   };
 
   if (region === 'foreign') {
@@ -82,13 +78,13 @@ export function policyDecisions(
     details.welfareScale = 'Target: ' + pct(p.welfareScale) +
       ' of the model’s reference benefit budget. Funded in year ten: ' + pct(end.benefitsScalePaid) +
       '. The same total budget does not preserve each person’s payment.' +
-      (p.welfareScale === 2 ? ' This is the highest budget tested.' : '');
+      '';
     details.benefitFormula = p.benefitFormula === 'current'
       ? 'Keep the reference shares of cash benefits and consumption support. Those shares use the US household distribution as a proxy; they are not a survey of foreign welfare systems.'
       : p.benefitFormula === 'flat'
         ? 'Divide the funded budget equally among all adults in the foreign economy, including workers, retirees and investors. This replaces the reference allocation.'
         : 'Divide the funded budget in proportion to each adult’s pre-AI disposable household income. Higher prior income means a larger payment. Later wage changes do not change these shares.';
-    for (const axis of ['laborTax', 'capitalTax'] as const) {
+    for (const axis of ['laborTax', 'aiProfitTax'] as const) {
       details[axis] = details[axis].replace('the 2025 reference', 'the US-based model reference');
     }
     details.allowFreeTrade = p.allowFreeTrade
@@ -106,6 +102,12 @@ export function policyDecisions(
         ? ' Workers can still be displaced by foreign competition when trade is open.'
         : ' There are no AI-driven layoffs in this domestic scenario.');
   }
+  if (p.welfareScale === 3) {
+    details.welfareScale = 'Fund reference public services first, then distribute all remaining tax revenue using the selected allocation. There is no fixed benefit ceiling. Year-ten payments: ' + pct(end.benefitsScalePaid) + ' of the reference benefit budget.';
+  }
+  if (p.pace !== 0) {
+    details.pace += ' The AI-profits tax can reduce achieved deployment and growth below this scheduled maximum.';
+  }
   if (p.welfareScale === 0) {
     details.benefitFormula = 'The selected package provides no benefit payments, so the distribution rule has no effect.';
   }
@@ -116,7 +118,7 @@ export function policyDecisions(
       if (region === 'foreign' && (axis === 'welfareScale' || axis === 'benefitFormula')) {
         headline = headline.replace('current', 'reference');
       }
-      if (axis === 'laborTax' || axis === 'capitalTax') {
+      if (axis === 'laborTax') {
         const reference = axis === 'laborTax' ? CALIBRATION.laborTaxRate : CALIBRATION.capitalTaxRate;
         headline =
           (Math.abs(p[axis] - reference) < 1e-7

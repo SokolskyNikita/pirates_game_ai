@@ -59,7 +59,7 @@ def prepare_settlement_arrays(prepared, policy):
     }
     fields["worker"] = np.asarray([cell.source["group"] == "work" for cell in cells])
     fields["labor_rates"] = _tax_rates(fields["labor_rate"], policy["laborTax"], c["laborTaxRate"])
-    fields["capital_rates"] = _tax_rates(fields["capital_rate"], policy["capitalTax"], c["capitalTaxRate"])
+    fields["capital_rates"] = fields["capital_rate"][None, :]
     current = fields["benefit"] / c["benefits"] if c["benefits"] > 0 else fields["benefit"] * 0
     prior = (
         fields["prior"] / prepared.baseline_all_income
@@ -103,6 +103,9 @@ def settle_batch(policy, production, flow, prepared, arrays, price_index=1):
         taxable_passive,
         arrays["labor_rates"],
         arrays["capital_rates"],
+        ai_reference=arrays["capital"]
+        * (production["ai_reference_capital"] * c["marketIncome"] / 100 / c["capitalIncome"])[:, None],
+        ai_rate=policy["aiProfitTax"][:, None],
         xp=np,
     )
     tax_e, tax_u, tax_c = household.employed_tax, household.nonproductive_tax, household.capital_tax
@@ -110,7 +113,7 @@ def settle_batch(policy, production, flow, prepared, arrays, price_index=1):
     expected_tax = (1 - unemployment) * tax_e + unemployment * tax_u
     labor_revenue = _sequential_total(arrays["weight"] * expected_tax)
     capital_revenue = _sequential_total(arrays["weight"] * tax_c)
-    revenue = labor_revenue + capital_revenue
+    revenue = labor_revenue + capital_revenue + _sequential_total(arrays["weight"] * household.ai_profit_tax)
     budget = public_budget(revenue, c["nonTransferSpending"], c["benefits"], policy["welfareScale"], xp=np)
     gaps = np.stack((employer.gap, budget.welfare_gap, budget.government_gap), axis=1)
     admissible = fully_funded(employer.gap, budget.welfare_gap, budget.government_gap)

@@ -76,6 +76,7 @@ def production_trajectory(
     *,
     xp=None,
     zero=0.0,
+    reference=False,
 ) -> Iterator[ProductionYear]:
     """Yield independent year records; ``zero`` selects scalar or batch shape.
 
@@ -118,6 +119,23 @@ def production_trajectory(
         if international
         else zero
     )
+    shadow = None
+    if not reference:
+
+        def without_ai(policy):
+            return {**policy, "pace": zero, "replacement": zero, "aiProfitTax": zero}
+
+        shadow = iter(
+            production_trajectory(
+                inputs,
+                without_ai(us_policy),
+                without_ai(foreign_policy) if international else None,
+                calibration,
+                xp=xp,
+                zero=zero,
+                reference=True,
+            )
+        )
     for year in range(1, preferences().horizon + 1):
         annual_us = _annual_burden(burden_us, state_us, us_policy, calibration, xp)
         annual_foreign = (
@@ -125,29 +143,23 @@ def production_trajectory(
             if international
             else zero
         )
-        adoption_us = xp.maximum(
-            state_us["adoption"],
-            deployment_at_year(
-                1,
-                us_policy["pace"],
-                year,
-                inputs["investmentResponse"],
-                annual_us,
-                xp=xp,
-            ),
-        )
-        adoption_foreign = (
-            xp.maximum(
-                state_foreign["adoption"],
-                deployment_at_year(
-                    inputs["foreignStrength"],
-                    foreign_policy["pace"],
-                    year,
-                    inputs["investmentResponse"],
-                    annual_foreign,
-                    xp=xp,
+
+        def installation(policy, state, target, burden, year=year):
+            # A reduced private return lowers achieved AI deployment, not non-AI capacity.
+            incentive = xp.where(
+                policy["aiProfitTax"] >= 1, 0, (1 - policy["aiProfitTax"]) ** inputs["investmentResponse"]
+            )
+            return xp.maximum(
+                state["adoption"],
+                incentive
+                * deployment_at_year(
+                    target, policy["pace"], year, inputs["investmentResponse"], burden, xp=xp
                 ),
             )
+
+        adoption_us = installation(us_policy, state_us, 1, annual_us)
+        adoption_foreign = (
+            installation(foreign_policy, state_foreign, inputs["foreignStrength"], annual_foreign)
             if international
             else zero
         )
@@ -216,8 +228,22 @@ def production_trajectory(
             if production is not None:
                 production.setdefault("consumer_price_index", zero + 1)
                 production["net_output"] = (
-                    production["output"] - production["investment"] - production["adjustment"]
+                    production["output"]
+                    - production["investment"]
+                    - production["adjustment"]
+                    - production["operating"]
                 )
+        baseline = next(shadow) if shadow is not None else None
+        for actual, ref, ref_flow in (
+            (us, baseline.us if baseline else us, baseline.us_flow if baseline else flow_us),
+            (
+                foreign,
+                baseline.foreign if baseline else foreign,
+                baseline.foreign_flow if baseline else flow_foreign,
+            ),
+        ):
+            if actual is not None:
+                actual["ai_reference_capital"] = (ref["capital"] + ref_flow) / ref["consumer_price_index"]
         yield ProductionYear(year, us, foreign, flow_us, flow_foreign)
         state_us = us
         if foreign is not None:

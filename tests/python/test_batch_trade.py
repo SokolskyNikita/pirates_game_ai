@@ -28,8 +28,8 @@ def trade_menu():
         for trade in (False, True)
         for policy in (
             {},
-            {"replacement": 0.5, "welfareScale": 1.5, "benefitFormula": "flat", "capitalTax": 0.5},
-            {"replacement": 1.25, "welfareScale": 2, "laborTax": 0, "capitalTax": 1},
+            {"replacement": 0.5, "welfareScale": 1.5, "benefitFormula": "flat", "aiProfitTax": 0.5},
+            {"replacement": 1.25, "welfareScale": 2, "laborTax": 0, "aiProfitTax": 1},
         )
     ]
 

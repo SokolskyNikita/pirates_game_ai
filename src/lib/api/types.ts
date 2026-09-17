@@ -35,7 +35,7 @@ export interface Policy {
   welfareScale: number;
   benefitFormula: BenefitFormula;
   laborTax: number;
-  capitalTax: number;
+  aiProfitTax: number;
   allowFreeTrade: boolean;
 }
 export interface Calibration {
@@ -76,6 +76,7 @@ export interface RegionYear {
   baselineBenefits: number;
   effectiveLaborTax: number;
   effectiveCapitalTax: number;
+  aiProfitTaxRevenue: number;
   capacityFactor: number;
 }
 export interface ProfileOutcome {
@@ -189,7 +190,7 @@ export interface ElectorateMetadata {
   incomeQuintiles: { quintile: number; grossIncome: number; disposableIncome: number; benefits: number }[];
 }
 export type PolicyAxis =
-  'pace' | 'replacement' | 'welfareScale' | 'benefitFormula' | 'laborTax' | 'capitalTax' | 'allowFreeTrade';
+  'pace' | 'replacement' | 'welfareScale' | 'benefitFormula' | 'laborTax' | 'aiProfitTax' | 'allowFreeTrade';
 export type PolicyOptions = Record<PolicyAxis, { value: number | BenefitFormula | boolean; idPart: string }[]>;
 
 export interface CalculatorConfig {

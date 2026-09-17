@@ -15,7 +15,7 @@ def policy(**changes):
 
 
 def production(output=100):
-    return dict(output=output, investment=0, adjustment=0, rents=0, adoption=0, burden=0)
+    return dict(output=output, investment=0, operating=0, adjustment=0, rents=0, adoption=0, burden=0)
 
 
 class TradeModelTests(unittest.TestCase):
@@ -164,7 +164,7 @@ class TradeModelTests(unittest.TestCase):
         # Foreign competition creates an actual retained-payroll burden after
         # year one. The new burden would imply less installed AI without the
         # irreversible-installation constraint, so deployment must plateau.
-        result = evaluate_profile(inputs, policy(replacement=1.25), policy(pace=2, capitalTax=0))
+        result = evaluate_profile(inputs, policy(replacement=1.25), policy(pace=2, aiProfitTax=0))
         installed = [point["adoption"] for point in result["us"]]
         self.assertGreater(result["us"][1]["retainedWorkers"], 0)
         self.assertGreater(result["us"][2]["investmentBurden"], 0.625)

@@ -71,7 +71,7 @@ class ValidationTests(unittest.TestCase):
             prepare(cohorts)
 
     def test_policy_rejects_boolean_and_nonnumeric_rates(self):
-        for field in ("pace", "replacement", "welfareScale", "laborTax", "capitalTax"):
+        for field in ("pace", "replacement", "welfareScale", "laborTax", "aiProfitTax"):
             for value in (True, "0.5", None, float("nan")):
                 with self.subTest(field=field, value=value), self.assertRaises(ValueError):
                     checked_policy({**current_policy(), field: value})

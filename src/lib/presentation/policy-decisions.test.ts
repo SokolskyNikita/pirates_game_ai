@@ -4,12 +4,12 @@ import { policyDecisions } from './policy-decisions';
 
 const policy = {
   id: 'test', label: 'test', pace: 0, replacement: 0, welfareScale: 1,
-  benefitFormula: 'current', laborTax: 0.2, capitalTax: 0.2, allowFreeTrade: true,
+  benefitFormula: 'current', laborTax: 0.2, aiProfitTax: 0.2, allowFreeTrade: true,
 } as Policy;
 const end = {
   baselineBenefits: 100, benefitsRequired: 100, benefitsPaid: 100,
   benefitsScalePaid: 1, effectiveLaborTax: 0.2, effectiveCapitalTax: 0.2,
-  retainedWorkers: 0,
+  retainedWorkers: 0, aiProfitTaxRevenue: 20,
 } as RegionYear;
 
 describe('pause policy presentation', () => {
@@ -28,3 +28,11 @@ describe('pause policy presentation', () => {
     expect(html).not.toContain('>None</h');
   });
 });
+
+ it('distinguishes the AI surtax and uncapped benefits from ordinary investment taxes', () => {
+  const html = policyDecisions({ ...policy, welfareScale: 3 }, end, { region: 'us', mode: 'us-only' });
+  expect(html).toContain('Additional tax on AI profits');
+  expect(html).toContain('Ordinary investment tax rates remain');
+  expect(html).toContain('Distribute all revenue after public services');
+  expect(html).not.toContain('NaN');
+ });

@@ -64,6 +64,8 @@ class Production:
     capacity: float
 
     labor_state: dict[str, Any] = field(default_factory=initial_labor)
+    operating: float = 0
+    ai_reference_capital: float = 0
     jobs_affected: float = 0
     average_wage_factor: float = 1
     ai_unemployment: float = 0

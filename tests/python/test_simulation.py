@@ -47,7 +47,11 @@ class ScenarioTests(unittest.TestCase):
     def solve(self, **changes):
         with (
             patch.object(simulation, "solve_model", side_effect=fake_model),
-            patch.object(simulation, "policies_for_mode", side_effect=lambda mode, pause: [p for p in MENU if not pause or p["pace"] != 0]),
+            patch.object(
+                simulation,
+                "policies_for_mode",
+                side_effect=lambda mode, pause: [p for p in MENU if not pause or p["pace"] != 0],
+            ),
         ):
             return simulation.solve_scenario(
                 {"inputs": {}, "mode": "us-only", "foreignObjective": "workers", **changes}
@@ -108,7 +112,9 @@ class ScenarioTests(unittest.TestCase):
 
     def test_invalid_settings_do_not_silently_change_the_game(self):
         for changes in (
-            {"mode": "invalid"}, {"foreignObjective": "invalid"}, {"pauseUnavailable": "false"},
+            {"mode": "invalid"},
+            {"foreignObjective": "invalid"},
+            {"pauseUnavailable": "false"},
             {"statusQuoUnavailable": "false"},
         ):
             with self.subTest(changes=changes), self.assertRaises(ValueError):

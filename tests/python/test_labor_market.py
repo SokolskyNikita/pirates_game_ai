@@ -140,7 +140,7 @@ class LaborMarketTests(unittest.TestCase):
         self.assertAlmostEqual(point["resourceResidual"], 0, places=8)
 
     def test_adverse_policy_can_shrink_gdp_despite_positive_ai_growth(self):
-        policy = make_policy({**current_policy(), "capitalTax": 1, "laborTax": 1})
+        policy = make_policy({**current_policy(), "aiProfitTax": 1, "laborTax": 1})
         points = evaluate_profile({"usAiGrowth": 0.05, "investmentResponse": 1}, policy, mode="us-only")["us"]
         self.assertTrue(any(p["gdpGrowthRate"] < 0 and p["potentialGrowthRate"] > 0 for p in points[1:]))
 

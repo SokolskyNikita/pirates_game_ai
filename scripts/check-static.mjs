@@ -20,6 +20,7 @@ for (const value of Object.values(library)) {
   if (!['domestic-ballot', 'verified-consistent', 'selected-by-rule'].includes(value.snapshot.selection)) throw new Error('Missing selected outcome');
   for (const field of ['usPolicy', 'foreignPolicy']) {
     const policy = value.snapshot.selected[field];
+    if (policy && (!Number.isFinite(policy.aiProfitTax) || 'capitalTax' in policy)) throw new Error('Stale investment-tax policy');
     if (policy?.pace === 0 && policy.replacement !== 0) throw new Error('Pause AI includes employer retention');
   }
   if (value.snapshot.selected.us.length !== 11) throw new Error('Incomplete income chart');

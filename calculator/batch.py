@@ -41,7 +41,7 @@ def _policy_arrays(policies: Sequence[Policy]) -> dict[str, np.ndarray]:
         checked_policy(policy)
     return {
         key: np.asarray([p[key] for p in policies], dtype=float)
-        for key in ("pace", "replacement", "welfareScale", "laborTax", "capitalTax")
+        for key in ("pace", "replacement", "welfareScale", "laborTax", "aiProfitTax")
     } | {
         "formula": np.asarray([p["benefitFormula"] for p in policies]),
         "allowFreeTrade": np.asarray([p.get("allowFreeTrade", True) for p in policies], dtype=bool),
@@ -51,8 +51,17 @@ def _policy_arrays(policies: Sequence[Policy]) -> dict[str, np.ndarray]:
 # Welfare level and its distribution do not affect production, prices or
 # investment. Evaluate each distinct production pair once per complete menu,
 # then settle every welfare package against that path in bounded cohort chunks.
-_PRODUCTION_KEYS = ("pace", "replacement", "laborTax", "capitalTax", "allowFreeTrade")
-_SETTLEMENT_FIELDS = ("allocation", "u", "output", "capital", "effort", "average_wage", "retained")
+_PRODUCTION_KEYS = ("pace", "replacement", "laborTax", "aiProfitTax", "allowFreeTrade")
+_SETTLEMENT_FIELDS = (
+    "allocation",
+    "u",
+    "output",
+    "capital",
+    "effort",
+    "average_wage",
+    "retained",
+    "ai_reference_capital",
+)
 
 
 def _production_key(policy):

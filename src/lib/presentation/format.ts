@@ -34,7 +34,7 @@ const policyAxes = [
   'welfareScale',
   'benefitFormula',
   'laborTax',
-  'capitalTax',
+  'aiProfitTax',
   'allowFreeTrade',
 ] as const;
 const axisLabels: Record<PolicyAxis, string> = {
@@ -43,7 +43,7 @@ const axisLabels: Record<PolicyAxis, string> = {
   welfareScale: 'Government redistribution',
   benefitFormula: 'Who receives the benefits',
   laborTax: 'Tax on work and pension income',
-  capitalTax: 'Tax on investment income',
+  aiProfitTax: 'Additional tax on AI profits',
   allowFreeTrade: 'International trade',
 };
 const formulaNames: Record<Policy['benefitFormula'], string> = {
@@ -61,6 +61,7 @@ function changeFromReference(rate: number, reference: number) {
         ' the 2025 reference';
 }
 function welfareName(scale: number) {
+  if (scale === 3) return 'Distribute all revenue after public services';
   return scale === 1
     ? 'Keep the current total budget'
     : scale === 0
@@ -74,6 +75,7 @@ function axisOptionValue(axis: PolicyAxis, value: number | BenefitFormula | bool
   if (axis === 'pace') return paceName(number);
   if (axis === 'replacement') return replacementName(number);
   if (axis === 'welfareScale') return welfareName(number);
+  if (axis === 'aiProfitTax') return pct(number) + ' additional AI-profits tax';
   const reference = axis === 'laborTax' ? CALIBRATION.laborTaxRate : CALIBRATION.capitalTaxRate;
   return Math.abs(number - reference) < 1e-10
     ? 'Keep current rates (~' + pct(reference) + ')'
@@ -89,13 +91,13 @@ function policyDescription(policy: Policy, includeTrade = false) {
     '; ' +
     replacementName(policy.replacement) +
     '; benefit budget target ' +
-    pct(policy.welfareScale) +
-    ' of the reference budget; ' +
+    (policy.welfareScale === 3 ? 'all revenue after services' : pct(policy.welfareScale) + ' of the reference budget') +
+    '; ' +
     formulaNames[policy.benefitFormula].toLowerCase() +
     '; work/pension tax benchmark ' +
     pct(policy.laborTax) +
-    ', investment tax ' +
-    pct(policy.capitalTax) +
+    ', additional AI-profits tax ' +
+    pct(policy.aiProfitTax) +
     (includeTrade ? '; ' + axisValue('allowFreeTrade', policy).toLowerCase() : '') +
     '.'
   );

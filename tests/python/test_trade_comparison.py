@@ -20,7 +20,8 @@ class TradeComparisonTests(unittest.TestCase):
             return {
                 "usPolicy": policy,
                 "foreignPolicy": foreign,
-                "usUtilities": [int(not policy["allowFreeTrade"])] * len(voter_weights(CALIBRATION["weights"])),
+                "usUtilities": [int(not policy["allowFreeTrade"])]
+                * len(voter_weights(CALIBRATION["weights"])),
                 "usAdmissible": True,
             }
 

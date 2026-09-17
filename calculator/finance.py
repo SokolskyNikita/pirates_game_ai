@@ -65,11 +65,13 @@ class PublicBudget:
 def public_budget(revenue, services_reference, benefits_reference, welfare_scale, *, xp=Scalar):
     """Fund existing public services first, then all promised transfers.
 
-    Surplus revenue funds public services. It never becomes an implicit dividend.
+    The explicit all-revenue option distributes the surplus; fixed budgets leave it with public services.
     A future surplus cannot cure a shortfall in this year's budget.
     """
     services_paid = xp.minimum(services_reference, revenue)
-    required = benefits_reference * welfare_scale
+    required = xp.where(
+        welfare_scale == 3, xp.maximum(0, revenue - services_paid), benefits_reference * welfare_scale
+    )
     paid = xp.minimum(required, xp.maximum(0, revenue - services_paid))
     return PublicBudget(
         required, paid, revenue - paid, required - paid, xp.maximum(0, services_reference - services_paid)
@@ -91,21 +93,38 @@ class HouseholdIncome:
     employed_tax: Any
     nonproductive_tax: Any
     capital_tax: Any
+    ai_profit_tax: Any
 
 
 def household_income(
-    work, retained, passive, capital, taxable_passive, labor_rate, capital_rate, *, xp=Scalar
+    work,
+    retained,
+    passive,
+    capital,
+    taxable_passive,
+    labor_rate,
+    capital_rate,
+    *,
+    ai_reference=None,
+    ai_rate=0,
+    xp=Scalar,
 ):
     """Keep signed investment losses in resources; tax only positive tax bases."""
     employed_tax = xp.maximum(0, work + taxable_passive) * labor_rate
     nonproductive_tax = xp.maximum(0, retained + taxable_passive) * labor_rate
     capital_tax = xp.maximum(0, capital) * capital_rate
+    ai_tax = (
+        xp.maximum(0, capital - xp.maximum(0, capital if ai_reference is None else ai_reference))
+        * (1 - capital_rate)
+        * ai_rate
+    )
     return HouseholdIncome(
-        work + passive + capital - employed_tax - capital_tax,
-        retained + passive + capital - nonproductive_tax - capital_tax,
+        work + passive + capital - employed_tax - capital_tax - ai_tax,
+        retained + passive + capital - nonproductive_tax - capital_tax - ai_tax,
         employed_tax,
         nonproductive_tax,
         capital_tax,
+        ai_tax,
     )
 
 

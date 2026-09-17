@@ -27,9 +27,9 @@ def _tax_choices(mean: float) -> list[float]:
 
 
 LABOR_TAX_CHOICES = _tax_choices(CALIBRATION["laborTaxRate"])
-CAPITAL_TAX_CHOICES = _tax_choices(CALIBRATION["capitalTaxRate"])
+CAPITAL_TAX_CHOICES = [step / 10 for step in range(11)]
 RETENTION_CHOICES = [0, 0.5, 1, 1.25]
-WELFARE_CHOICES = [0, 0.5, 1, 1.5, 2]
+WELFARE_CHOICES = [0, 0.5, 1, 1.5, 2, 3]  # 3 distributes all revenue after services.
 BENEFIT_FORMULAS = ["current", "flat", "prior-income"]
 PACE_CHOICES = [0, 1, 2]
 PACE_LABELS = {0: "Pause AI", 1: "Allow current AI pace", 2: "Accelerate AI"}
@@ -59,7 +59,7 @@ def make_policy(values: dict[str, Any]) -> Policy:
     welfare = values["welfareScale"]
     formula = values["benefitFormula"]
     labor_tax = values["laborTax"]
-    capital_tax = values["capitalTax"]
+    capital_tax = values["aiProfitTax"]
     free_trade = values.get("allowFreeTrade", True)
     if not isinstance(free_trade, bool):
         raise ValueError("allowFreeTrade must be a boolean.")
@@ -78,9 +78,9 @@ def make_policy(values: dict[str, Any]) -> Policy:
     pace_label = PACE_LABELS.get(pace, f"{_number(pace)}× AI pace")
     retention_label = f"Retain at {_rounded_percent(replacement)}%" if replacement else "Allow layoffs"
     label = (
-        f"{pace_label} · {retention_label} · benefits {_number(welfare * 100)}% · {formula}"
+        f"{pace_label} · {retention_label} · benefits {'all revenue after services' if welfare == 3 else _number(welfare * 100) + '%'} · {formula}"
         f" · noncapital {_rounded_percent(labor_tax, 1)}%"
-        f" / investment {_rounded_percent(capital_tax, 1)}% tax"
+        f" / additional AI-profit {_rounded_percent(capital_tax, 1)}% tax"
     )
     if not free_trade:
         label += " · Ban US–world trade"
@@ -91,7 +91,7 @@ POLICIES = [
     make_policy(
         dict(
             zip(
-                ["pace", "replacement", "welfareScale", "benefitFormula", "laborTax", "capitalTax"],
+                ["pace", "replacement", "welfareScale", "benefitFormula", "laborTax", "aiProfitTax"],
                 values,
                 strict=True,
             )
@@ -123,7 +123,7 @@ BASELINE_POLICY = make_policy(
         "welfareScale": 1,
         "benefitFormula": "current",
         "laborTax": CALIBRATION["laborTaxRate"],
-        "capitalTax": CALIBRATION["capitalTaxRate"],
+        "aiProfitTax": 0,
     }
 )
 
@@ -163,8 +163,8 @@ def current_policy(pace: float = 1) -> Policy:
 
 
 def checked_policy(policy: Policy) -> None:
-    fields = ["pace", "replacement", "welfareScale", "laborTax", "capitalTax"]
-    limits = [(0, 2), (0, 1.25), (0, 2), (0, 1), (0, 1)]
+    fields = ["pace", "replacement", "welfareScale", "laborTax", "aiProfitTax"]
+    limits = [(0, 2), (0, 1.25), (0, 3), (0, 1), (0, 1)]
     if (
         any(
             isinstance(policy.get(field), bool)

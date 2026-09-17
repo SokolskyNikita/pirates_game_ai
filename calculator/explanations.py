@@ -13,9 +13,9 @@ MODEL_NOTES = [
         "title": "The complete policy package",
         "detail": "Every package specifies Pause AI, Allow current AI pace or Accelerate AI, together with "
         "employer retention at 0%, 50%, 100% or 125% of previous gross labor income; a public "
-        "benefit budget at 0%, 50%, 100%, 150% or 200% of current modeled benefits; current "
+        "benefit budget at 0%, 50%, 100%, 150% or 200% of current modeled benefits, or all tax revenue after public services; current "
         "allocation, equal payments per adult or payments proportional to prior disposable income; "
-        "and separate noncapital and investment tax rates. International packages also specify "
+        "and a noncapital tax benchmark and an additional AI-profits tax. International packages also specify "
         "whether to allow free trade. Both sides must allow it for bilateral trade to continue.",
     },
     {
@@ -29,15 +29,17 @@ MODEL_NOTES = [
     {
         "title": "Taxes and the budget",
         "detail": "Noncapital income includes work, private pensions and other noninvestment income. "
-        "Investment income is taxed separately. Current cohort tax-rate differences remain at the "
-        "current benchmark. Lower benchmarks scale rates toward zero; higher benchmarks scale them "
-        "toward 100%, so the endpoints apply to every cohort. The benchmark equals the aggregate "
-        "effective rate on unchanged tax bases; the actual rate can change as incomes change. "
+        "Ordinary investment tax rates remain fixed for each income group. The additional AI-profits "
+        "tax applies only to positive profits above a matched no-AI economy, after ordinary tax. "
+        "The reference holds noncapital taxes and trade permissions fixed and pauses both economies. "
+        "Actual profits already deduct wages, retention, installation, operating and adjustment costs. "
+        "Ongoing AI costs are assumed to be 2% of AI-exposed output each year. This is an annual economy-wide proxy, not firm-level identification of AI profits or loss carryforwards. "
+        "Noncapital tax benchmarks preserve cohort-rate differences. "
         "Negative baseline taxes become modeled net refund benefits. A policy is eligible only if "
         "taxes fund both the fixed baseline nontransfer spending requirement and the entire chosen "
         "benefit budget in every year. Employer-funded retention promises must also be covered in "
         "every year, after the modeled effects on investment, output and international returns. Any "
-        "excess goes to nontransfer public spending, not an undisclosed household dividend. Voters "
+        "excess goes to nontransfer public spending under fixed budgets. The all-revenue option instead distributes it. Voters "
         "value their private resources; they do not receive utility from this other public "
         "spending.",
     },
@@ -131,8 +133,8 @@ MODEL_NOTES = [
         "limit in year ten at current pace or year five when accelerated, and is further limited by "
         "the other region’s available AI. Total exposure therefore depends on both regions’ "
         "choices. Faster installation has higher annual adjustment and installation costs. "
-        "Retention costs and tax increases relative to current rates delay deployment within the "
-        "chosen horizon and discourage capacity renewal; tax reductions can advance deployment. To "
+        "Retention costs delay deployment within the "
+        "chosen horizon and discourage capacity renewal. The additional AI tax reduces deployment separately. To "
         "compare speeds consistently, the policy burden uses required retention at full rollout, "
         "independently of rollout speed, before the timing response. Job matching and wage-contract turnover occur once per "
         "calendar year. Foreign deployment is also limited by frontier capability. The assumed "
@@ -200,3 +202,10 @@ MODEL_NOTES = [
         "The public horizon is ten years. This is an explicit bargaining protocol, not a proof of unique Nash play.",
     },
 ]
+
+MODEL_NOTES.append(
+    {
+        "title": "AI tax and adoption",
+        "detail": "Private deployment is multiplied by (1 − additional AI tax) raised to the policy-response parameter. At 100% additional tax private domestic deployment is zero; imported spillovers may remain if trade is open. This reduced-form response is an assumption, not an estimated firm optimization. The AI tax does not directly reduce non-AI productive capacity. International mobile AI returns also respond to the additional tax. Ordinary capital taxes stay fixed.",
+    }
+)

@@ -27,7 +27,7 @@ def settle(
     # funding promises. Retention, welfare and services stay fixed in real units.
     price = p.consumer_price_index
     unit = c["marketIncome"] / 100 / price
-    gross_resources = (p.output - p.investment - p.adjustment + flow) * unit
+    gross_resources = (p.output - p.investment - p.adjustment - p.operating + flow) * unit
     capital_before = (p.capital + flow) * unit
     employer = employer_budget(
         c["laborIncome"],
@@ -45,7 +45,7 @@ def settle(
     productive_wage_factor = p.income_allocation_factor * p.average_wage_factor * p.effort / price
     employed_net = []
     obsolete_net = []
-    labor_tax_revenue = capital_tax_revenue = 0.0
+    labor_tax_revenue = capital_tax_revenue = ai_tax_revenue = 0.0
     labor_tax_base = capital_tax_base = net_employer_total = 0.0
     for cell in cells:
         work = cell.labor * productive_wage_factor
@@ -53,10 +53,18 @@ def settle(
         passive = cell.passive * p.income_allocation_factor / price
         capital = cell.capital * capital_factor
         labor_rate = tax_rate(cell.labor_rate, policy["laborTax"], c["laborTaxRate"])
-        capital_rate = tax_rate(cell.capital_rate, policy["capitalTax"], c["capitalTaxRate"])
+        capital_rate = cell.capital_rate
         taxable_passive = cell.taxable_passive * p.income_allocation_factor / price
         household = household_income(
-            work, retained, passive, capital, taxable_passive, labor_rate, capital_rate
+            work,
+            retained,
+            passive,
+            capital,
+            taxable_passive,
+            labor_rate,
+            capital_rate,
+            ai_reference=cell.capital * p.ai_reference_capital * c["marketIncome"] / 100 / c["capitalIncome"],
+            ai_rate=policy["aiProfitTax"],
         )
         tax_employed, tax_obsolete, tax_capital = (
             household.employed_tax,
@@ -69,13 +77,14 @@ def settle(
         net_employer = retained * (1 - labor_rate)
         labor_tax_revenue += cell.weight * expected_tax
         capital_tax_revenue += cell.weight * tax_capital
+        ai_tax_revenue += cell.weight * household.ai_profit_tax
         labor_tax_base += cell.weight * (
             (1 - p.unemployment) * max(0, work + taxable_passive)
             + p.unemployment * max(0, retained + taxable_passive)
         )
         capital_tax_base += cell.weight * max(0, capital)
         net_employer_total += cell.weight * p.unemployment * net_employer
-    revenue = labor_tax_revenue + capital_tax_revenue
+    revenue = labor_tax_revenue + capital_tax_revenue + ai_tax_revenue
     budget = public_budget(revenue, c["nonTransferSpending"], c["benefits"], policy["welfareScale"])
     benefits_required, benefits_paid = budget.benefits_required, budget.benefits_paid
     nontransfer_spending = budget.nontransfer_spending
@@ -127,7 +136,7 @@ def settle(
             "adoption": p.adoption,
             "exposure": p.exposure,
             "output": p.output,
-            "netOutput": p.output - p.investment - p.adjustment,
+            "netOutput": p.output - p.investment - p.adjustment - p.operating,
             "potentialOutput": 100 * p.growth,
             "potentialGrowthRate": p.potential_growth_rate,
             "gdpGrowthRate": p.gdp_growth_rate,
@@ -185,6 +194,7 @@ def settle(
             "taxRevenue": revenue,
             "laborTaxRevenue": labor_tax_revenue,
             "capitalTaxRevenue": capital_tax_revenue,
+            "aiProfitTaxRevenue": ai_tax_revenue,
             "laborTaxBase": labor_tax_base,
             "capitalTaxBase": capital_tax_base,
             "effectiveLaborTax": labor_tax_revenue / labor_tax_base if labor_tax_base > 0 else 0,
@@ -196,6 +206,7 @@ def settle(
             "laborEffort": p.effort,
             "capacityFactor": p.capacity,
             "investmentCost": p.investment * unit,
+            "aiOperatingCost": p.operating * unit,
             "adjustmentCost": p.adjustment * unit,
             "netRentFlow": flow * unit,
             "consumption": all_income,

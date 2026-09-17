@@ -12,7 +12,7 @@ BASE = {
     "welfareScale": 1,
     "benefitFormula": "current",
     "laborTax": 0.2,
-    "capitalTax": 0.2,
+    "aiProfitTax": 0.2,
 }
 CURRENT = {**BASE, "id": "current"}
 PAUSE = {**BASE, "id": "pause", "pace": 0}
@@ -212,10 +212,13 @@ class ElectionTests(unittest.TestCase):
 
     def test_custom_game_with_no_funded_pair_is_rejected_not_fabricated(self):
         with self.assertRaises(NoFundedPoliciesError):
-            solve_package_election(fixture(
-                lambda us, foreign: [0], foreign=[CURRENT, PAUSE],
-                foreign_funded=lambda us, foreign: False,
-            ))
+            solve_package_election(
+                fixture(
+                    lambda us, foreign: [0],
+                    foreign=[CURRENT, PAUSE],
+                    foreign_funded=lambda us, foreign: False,
+                )
+            )
 
     def test_underfunded_foreign_maximum_is_excluded(self):
         result = solve_package_election(
@@ -267,9 +270,13 @@ class ElectionTests(unittest.TestCase):
             batches.append([policy["id"] for policy in policies])
             return [model["evaluateLight"](policy, foreign) for policy in policies]
 
-        result = solve_package_election({
-            **model, "statusQuoUnavailable": True, "evaluateLightBatch": evaluate_batch,
-        })
+        result = solve_package_election(
+            {
+                **model,
+                "statusQuoUnavailable": True,
+                "evaluateLightBatch": evaluate_batch,
+            }
+        )
         self.assertEqual(batches, [["pause", "accelerate", "other"]])
         self.assertEqual(result["ballot"]["candidateCount"], 4)
         self.assertEqual(result["ballot"]["excludedCandidateCount"], 1)
@@ -288,8 +295,7 @@ class ElectionTests(unittest.TestCase):
     def test_search_seeds_include_both_trade_choices_at_every_available_pace(self):
         open_choices = [{**policy, "allowFreeTrade": True} for policy in (CURRENT, PAUSE, ACCELERATE)]
         closed_choices = [
-            {**policy, "id": policy["id"] + "|closed", "allowFreeTrade": False}
-            for policy in open_choices
+            {**policy, "id": policy["id"] + "|closed", "allowFreeTrade": False} for policy in open_choices
         ]
         choices = open_choices + closed_choices
         model = fixture(lambda us, foreign: [0], policies=choices, foreign=choices)

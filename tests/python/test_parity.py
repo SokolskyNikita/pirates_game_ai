@@ -52,7 +52,7 @@ class MigrationParity(unittest.TestCase):
 
     def test_calibration_and_entire_policy_menu(self):
         self.assertEqual(CALIBRATION, ORACLE["calibration"])
-        self.assertEqual(len(POLICIES), 19440)
+        self.assertEqual(len(POLICIES), 21384)
         self.assertIn(current_policy()["id"], {p["id"] for p in POLICIES})
 
     def test_domestic_initial_economy_and_materialized_scalar_utilities(self):
@@ -61,10 +61,10 @@ class MigrationParity(unittest.TestCase):
                 continue
             with self.subTest(case=case["name"]):
                 inputs = revised_inputs(case["inputs"])
-                actual = evaluate_profile(inputs, case["us"], mode="us-only")
+                actual = evaluate_profile(inputs, {**case["us"], "aiProfitTax": 0}, mode="us-only")
                 self.assert_structure(actual["us"][0], case["outcome"]["us"][0], case["name"])
                 scalar = solve_model(inputs, {"mode": "us-only", "objective": "workers"})
-                light = scalar["evaluateLight"](case["us"])
+                light = scalar["evaluateLight"]({**case["us"], "aiProfitTax": 0})
                 self.assertEqual(actual["usUtilities"], light["usUtilities"])
                 self.assertEqual(actual["usAdmissible"], light["usAdmissible"])
                 self.assertEqual(actual["usScore"], light["usScore"])
@@ -77,8 +77,8 @@ class MigrationParity(unittest.TestCase):
             with self.subTest(request=request):
                 model = solve_model(request["inputs"], {"mode": "us-only", "objective": "workers"})
                 menu = policies_for_mode("us-only", request.get("pauseUnavailable", False))
-                menu = list({p["id"]:p for p in [*menu[::269],current_policy()]}.values())
-                actual = solve_package_election({**model,"policies":menu})
+                menu = list({p["id"]: p for p in [*menu[::269], current_policy()]}.values())
+                actual = solve_package_election({**model, "policies": menu})
                 profiles = [model["evaluateLight"](policy) for policy in menu]
                 expected = strategic_package_ballot(
                     [
@@ -96,7 +96,6 @@ class MigrationParity(unittest.TestCase):
                 # Exact vote allocations and funding eligibility, not merely the winner.
                 self.assertEqual(actual["ballot"], expected)
                 self.assertEqual(actual["usPolicy"]["id"], expected["enactedPolicyId"])
-
 
 
 if __name__ == "__main__":

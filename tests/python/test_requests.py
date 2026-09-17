@@ -121,7 +121,7 @@ class RequestValidation(unittest.TestCase):
 
     def test_rendered_options_serialize_exactly_the_policy_menu(self):
         options = presentation_config()["policyOptions"]
-        axes = ("pace", "replacement", "welfareScale", "benefitFormula", "laborTax", "capitalTax")
+        axes = ("pace", "replacement", "welfareScale", "benefitFormula", "laborTax", "aiProfitTax")
         domestic = {
             "|".join(parts)
             for parts in itertools.product(*([option["idPart"] for option in options[axis]] for axis in axes))

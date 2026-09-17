@@ -23,7 +23,7 @@ POLICY_AXES = (
     "welfareScale",
     "benefitFormula",
     "laborTax",
-    "capitalTax",
+    "aiProfitTax",
     "allowFreeTrade",
 )
 

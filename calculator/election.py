@@ -176,7 +176,7 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
     def same_fiscal_policy(policy: Policy) -> bool:
         return all(
             policy[key] == current[key]
-            for key in ("replacement", "welfareScale", "benefitFormula", "laborTax", "capitalTax")
+            for key in ("replacement", "welfareScale", "benefitFormula", "laborTax", "aiProfitTax")
         )
 
     # A ban by either party closes the border. Explore both access regimes at

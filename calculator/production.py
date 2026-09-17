@@ -34,7 +34,7 @@ def policy_burden_values(
     retained = xp.minimum(
         1, calibration["laborIncome"] * nonproductive * policy["replacement"] / calibration["capitalIncome"]
     )
-    shift = policy["capitalTax"] - calibration["capitalTaxRate"]
+    shift = 0  # Ordinary capital taxation stays fixed; AI tax affects adoption only.
     return xp.minimum(1, xp.maximum(-1, shift + (1 - xp.maximum(0, shift)) * retained))
 
 
@@ -116,7 +116,9 @@ def production_values(
     passive = allocation * passive_base
     investment = 12 * delta_adoption + 40 * delta_adoption**2
     adjustment = 0.5 * labor_base * labor_state["newly_displaced"]
-    capital = output - labor - passive - investment - adjustment
+    # Illustrative ongoing resource cost: 2% of AI-exposed output each year.
+    operating = 0.02 * output * exposure
+    capital = output - labor - passive - investment - adjustment - operating
     return {
         "allocation": allocation,
         "growth": growth,
@@ -132,6 +134,7 @@ def production_values(
         "labor": labor,
         "passive": passive,
         "investment": investment,
+        "operating": operating,
         "adjustment": adjustment,
         "burden": burden,
         "capacity": capacity,
@@ -164,6 +167,7 @@ def production_record(values: dict[str, Any]) -> Production:
         capital=values["capital"],
         rents=values["rents"],
         investment=values["investment"],
+        operating=values["operating"],
         adjustment=values["adjustment"],
         effort=values["effort"],
         burden=values["burden"],
@@ -173,6 +177,7 @@ def production_record(values: dict[str, Any]) -> Production:
         trade_adjustment=values["trade_adjustment"],
         labor_state=labor_state,
         jobs_affected=values["jobs_affected"],
+        ai_reference_capital=values.get("ai_reference_capital", 0),
         average_wage_factor=values["average_wage"],
         consumer_price_index=values["consumer_price_index"],
         trade_open=values.get("trade_open", False),

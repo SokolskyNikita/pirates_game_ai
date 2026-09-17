@@ -73,7 +73,9 @@ class BallotTests(unittest.TestCase):
     def test_plurality_excludes_even_funded_current_package_and_selects_alternative(self):
         result = tally_package_ballot(
             [candidate("current", [3, 0, 0]), candidate("a", [0, 3, 0]), candidate("b", [0, 0, 3])],
-            [40, 35, 25], "current", True,
+            [40, 35, 25],
+            "current",
+            True,
         )
         self.assertEqual(result["winnerId"], "a")
         self.assertEqual(result["topSupportPercent"], 75)
@@ -89,7 +91,9 @@ class BallotTests(unittest.TestCase):
         with self.assertRaisesRegex(NoFundedPoliciesError, "No alternative policy is fully funded"):
             tally_package_ballot([candidate("current", [0], False)], [1], "current", True)
         with self.assertRaises(NoFundedPoliciesError):
-            tally_package_ballot([candidate("current", [1]), candidate("a", [0], False)], [1], "current", True)
+            tally_package_ballot(
+                [candidate("current", [1]), candidate("a", [0], False)], [1], "current", True
+            )
 
     def test_default_rule_matches_explicit_majority_and_rejects_non_boolean_flag(self):
         menu = [candidate("current", [0, 0]), candidate("a", [2, 0]), candidate("b", [0, 2])]

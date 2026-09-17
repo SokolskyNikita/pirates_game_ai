@@ -15,7 +15,7 @@ LIMIT = 3_500_000
 YEAR_FIELDS = """year adoption output gdpGrowthRate workerIncomeIndex allIncomeIndex
 employedIncomeIndex displacedIncomeIndex unemployment productiveEmployment retainedWorkers
 consumerPriceIndex tradeOpen employerNetPayRatio benefitsRequired benefitsPaid benefitsScalePaid
-baselineBenefits effectiveLaborTax effectiveCapitalTax capacityFactor""".split()
+baselineBenefits aiProfitTaxRevenue effectiveLaborTax effectiveCapitalTax capacityFactor""".split()
 
 
 def encode(value):

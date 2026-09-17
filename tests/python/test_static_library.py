@@ -43,10 +43,18 @@ class StaticLibraryTests(unittest.TestCase):
         request = next(requests())
         profile = evaluate_profile(request["inputs"], current_policy(), mode="us-only")
         original = {
-            **request, "selected": profile, "statusQuo": profile,
-            "baseline": profile, "leading": profile, "alternatives": [profile],
-            "ballot": {"tallies": [1], "voterChoices": [2], "winnerId": "exact",
-                       "topSupportPercent": 50.000000001},
+            **request,
+            "selected": profile,
+            "statusQuo": profile,
+            "baseline": profile,
+            "leading": profile,
+            "alternatives": [profile],
+            "ballot": {
+                "tallies": [1],
+                "voterChoices": [2],
+                "winnerId": "exact",
+                "topSupportPercent": 50.000000001,
+            },
         }
         packed = builder.pack({"fingerprint": "test", "snapshot": original})
         snapshot = packed["snapshot"]
@@ -58,12 +66,13 @@ class StaticLibraryTests(unittest.TestCase):
         self.assertEqual(len(snapshot["selected"]["us"]), 11)
         for before, after in zip(profile["us"], snapshot["selected"]["us"], strict=True):
             self.assertEqual(before["productiveEmployment"], after["productiveEmployment"])
-            self.assertAlmostEqual(before["allIncomeIndex"], after["allIncomeIndex"], delta=.000051)
+            self.assertAlmostEqual(before["allIncomeIndex"], after["allIncomeIndex"], delta=0.000051)
         self.assertIn("cohortIncome", profile["us"][0])  # never mutate the full local record
 
     def test_complete_embedded_library_is_under_budget(self):
         import gzip
         import json
+
         compressed = (ROOT / "src/generated/results.json.gz").read_bytes()
         self.assertLess(len(compressed), 3_500_000)
         library = json.loads(gzip.decompress(compressed))
@@ -77,6 +86,7 @@ class StaticLibraryTests(unittest.TestCase):
     def test_every_supported_scenario_has_a_valid_selected_outcome(self):
         import gzip
         import json
+
         library = json.loads(gzip.decompress((ROOT / "src/generated/results.json.gz").read_bytes()))
         fingerprint = model_fingerprint(ROOT)
         for result in library.values():
@@ -88,7 +98,9 @@ class StaticLibraryTests(unittest.TestCase):
                     self.assertEqual(policy["replacement"], 0)
             ballot = snapshot["ballot"]
             selected = snapshot["selected"]
-            self.assertIn(snapshot["selection"], {"domestic-ballot", "verified-consistent", "selected-by-rule"})
+            self.assertIn(
+                snapshot["selection"], {"domestic-ballot", "verified-consistent", "selected-by-rule"}
+            )
             self.assertEqual(selected["usPolicy"]["id"], ballot["enactedPolicyId"])
             self.assertNotIn("history", ballot["coordination"])
             self.assertGreaterEqual(ballot["topSupportPercent"], 0)

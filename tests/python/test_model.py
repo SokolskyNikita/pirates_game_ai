@@ -51,12 +51,12 @@ class EconomicModelTests(unittest.TestCase):
 
     def test_exact_calibration_and_policy_identifiers(self):
         self.assertEqual(CALIBRATION, FIXTURES["calibration"])
-        self.assertEqual(len(POLICIES), 19440)
+        self.assertEqual(len(POLICIES), 21384)
         self.assertEqual(len({p["id"] for p in POLICIES}), len(POLICIES))
         for policy in POLICIES:
             for key, reference in (
                 ("laborTax", CALIBRATION["laborTaxRate"]),
-                ("capitalTax", CALIBRATION["capitalTaxRate"]),
+                ("aiProfitTax", CALIBRATION["capitalTaxRate"]),
             ):
                 self.assertTrue(
                     policy[key] == reference or abs(policy[key] * 10 - round(policy[key] * 10)) < 1e-10
@@ -78,7 +78,7 @@ class EconomicModelTests(unittest.TestCase):
                     "jobChange": -old["displacement"],
                     "jobSearch": old["reemployment"],
                 }
-                actual = evaluate_profile(inputs, case["us"], mode="us-only")
+                actual = evaluate_profile(inputs, {**case["us"], "aiProfitTax": 0}, mode="us-only")
                 self.assert_numeric_contract(actual["us"][0], case["outcome"]["us"][0], case["name"])
                 self.assertEqual(len(actual["us"]), YEARS + 1)
                 self.assertEqual(actual["usAdmissible"], all(p["feasible"] for p in actual["us"]))
@@ -148,7 +148,7 @@ class EconomicModelTests(unittest.TestCase):
         self.assertEqual(retained["benefitsRequired"], laid_off["benefitsRequired"])
 
     def test_flat_and_prior_income_formulas_distribute_same_budget(self):
-        base = dict(pace=0, laborTax=0.5, capitalTax=0.5, welfareScale=1)
+        base = dict(pace=0, laborTax=0.5, aiProfitTax=0.5, welfareScale=1)
         flat = domestic({"investmentResponse": 0}, policy(**base, benefitFormula="flat"))["us"][-1]
         prior = domestic({"investmentResponse": 0}, policy(**base, benefitFormula="prior-income"))["us"][-1]
         none = domestic({"investmentResponse": 0}, policy(**{**base, "welfareScale": 0}))["us"][-1]
@@ -164,14 +164,14 @@ class EconomicModelTests(unittest.TestCase):
 
     def test_tax_endpoints_apply_to_all_cohorts(self):
         for tax in [0, 1]:
-            point = domestic({"investmentResponse": 0}, policy(pace=0, laborTax=tax, capitalTax=tax))["us"][
+            point = domestic({"investmentResponse": 0}, policy(pace=0, laborTax=tax, aiProfitTax=tax))["us"][
                 -1
             ]
             self.assertAlmostEqual(point["effectiveLaborTax"], tax, places=10)
-            self.assertAlmostEqual(point["effectiveCapitalTax"], tax, places=10)
+            self.assertAlmostEqual(point["effectiveCapitalTax"], CALIBRATION["capitalTaxRate"], places=10)
 
     def test_zero_taxes_cannot_fund_baseline_services(self):
-        result = domestic(selected=policy(laborTax=0, capitalTax=0))
+        result = domestic(selected=policy(pace=0, laborTax=0, aiProfitTax=0))
         self.assertFalse(result["usAdmissible"])
         self.assertGreater(result["us"][-1]["governmentFundingGap"], 0)
         self.assertEqual(result["us"][-1]["benefitsPaid"], 0)
@@ -179,7 +179,7 @@ class EconomicModelTests(unittest.TestCase):
 
     def test_surplus_goes_to_public_spending_not_hidden_dividend(self):
         result = domestic(
-            {"investmentResponse": 0}, policy(pace=0, laborTax=1, capitalTax=1, welfareScale=0.5)
+            {"investmentResponse": 0}, policy(pace=0, laborTax=1, aiProfitTax=1, welfareScale=0.5)
         )
         point = result["us"][-1]
         self.assertAlmostEqual(point["benefitsScalePaid"], 0.5, places=9)
@@ -193,22 +193,22 @@ class EconomicModelTests(unittest.TestCase):
 
     def test_policy_responses_are_relative_to_current_taxes(self):
         same = domestic(selected=policy(pace=0))["us"][-1]
-        higher = domestic(selected=policy(pace=0, laborTax=1, capitalTax=1))["us"][-1]
-        lower = domestic(selected=policy(pace=0, laborTax=0, capitalTax=0))["us"][-1]
+        higher = domestic(selected=policy(pace=0, laborTax=1, aiProfitTax=1))["us"][-1]
+        lower = domestic(selected=policy(pace=0, laborTax=0, aiProfitTax=0))["us"][-1]
         reference = 100 * (1 + GROWTH_BASELINE["us"]) ** YEARS
         self.assertAlmostEqual(same["output"], reference, places=10)
         self.assertLess(higher["output"], reference)
         self.assertGreater(lower["output"], reference)
 
     def test_zero_response_disables_tax_incentive_effects(self):
-        low = domestic({"investmentResponse": 0}, policy(laborTax=0, capitalTax=0))
-        high = domestic({"investmentResponse": 0}, policy(laborTax=1, capitalTax=1))
+        low = domestic({"investmentResponse": 0}, policy(laborTax=0, aiProfitTax=0))
+        high = domestic({"investmentResponse": 0}, policy(laborTax=1, aiProfitTax=0.9))
         for a, b in zip(low["us"], high["us"], strict=True):
             self.assertEqual(a["output"], b["output"])
             self.assertEqual(a["adoption"], b["adoption"])
 
     def test_international_rent_flows_conserve_resources(self):
-        result = evaluate_profile(DEFAULT_INPUTS, policy(pace=0), policy(pace=1, capitalTax=0.2))
+        result = evaluate_profile(DEFAULT_INPUTS, policy(pace=0), policy(pace=1, aiProfitTax=0.2))
         for us, foreign in zip(result["us"], result["foreign"], strict=True):
             self.assertAlmostEqual(
                 us["netRentFlow"] * us["consumerPriceIndex"]
@@ -235,8 +235,8 @@ class EconomicModelTests(unittest.TestCase):
             model = solve_model(
                 DEFAULT_INPUTS, {"mode": "strategic", "objective": "workers", "foreignObjective": objective}
             )
-            a = policy(laborTax=0.4, capitalTax=0.5)
-            b = policy(pace=2, laborTax=0.4, capitalTax=0.5, benefitFormula="flat")
+            a = policy(laborTax=0.4, aiProfitTax=0.5)
+            b = policy(pace=2, laborTax=0.4, aiProfitTax=0.5, benefitFormula="flat")
             full = model["evaluate"](a, b)
             light = model["evaluateLight"](a, b)
             self.assertEqual(full["usUtilities"], light["usUtilities"])
@@ -339,16 +339,17 @@ class EconomicModelTests(unittest.TestCase):
                     "jobSearch": search_share,
                     "investmentResponse": 1,
                 }
-                current = domestic(assumptions, policy(capitalTax=capital_tax, replacement=1))
-                accelerated = domestic(assumptions, policy(pace=2, capitalTax=capital_tax, replacement=1))
+                current = domestic(assumptions, policy(aiProfitTax=capital_tax, replacement=1))
+                accelerated = domestic(assumptions, policy(pace=2, aiProfitTax=capital_tax, replacement=1))
                 for year in range(6):
                     self.assertAlmostEqual(
                         accelerated["us"][year]["adoption"], current["us"][year * 2]["adoption"], places=12
                     )
                 for point in accelerated["us"][5:]:
-                    self.assertEqual(point["adoption"], 1)
-                    self.assertEqual(
-                        point["potentialGrowthRate"], GROWTH_BASELINE["us"] + DEFAULT_INPUTS["usAiGrowth"]
+                    self.assertEqual(point["adoption"], 1 - capital_tax)
+                    self.assertAlmostEqual(
+                        point["potentialGrowthRate"],
+                        GROWTH_BASELINE["us"] + DEFAULT_INPUTS["usAiGrowth"] * (1 - capital_tax),
                     )
                 self.assert_closed(accelerated)
 
@@ -364,7 +365,7 @@ class EconomicModelTests(unittest.TestCase):
     def test_searching_cannot_restore_work_when_no_jobs_remain(self):
         result = domestic(
             {"jobsAffected": 1, "jobChange": -1, "jobSearch": 1, "investmentResponse": 1},
-            policy(capitalTax=1),
+            policy(aiProfitTax=0),
         )
         final = result["us"][-1]
         self.assertEqual(final["adoption"], 1)
@@ -391,7 +392,7 @@ class EconomicModelTests(unittest.TestCase):
                 "jobSearch": 0,
                 "investmentResponse": 0,
             },
-            policy(pace=2, replacement=1.25, welfareScale=0, laborTax=1, capitalTax=1),
+            policy(pace=2, replacement=1.25, welfareScale=0, laborTax=1, aiProfitTax=0),
         )
         self.assertTrue(any(point["employerFundingGap"] > 1e-7 for point in result["us"]))
         self.assertFalse(result["usAdmissible"])
@@ -411,7 +412,7 @@ class EconomicModelTests(unittest.TestCase):
             {**DEFAULT_INPUTS, "jobsAffected": 1, "jobChange": -1, "jobSearch": 0},
             {"mode": "strategic", "objective": "workers"},
         )
-        for us in [policy(), policy(replacement=1.25, welfareScale=2), policy(laborTax=0, capitalTax=0)]:
+        for us in [policy(), policy(replacement=1.25, welfareScale=2), policy(laborTax=0, aiProfitTax=0)]:
             for foreign in [
                 policy(pace=0, welfareScale=2),
                 policy(pace=0),
