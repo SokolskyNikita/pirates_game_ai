@@ -138,9 +138,10 @@ class TradeModelTests(unittest.TestCase):
 
     def test_trade_retention_costs_reduce_next_year_investment_capacity(self):
         inputs = {**DEFAULT_INPUTS, "foreignAiGrowth": 0.2, "investmentResponse": 0.7, "jobSearch": 0}
-        laid_off = evaluate_profile(inputs, policy(pace=0), policy(pace=2))
-        retained = evaluate_profile(inputs, policy(pace=0, replacement=1), policy(pace=2))
-        self.assertEqual(retained["us"][1]["capacityFactor"], laid_off["us"][1]["capacityFactor"])
+        laid_off = evaluate_profile(inputs, policy(pace=1), policy(pace=2))
+        retained = evaluate_profile(inputs, policy(pace=1, replacement=1), policy(pace=2))
+        self.assertEqual(retained["us"][0]["capacityFactor"], laid_off["us"][0]["capacityFactor"])
+        self.assertLess(retained["us"][2]["capacityFactor"], retained["us"][1]["capacityFactor"])
         self.assertLess(retained["us"][2]["capacityFactor"], laid_off["us"][2]["capacityFactor"])
         self.assertGreater(retained["us"][1]["employerPay"], 0)
 

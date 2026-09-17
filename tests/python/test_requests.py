@@ -125,6 +125,7 @@ class RequestValidation(unittest.TestCase):
         domestic = {
             "|".join(parts)
             for parts in itertools.product(*([option["idPart"] for option in options[axis]] for axis in axes))
+            if parts[0] != "0" or parts[1] == "0"
         }
         self.assertEqual(domestic, {policy["id"] for policy in POLICIES})
         international = {
@@ -133,6 +134,7 @@ class RequestValidation(unittest.TestCase):
                 *([option["idPart"] for option in options[axis]] for axis in (*axes, "allowFreeTrade"))
             )
         }
+        international = {key for key in international if key.split("|")[0] != "0" or key.split("|")[1] == "0"}
         self.assertEqual(international, {policy["id"] for policy in INTERNATIONAL_POLICIES})
         self.assertEqual(
             options["allowFreeTrade"],

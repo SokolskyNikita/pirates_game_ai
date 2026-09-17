@@ -51,8 +51,8 @@ class EconomicModelTests(unittest.TestCase):
 
     def test_exact_calibration_and_policy_identifiers(self):
         self.assertEqual(CALIBRATION, FIXTURES["calibration"])
-        self.assertEqual([p["id"] for p in POLICIES], FIXTURES["policyIds"])
-        self.assertEqual(len(POLICIES), 6480)
+        self.assertEqual([p["id"] for p in POLICIES], [key for key in FIXTURES["policyIds"] if key.split("|")[0] != "0" or key.split("|")[1] == "0"])
+        self.assertEqual(len(POLICIES), 4860)
 
     def test_reference_profiles_preserve_initial_resources_and_annual_accounting(self):
         # Historical trajectories intentionally change with the labor-market model;

@@ -52,7 +52,7 @@ class MigrationParity(unittest.TestCase):
 
     def test_calibration_and_entire_policy_menu(self):
         self.assertEqual(CALIBRATION, ORACLE["calibration"])
-        self.assertEqual([policy["id"] for policy in POLICIES], ORACLE["policyIds"])
+        self.assertEqual([policy["id"] for policy in POLICIES], [key for key in ORACLE["policyIds"] if key.split("|")[0] != "0" or key.split("|")[1] == "0"])
 
     def test_domestic_initial_economy_and_materialized_scalar_utilities(self):
         for case in ORACLE["profiles"]:

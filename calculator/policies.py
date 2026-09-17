@@ -52,6 +52,8 @@ def _rounded_percent(value: float, decimals: int = 0) -> str:
 def make_policy(values: dict[str, Any]) -> Policy:
     pace = values["pace"]
     replacement = values["replacement"]
+    if pace == 0 and replacement != 0:
+        raise ValueError("Pause AI requires no employer retention.")
     welfare = values["welfareScale"]
     formula = values["benefitFormula"]
     labor_tax = values["laborTax"]
@@ -101,8 +103,9 @@ POLICIES = [
         LABOR_TAX_CHOICES,
         CAPITAL_TAX_CHOICES,
     )
+    if values[0] != 0 or values[1] == 0
 ]
-# Domestic calculations retain the original menu. International packages add a
+# Pause packages have no retention mandate. International packages add a
 # separate trade vote; open-trade identifiers remain compatible with old links.
 INTERNATIONAL_POLICIES = POLICIES + [make_policy({**policy, "allowFreeTrade": False}) for policy in POLICIES]
 _POLICIES_BY_MODE = {
@@ -168,6 +171,7 @@ def checked_policy(policy: Policy) -> None:
             or not low <= policy[field] <= high
             for field, (low, high) in zip(fields, limits, strict=True)
         )
+        or (policy["pace"] == 0 and policy["replacement"] != 0)
         or policy["benefitFormula"] not in BENEFIT_FORMULAS
         or not isinstance(policy.get("allowFreeTrade", True), bool)
     ):

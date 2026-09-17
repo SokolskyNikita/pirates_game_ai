@@ -16,6 +16,10 @@ for (const value of Object.values(library)) {
   if (value.fingerprint !== manifest.fingerprint || value.schema !== 2) throw new Error('Stale data');
   if (!value.snapshot.ballot.coordination) throw new Error('Missing strategic voting result');
   if (!['domestic-ballot', 'verified-consistent', 'selected-by-rule'].includes(value.snapshot.selection)) throw new Error('Missing selected outcome');
+  for (const field of ['usPolicy', 'foreignPolicy']) {
+    const policy = value.snapshot.selected[field];
+    if (policy?.pace === 0 && policy.replacement !== 0) throw new Error('Pause AI includes employer retention');
+  }
   if (value.snapshot.selected.us.length !== 11) throw new Error('Incomplete income chart');
 }
 for (const removed of ['id="manual-inputs"', 'id="accounting-table"', 'id="ballot-table"'])

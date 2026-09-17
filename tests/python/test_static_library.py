@@ -81,6 +81,10 @@ class StaticLibraryTests(unittest.TestCase):
         for result in library.values():
             self.assertEqual(result["fingerprint"], fingerprint)
             snapshot = result["snapshot"]
+            for region in ("usPolicy", "foreignPolicy"):
+                policy = snapshot["selected"].get(region)
+                if policy and policy["pace"] == 0:
+                    self.assertEqual(policy["replacement"], 0)
             ballot = snapshot["ballot"]
             selected = snapshot["selected"]
             self.assertIn(snapshot["selection"], {"domestic-ballot", "verified-consistent", "selected-by-rule"})

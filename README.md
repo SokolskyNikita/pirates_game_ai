@@ -48,7 +48,7 @@ See [the data definitions and reproduction instructions](docs/us-electorate-data
 
 ## What the model decides
 
-The US-only ballot contains all 6,480 combinations of six policy terms (4,320 when pausing AI is unavailable). International mode adds a trade choice, giving each side 12,960 combinations (8,640 without a pause). Disallowing the US status quo excludes its exact current-policy package from these counts; it does not remove a foreign option:
+The US-only ballot contains all 4,860 valid combinations of six policy terms (4,320 when pausing AI is unavailable). International mode adds a trade choice, giving each side 9,720 combinations (8,640 without a pause). Disallowing the US status quo excludes its exact current-policy package from these counts; it does not remove a foreign option:
 
 1. Pause AI, allow current AI pace, or accelerate AI.
 2. Allow layoffs or require employers to retain affected workers at 50%, 100% or 125% of prior wages.
@@ -159,3 +159,5 @@ This repository is independent of the original personal website. It contains no 
 The site uses Cloudflare Workers Static Assets. The tiny `worker/static.ts` only redirects the canonical domain and calls the asset binding; it imports no calculator and exposes no calculation API. `wrangler.jsonc` keeps the existing domain bindings. `npm run deploy` validates, builds and publishes with the existing authenticated Cloudflare session.
 
 HTTP and `www` requests redirect to `https://ai-pirates-game.com`, preserving paths and query strings. Scenario files are gzip-compressed JSON fetched individually and decompressed by the browser. The full library is embedded only when its measured compressed size is below 3,500,000 bytes. Otherwise the site remains static and fetches the chosen file; there is still no calculation backend.
+
+Pause AI packages fix employer retention to None (0%). This restriction applies independently to both countries, including when open trade permits foreign competition. Other AI paces retain all wage-retention options.

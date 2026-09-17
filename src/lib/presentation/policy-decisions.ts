@@ -100,10 +100,16 @@ export function policyDecisions(
         ? 'AI-driven job changes happen twice as fast. The foreign economy reaches its assumed deployment limit by year five, bringing the additional growth boost forward.'
         : 'AI-driven job changes happen over ten years. The foreign economy reaches its assumed deployment limit by year ten.';
   }
+  if (p.pace === 0) {
+    details.replacement = 'Employer retention is fixed to None when AI is paused.' +
+      (mode === 'strategic'
+        ? ' Workers can still be displaced by foreign competition when trade is open.'
+        : ' There are no AI-driven layoffs in this domestic scenario.');
+  }
   return policyAxes
     .filter((axis) => mode === 'strategic' || axis !== 'allowFreeTrade')
     .map((axis, index) => {
-      let headline = axisValue(axis, p);
+      let headline = axis === 'replacement' && p.pace === 0 ? 'None' : axisValue(axis, p);
       if (region === 'foreign' && (axis === 'welfareScale' || axis === 'benefitFormula')) {
         headline = headline.replace('current', 'reference');
       }

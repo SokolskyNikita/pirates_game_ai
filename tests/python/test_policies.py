@@ -23,9 +23,9 @@ class PolicyMenuTests(unittest.TestCase):
             self.assertIs(policy_by_id(policy["id"], "us-only")["allowFreeTrade"], True)
 
     def test_international_menu_has_both_trade_choices_for_every_domestic_package(self):
-        self.assertEqual(len(POLICIES), 6480)
-        self.assertEqual(len(INTERNATIONAL_POLICIES), 12960)
-        self.assertEqual(len({p["id"] for p in INTERNATIONAL_POLICIES}), 12960)
+        self.assertEqual(len(POLICIES), 4860)
+        self.assertEqual(len(INTERNATIONAL_POLICIES), 9720)
+        self.assertEqual(len({p["id"] for p in INTERNATIONAL_POLICIES}), 9720)
         for opened in POLICIES:
             closed = policy_by_id(opened["id"] + "|closed", "strategic")
             self.assertTrue(opened["allowFreeTrade"])
@@ -34,15 +34,15 @@ class PolicyMenuTests(unittest.TestCase):
                 self.assertEqual(opened[axis], closed[axis])
 
     def test_mode_and_pause_filtering_retain_complete_available_menus(self):
-        for mode, count in (("us-only", 6480), ("strategic", 12960)):
+        for mode, count in (("us-only", 4860), ("strategic", 9720)):
             menu = policies_for_mode(mode)
             restricted = policies_for_mode(mode, True)
             self.assertEqual(len(menu), count)
-            self.assertEqual(len(restricted), count * 2 // 3)
+            self.assertEqual(len(restricted), count * 8 // 9)
             self.assertTrue(all(p["pace"] != 0 for p in restricted))
             for pace in (0, 1, 2):
                 choices = policies_at_pace(pace, mode)
-                self.assertEqual(len(choices), count // 3)
+                self.assertEqual(len(choices), count // 9 * (1 if pace == 0 else 4))
                 self.assertTrue(all(p["pace"] == pace for p in choices))
 
     def test_closed_policy_is_ineligible_domestically_and_pause_restriction_applies(self):
@@ -71,6 +71,22 @@ class PolicyMenuTests(unittest.TestCase):
         closed = make_policy({**opened, "allowFreeTrade": False})
         self.assertEqual(closed["id"], opened["id"] + "|closed")
         self.assertEqual(make_policy({**closed, "allowFreeTrade": True}), opened)
+
+
+class PauseRetentionTests(unittest.TestCase):
+    def test_pause_retention_is_excluded_and_rejected(self):
+        for mode in ("us-only", "strategic"):
+            self.assertTrue(all(p["replacement"] == 0 for p in policies_at_pace(0, mode)))
+            for replacement in (0.5, 1, 1.25):
+                invalid = {**current_policy(0), "replacement": replacement}
+                with self.assertRaises(ValueError):
+                    make_policy(invalid)
+                with self.assertRaises(ValueError):
+                    checked_policy(invalid)
+                old_id = current_policy(0)["id"].split("|")
+                old_id[1] = str(replacement)
+                with self.assertRaises(ValueError):
+                    policy_by_id("|".join(old_id), mode)
 
 
 if __name__ == "__main__":

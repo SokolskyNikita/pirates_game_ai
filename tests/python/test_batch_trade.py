@@ -15,7 +15,7 @@ from calculator.population import PREPARED
 
 def trade_menu():
     return [
-        make_policy({**current_policy(pace), **policy, "allowFreeTrade": trade})
+        make_policy({**current_policy(pace), **policy, "replacement": 0 if pace == 0 else policy.get("replacement", 0), "allowFreeTrade": trade})
         for pace in (0, 1, 2)
         for trade in (False, True)
         for policy in (
