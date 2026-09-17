@@ -72,7 +72,7 @@ class StrategicVotingTests(unittest.TestCase):
         result = strategic_package_ballot(menu, [1, 1, 1], "current")
         self.assertFalse(result["coordination"]["stable"])
         self.assertEqual(result["coordination"]["reason"], "cycle")
-        self.assertEqual(result["coordination"]["resolution"], "most-supported-recorded-ballot")
+        self.assertEqual(result["coordination"]["resolution"], "least-vulnerable-recorded-ballot")
         self.assertIn(result["winnerId"], {"a", "b", "c"})
         self.assertGreater(result["topSupportPercent"], 50)
         limited = strategic_package_ballot(menu, [1, 1, 1], "current", max_steps=1)
@@ -133,7 +133,11 @@ class StrategicVotingTests(unittest.TestCase):
                 eligible = sorted(c["id"] for c in menu if not (plurality and c["id"] == "current"))
                 utilities = {c["id"]: c["utilities"] for c in menu}
                 self.assertIn(result["enactedPolicyId"], utilities)
-                self.assertAlmostEqual(sum(row["supportPercent"] for row in result["tallies"]), 100)
+                self.assertAlmostEqual(
+                    sum(row["supportPercent"] for row in result["tallies"])
+                    + result["coordination"]["abstentionPercent"],
+                    100,
+                )
                 if not result["coordination"]["stable"]:
                     continue
                 current = result["enactedPolicyId"]
@@ -149,6 +153,88 @@ class StrategicVotingTests(unittest.TestCase):
                                 key: sum(weights[i] for i, choice in enumerate(choices) if choice == key)
                                 for key in eligible
                             }
-                            leader = min(eligible, key=lambda key: (-tally[key], key))
+                            priority = {row["policyId"]: i for i, row in enumerate(result["tallies"])}
+                            leader = min(eligible, key=lambda key: (-tally[key], priority[key]))
                             outcome = leader if plurality or tally[leader] > 50 else None
-                            self.assertFalse(outcome == challenger and challenger != current, (plurality, menu, result, challenger, members, tally))
+                            self.assertFalse(
+                                outcome == challenger and challenger != current,
+                                (plurality, menu, result, challenger, members, tally),
+                            )
+
+
+class NeutralAgendaTests(unittest.TestCase):
+    def test_renaming_every_policy_preserves_outcome_and_support(self):
+        import random
+
+        rng = random.Random(31)
+        for _ in range(80):
+            menu = [candidate(str(i), [rng.random() for _ in range(5)]) for i in range(7)]
+            weights = [25, 25, 20, 20, 10]
+            original = strategic_package_ballot(menu, weights, "0")
+            mapping = {str(i): str(100 - i) for i in range(7)}
+            renamed = strategic_package_ballot(
+                [{**c, "id": mapping[c["id"]]} for c in reversed(menu)], weights, mapping["0"]
+            )
+            self.assertEqual(renamed["enactedPolicyId"], mapping[original["enactedPolicyId"]])
+            self.assertEqual(renamed["topSupportPercent"], original["topSupportPercent"])
+
+    def test_stability_includes_profitable_withdrawals_to_fallback(self):
+        import random
+
+        rng = random.Random(13)
+        weights = [31, 27, 23, 19]
+        withdrawals = 0
+        for _ in range(200):
+            menu = [candidate(k, [rng.randrange(8) for _ in weights]) for k in ("sq", "a", "b", "c", "d")]
+            result = strategic_package_ballot(menu, weights, "sq")
+            withdrawals += result["coordination"]["withdrawals"]
+            if not result["coordination"]["stable"] or result["enactedPolicyId"] == "sq":
+                continue
+            utilities = {c["id"]: c["utilities"] for c in menu}
+            winner = result["enactedPolicyId"]
+            remaining = sum(
+                weights[i]
+                for i, v in enumerate(result["voterChoices"])
+                if v == winner and utilities["sq"][i] <= utilities[winner][i]
+            )
+            self.assertGreater(remaining, 50)
+        self.assertGreater(withdrawals, 0)
+
+
+class ExhaustiveDeviationTests(unittest.TestCase):
+    def test_stable_majority_ballots_resist_all_strictly_profitable_cohort_deviations(self):
+        import random
+
+        rng = random.Random(621)
+        weights = [31, 27, 23, 19]
+        for _ in range(50):
+            menu = [candidate(k, [rng.randrange(8) for _ in weights]) for k in ("sq", "a", "b", "c")]
+            result = strategic_package_ballot(menu, weights, "sq")
+            if not result["coordination"]["stable"]:
+                continue
+            utility = {c["id"]: c["utilities"] for c in menu}
+            before = result["enactedPolicyId"]
+            original = result["voterChoices"]
+            for votes in itertools.product([None, "sq", "a", "b", "c"], repeat=4):
+                support = {
+                    key: sum(w for w, v in zip(weights, votes, strict=True) if v == key) for key in utility
+                }
+                winner = next((k for k, v in support.items() if v > 50), "sq")
+                members = [i for i in range(4) if votes[i] != original[i]]
+                profitable = bool(members) and all(utility[winner][i] > utility[before][i] for i in members)
+                self.assertFalse(profitable, (menu, result, votes))
+
+    def test_vectorized_sincere_ballot_matches_scalar_contract(self):
+        import random
+
+        from calculator.ballot import tally_package_ballot
+        from calculator.ballot_fast import sincere_ballot
+
+        rng = random.Random(837)
+        for _ in range(40):
+            menu = [
+                candidate(k, [rng.randrange(4) for _ in range(7)], rng.random() > 0.15)
+                for k in ("sq", "a", "b", "c")
+            ]
+            weights = [rng.random() for _ in range(7)]
+            self.assertEqual(sincere_ballot(menu, weights, "sq"), tally_package_ballot(menu, weights, "sq"))

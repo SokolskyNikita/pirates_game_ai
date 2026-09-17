@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from itertools import product
 from typing import Any
@@ -21,7 +23,7 @@ def _unique_rates(values: list[float]) -> list[float]:
 
 
 def _tax_choices(mean: float) -> list[float]:
-    return _unique_rates([0, mean - 0.1, mean, mean + 0.1, mean + 0.3, 1])
+    return sorted(_unique_rates([step / 10 for step in range(11)] + [mean]))
 
 
 LABOR_TAX_CHOICES = _tax_choices(CALIBRATION["laborTaxRate"])
@@ -176,3 +178,9 @@ def checked_policy(policy: Policy) -> None:
         or not isinstance(policy.get("allowFreeTrade", True), bool)
     ):
         raise ValueError("Invalid policy.")
+
+
+def policy_tie_key(policy: Policy) -> str:
+    """Neutral, reproducible priority for exact support ties, independent of labels."""
+    terms = {key: value for key, value in policy.items() if key not in ("id", "label")}
+    return hashlib.sha256(json.dumps(terms, sort_keys=True, separators=(",", ":")).encode()).hexdigest()

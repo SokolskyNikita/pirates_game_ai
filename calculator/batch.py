@@ -22,9 +22,10 @@ from typing import Any
 import numpy as np
 
 from .batch_settlement import prepare_settlement_arrays, settle_batch
-from .config import DISCOUNT_RATE
+from .careers import RETAINED, Careers
 from .policies import checked_policy
 from .population import PREPARED
+from .preferences import preferences
 from .trajectory import production_trajectory
 from .types import Policy, Prepared
 
@@ -65,17 +66,26 @@ def _production_paths(inputs, us_policies, foreign_policies, prepared):
     us = _policy_arrays(us_policies)
     foreign = _policy_arrays(foreign_policies) if foreign_policies is not None else None
     zero = np.zeros(len(us_policies))
-    return [
-        (
-            {key: step.us[key] for key in _SETTLEMENT_FIELDS},
-            {key: step.foreign[key] for key in _SETTLEMENT_FIELDS} if step.foreign is not None else None,
-            step.us_flow,
-            step.foreign_flow,
-            step.us["consumer_price_index"],
-            step.foreign["consumer_price_index"] if step.foreign is not None else zero + 1,
+    paths = []
+    uc, fc = Careers(len(us_policies)), Careers(len(us_policies))
+    for step in production_trajectory(inputs, us, foreign, prepared.calibration, xp=np, zero=zero):
+        u = {key: step.us[key] for key in _SETTLEMENT_FIELDS}
+        u["career_states"] = uc.advance(step.us["labor_state"])
+        f = None
+        if step.foreign is not None:
+            f = {key: step.foreign[key] for key in _SETTLEMENT_FIELDS}
+            f["career_states"] = fc.advance(step.foreign["labor_state"])
+        paths.append(
+            (
+                u,
+                f,
+                step.us_flow,
+                step.foreign_flow,
+                step.us["consumer_price_index"],
+                step.foreign["consumer_price_index"] if f is not None else zero + 1,
+            )
         )
-        for step in production_trajectory(inputs, us, foreign, prepared.calibration, xp=np, zero=zero)
-    ]
+    return paths
 
 
 def _menu_production_paths(inputs, us_policies, foreign_policies, prepared):
@@ -116,7 +126,10 @@ def _evaluate_chunk(
     foreign_arrays = prepare_settlement_arrays(prepared, fp) if fp is not None and not us_only else None
     if paths is None:
         paths = _production_paths(inputs, us_policies, foreign_policies, prepared)
-    utilities = np.zeros((count, len(prepared.cells)))
+    # Accumulate small per-year income matrices; contract them with known
+    # career histories once, instead of allocating a full voter matrix yearly.
+    base_utilities = np.zeros((count, len(prepared.cells)))
+    career_deltas, career_masks = [], []
     us_score, foreign_score = np.zeros(count), np.zeros(count)
     us_funded, foreign_funded = np.ones(count, dtype=bool), np.ones(count, dtype=bool)
     us_boundary, foreign_boundary = np.full(count, np.inf), np.full(count, np.inf)
@@ -129,11 +142,13 @@ def _evaluate_chunk(
             flow, foreign_flow, us_price, foreign_price = (
                 values[rows] for values in (flow, foreign_flow, us_price, foreign_price)
             )
-        weight = (1 + DISCOUNT_RATE) ** -year
+        weight = (1 + preferences().discount) ** -year
         weight_total += weight
         if not foreign_only:
             result = settle_batch(up, us, flow, prepared, us_arrays, us_price)
-            utilities += weight * result.utilities
+            base_utilities += weight * result.obsolete_utility
+            career_deltas.append(weight * (result.employed_utility - result.obsolete_utility))
+            career_masks.append(us["career_states"] < RETAINED)
             us_score += weight * result.worker_score
             us_funded &= result.admissible
             us_boundary = np.minimum(us_boundary, result.funding_distance)
@@ -149,7 +164,17 @@ def _evaluate_chunk(
             foreign_score += weight * score
             foreign_funded &= result.admissible
             foreign_boundary = np.minimum(foreign_boundary, result.funding_distance)
-    utilities /= weight_total
+    if foreign_only:
+        utilities = np.empty((count, 0))
+    else:
+        utilities = (
+            base_utilities[:, :, None]
+            + np.einsum(
+                "ncy,nry->ncr",
+                np.stack(career_deltas, axis=2),
+                np.stack(career_masks, axis=2),
+            )
+        ).reshape(count, -1) / weight_total
     us_score /= weight_total
     foreign_score /= weight_total
     profiles = []

@@ -2,7 +2,7 @@
 
 This does not claim that a manifest covers the full interactive assumption grid.
 No production files or deployment are changed. Each task evaluates the complete
-policy menu using the normal Python model; workers never approximate results.
+policy menu using the published Python model and its declared numerical resolution.
 """
 
 import argparse

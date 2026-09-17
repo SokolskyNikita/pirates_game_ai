@@ -22,6 +22,8 @@ from .finance import (
 @dataclass(slots=True)
 class BatchSettlement:
     utilities: np.ndarray
+    employed_utility: np.ndarray
+    obsolete_utility: np.ndarray
     worker_score: np.ndarray
     prosperity_score: np.ndarray
     output_score: np.ndarray
@@ -129,6 +131,8 @@ def settle_batch(policy, production, flow, prepared, arrays, price_index=1):
     prosperity_score = _sequential_total(arrays["weight"] * utilities)
     return BatchSettlement(
         utilities,
+        employed_utility,
+        displaced_utility,
         worker_score,
         prosperity_score,
         production["output"] / 100 - 1,

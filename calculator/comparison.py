@@ -6,6 +6,7 @@ import math
 from collections.abc import Sequence
 from typing import Any
 
+from .careers import voter_weights
 from .model import evaluate_profile
 from .policies import policy_by_id
 from .population import CALIBRATION
@@ -23,7 +24,7 @@ def count_votes(
     Income never changes voting weight; indifference favors the incumbent.
     """
     if weights is None:
-        weights = CALIBRATION["weights"]
+        weights = voter_weights(CALIBRATION["weights"])
     if not len(weights):
         raise ValueError("An electorate needs at least one population cell.")
     total = 0.0

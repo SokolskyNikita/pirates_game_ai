@@ -10,6 +10,7 @@ from typing import Any
 
 from .arithmetic import Scalar
 from .config import UTILITY_OFFSET
+from .preferences import preferences
 
 # Dollar-per-adult tolerance for roundoff, not permission to borrow from later years.
 FUNDING_TOLERANCE = 1e-7
@@ -111,4 +112,6 @@ def household_income(
 def income_utility(income, prior, *, xp=Scalar):
     """Utility floors consumption; the resource ledger still retains all losses."""
     denominator = xp.maximum(prior, 1)
-    return xp.log((xp.maximum(0, income) / denominator + UTILITY_OFFSET) / (1 + UTILITY_OFFSET))
+    ratio = (xp.maximum(0, income) / denominator + UTILITY_OFFSET) / (1 + UTILITY_OFFSET)
+    curvature = preferences().curvature
+    return xp.log(ratio) if curvature == 1 else (ratio ** (1 - curvature) - 1) / (1 - curvature)

@@ -12,8 +12,9 @@ from functools import partial
 from typing import Any
 
 from .arithmetic import Scalar
-from .config import GROWTH_BASELINE, YEARS
+from .config import GROWTH_BASELINE
 from .labor_market import initial_labor
+from .preferences import preferences
 from .production import deployment_at_year, policy_burden_values, production_values
 from .trade import baseline_trade, competition_displacement, trade_market, trade_retention_burden
 from .types import Calibration, ModelInputs, Policy
@@ -117,7 +118,7 @@ def production_trajectory(
         if international
         else zero
     )
-    for year in range(1, YEARS + 1):
+    for year in range(1, preferences().horizon + 1):
         annual_us = _annual_burden(burden_us, state_us, us_policy, calibration, xp)
         annual_foreign = (
             _annual_burden(burden_foreign, state_foreign, foreign_policy, calibration, xp)

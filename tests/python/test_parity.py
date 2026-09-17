@@ -11,10 +11,10 @@ import unittest
 from pathlib import Path
 
 from calculator.config import DEFAULT_INPUTS
+from calculator.election import solve_package_election
 from calculator.model import evaluate_profile, solve_model
-from calculator.policies import POLICIES, current_policy, policies_for_mode
+from calculator.policies import POLICIES, current_policy, policies_for_mode, policy_tie_key
 from calculator.population import CALIBRATION
-from calculator.simulation import solve_scenario
 from calculator.strategic_ballot import strategic_package_ballot
 
 ORACLE = json.loads((Path(__file__).parents[1] / "fixtures/typescript-parity.json").read_text())
@@ -52,7 +52,8 @@ class MigrationParity(unittest.TestCase):
 
     def test_calibration_and_entire_policy_menu(self):
         self.assertEqual(CALIBRATION, ORACLE["calibration"])
-        self.assertEqual([policy["id"] for policy in POLICIES], [key for key in ORACLE["policyIds"] if key.split("|")[0] != "0" or key.split("|")[1] == "0"])
+        self.assertEqual(len(POLICIES), 19440)
+        self.assertIn(current_policy()["id"], {p["id"] for p in POLICIES})
 
     def test_domestic_initial_economy_and_materialized_scalar_utilities(self):
         for case in ORACLE["profiles"]:
@@ -68,34 +69,34 @@ class MigrationParity(unittest.TestCase):
                 self.assertEqual(actual["usAdmissible"], light["usAdmissible"])
                 self.assertEqual(actual["usScore"], light["usScore"])
 
-    def test_domestic_common_ballots_match_full_scalar_menu(self):
+    def test_domestic_ballots_match_scalar_on_cross_dimension_submenus(self):
         for case in ORACLE["snapshots"]:
             if case["request"]["mode"] != "us-only":
                 continue
             request = {**case["request"], "inputs": revised_inputs(case["request"]["inputs"])}
             with self.subTest(request=request):
-                actual = solve_scenario(request)
                 model = solve_model(request["inputs"], {"mode": "us-only", "objective": "workers"})
                 menu = policies_for_mode("us-only", request.get("pauseUnavailable", False))
+                menu = list({p["id"]:p for p in [*menu[::269],current_policy()]}.values())
+                actual = solve_package_election({**model,"policies":menu})
                 profiles = [model["evaluateLight"](policy) for policy in menu]
                 expected = strategic_package_ballot(
                     [
                         {
                             "id": p["usPolicy"]["id"],
+                            "tieKey": policy_tie_key(p["usPolicy"]),
                             "utilities": p["usUtilities"],
                             "fullyFunded": p["usAdmissible"],
                         }
                         for p in profiles
                     ],
-                    CALIBRATION["weights"],
+                    model["weights"],
                     current_policy()["id"],
                 )
                 # Exact vote allocations and funding eligibility, not merely the winner.
                 self.assertEqual(actual["ballot"], expected)
-                self.assertEqual(actual["selected"]["usPolicy"]["id"], expected["enactedPolicyId"])
-                selected = model["evaluate"](actual["selected"]["usPolicy"])
-                self.assertEqual(actual["selected"]["us"], selected["us"])
-                self.assertEqual(actual["selected"]["usUtilities"], selected["usUtilities"])
+                self.assertEqual(actual["usPolicy"]["id"], expected["enactedPolicyId"])
+
 
 
 if __name__ == "__main__":

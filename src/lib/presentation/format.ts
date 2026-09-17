@@ -75,9 +75,12 @@ function axisOptionValue(axis: PolicyAxis, value: number | BenefitFormula | bool
   if (axis === 'replacement') return replacementName(number);
   if (axis === 'welfareScale') return welfareName(number);
   const reference = axis === 'laborTax' ? CALIBRATION.laborTaxRate : CALIBRATION.capitalTaxRate;
-  return pct(number) + ' benchmark (' + changeFromReference(number, reference) + ')';
+  return Math.abs(number - reference) < 1e-10
+    ? 'Keep current rates (~' + pct(reference) + ')'
+    : pct(number) + ' benchmark (' + changeFromReference(number, reference) + ')';
 }
 function axisValue(axis: PolicyAxis, policy: Policy) {
+  if (axis === 'benefitFormula' && policy.welfareScale === 0) return 'No payments to allocate';
   return axisOptionValue(axis, policy[axis]);
 }
 function policyDescription(policy: Policy, includeTrade = false) {

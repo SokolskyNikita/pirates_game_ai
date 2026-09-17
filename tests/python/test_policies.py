@@ -23,9 +23,9 @@ class PolicyMenuTests(unittest.TestCase):
             self.assertIs(policy_by_id(policy["id"], "us-only")["allowFreeTrade"], True)
 
     def test_international_menu_has_both_trade_choices_for_every_domestic_package(self):
-        self.assertEqual(len(POLICIES), 4860)
-        self.assertEqual(len(INTERNATIONAL_POLICIES), 9720)
-        self.assertEqual(len({p["id"] for p in INTERNATIONAL_POLICIES}), 9720)
+        self.assertEqual(len(POLICIES), 19440)
+        self.assertEqual(len(INTERNATIONAL_POLICIES), 38880)
+        self.assertEqual(len({p["id"] for p in INTERNATIONAL_POLICIES}), 38880)
         for opened in POLICIES:
             closed = policy_by_id(opened["id"] + "|closed", "strategic")
             self.assertTrue(opened["allowFreeTrade"])
@@ -34,7 +34,7 @@ class PolicyMenuTests(unittest.TestCase):
                 self.assertEqual(opened[axis], closed[axis])
 
     def test_mode_and_pause_filtering_retain_complete_available_menus(self):
-        for mode, count in (("us-only", 4860), ("strategic", 9720)):
+        for mode, count in (("us-only", 19440), ("strategic", 38880)):
             menu = policies_for_mode(mode)
             restricted = policies_for_mode(mode, True)
             self.assertEqual(len(menu), count)

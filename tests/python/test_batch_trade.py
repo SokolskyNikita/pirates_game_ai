@@ -7,6 +7,7 @@ import numpy as np
 
 from calculator.ballot import tally_package_ballot
 from calculator.batch import _evaluate_chunk, _menu_production_paths, evaluate_foreign_menu, evaluate_us_menu
+from calculator.careers import voter_weights
 from calculator.config import normalize_inputs
 from calculator.model import solve_model
 from calculator.policies import current_policy, make_policy
@@ -15,7 +16,14 @@ from calculator.population import PREPARED
 
 def trade_menu():
     return [
-        make_policy({**current_policy(pace), **policy, "replacement": 0 if pace == 0 else policy.get("replacement", 0), "allowFreeTrade": trade})
+        make_policy(
+            {
+                **current_policy(pace),
+                **policy,
+                "replacement": 0 if pace == 0 else policy.get("replacement", 0),
+                "allowFreeTrade": trade,
+            }
+        )
         for pace in (0, 1, 2)
         for trade in (False, True)
         for policy in (
@@ -32,7 +40,7 @@ def ballot(profiles):
             {"id": p["usPolicy"]["id"], "utilities": p["usUtilities"], "fullyFunded": p["usAdmissible"]}
             for p in profiles
         ],
-        PREPARED.calibration["weights"],
+        voter_weights(PREPARED.calibration["weights"]),
         current_policy()["id"],
     )
 

@@ -45,7 +45,7 @@ export class ResultsView {
     el('ballot-support').textContent = ballot.leadingPolicyId
       ? 'The leading package receives ' +
         voteShare(ballot.topSupportPercent) +
-        ' of all votes. ' +
+        ' of all adult citizens, including abstainers. ' +
         (plurality
           ? 'It wins without a majority threshold. Current policy is excluded from the ballot and cannot remain as a fallback.'
           : passed
@@ -57,8 +57,8 @@ export class ResultsView {
           ? voteShare(ballot.coordination.strategicVoterPercent) + ' of voters choose a different package from their first choice. ' +
             (ballot.coordination.changedOutcome ? 'Compromise changes the outcome. ' : 'Compromise leaves the enacted outcome unchanged. ')
           : 'No winning compromise improves on the initial outcome for its supporters. ') +
-        'No further profitable coalition switch to a funded package was found under the stated coordination rule. There is one final ballot.'
-      : 'The coordination rule selects the most-supported passing package among the ballots considered, with fixed tie-breaking. This resolves competing coalitions; it does not imply that no voter could prefer a different agreement.';
+        'No further profitable coalition switch or withdrawal to restore current policy was found under this protocol. This is not a proof of a unique equilibrium. There is one final ballot.'
+      : 'The coordination rule selects the recorded funded outcome with the smallest strongest-challenger support, with fixed tie-breaking. This resolves competing coalitions; it does not imply that no voter could prefer a different agreement.';
     el('ballot-leading').hidden = passed || !current.leading;
     el('ballot-leading').textContent =
       current.leading && !passed
@@ -66,7 +66,7 @@ export class ResultsView {
         : '';
     el('decision-votes-note').textContent =
       (current.selection === 'selected-by-rule' ? 'The fixed resolution rule selects this outcome. ' : '') +
-      'These terms belong to ' +
+      'Support is for the whole package, not a separate majority endorsement of each term. These terms belong to ' +
       (passed ? 'the selected winning package' : 'the current-policy fallback') +
       ' and remain in place for ten years. Voters may support a funded compromise to achieve a better outcome for themselves than insisting on their first choice. Everyone knows the voting rule before making their choice.';
     el('policy-decisions').setAttribute(
@@ -117,9 +117,9 @@ export class ResultsView {
         : 'A package passes only with more than 50% of the population-weighted vote. Otherwise the exact current-tax, current-benefit policy with current AI pace remains.');
     el('agenda-order').textContent =
       (current.statusQuoUnavailable
-        ? 'Exact personal utility ties use a fixed policy-ID ordering. If packages tie for the most votes, the same ordering selects the winner. '
-        : 'Exact personal utility ties prefer current policy when eligible, then the first package in a fixed policy-ID ordering. ') +
-      'Compromise proposals use fixed policy-ID priority. The search stops when no profitable single-package coalition switch remains; a repeated ballot or 64 switches invokes the fixed resolution rule, selecting the most-supported passing package recorded, then canonical tie-breaking. This protocol does not search all possible coordinated deviations, deliberate vote-splitting to trigger fallback, or alternative agendas. Perfect rationality alone does not select a unique equilibrium. ' +
+        ? 'Exact ties use a deterministic hash of policy terms; policy names have no priority. '
+        : 'Personal indifference favors eligible current policy; other ties use a deterministic hash of policy terms. ') +
+      'Compromises are considered by a conservative estimate of their benefiting coalition, not their names. Voters can also withdraw support to restore current policy by abstaining; abstention never lowers the majority threshold. A cycle or 64 switches invokes a rule selecting a funded recorded outcome with the smallest strongest-challenger support, then the most ballot support. Exact ties use a policy-terms hash. Stability is checked under this protocol, not every possible bargaining arrangement. Perfect rationality alone does not select a unique equilibrium. ' +
       (current.mode === 'strategic'
         ? 'The foreign actor anticipates US compromise voting. Mutually consistent choices are preferred; otherwise the fixed international resolution rule selects a pair. ' +
           current.search.reason +
@@ -163,7 +163,8 @@ export class ResultsView {
     this.renderTrade();
     el('deviation').textContent = verified
       ? 'The choices are mutually consistent under the stated US coordination rule: this foreign package maximizes its objective among fully funded options given the enacted US package, and the US ballot gives the displayed result given this foreign package.'
-      : current.search.reason;
+      : current.search.reason + (current.foreignBestResponseGain !== undefined && current.foreignBestResponseGain > 0
+          ? ' The foreign actor still has a profitable deviation; this pair is a scenario selected by the rule, not an equilibrium.' : '');
   }
   private renderTrade() {
     const active = this.snapshot.selected;

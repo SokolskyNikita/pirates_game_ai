@@ -81,7 +81,7 @@ export function renderPopulation() {
 export function renderMethod() {
   el('model-method').innerHTML =
     '<h4>Voting and policy selection</h4>' +
-    '<p>Citizens can consolidate behind a fully funded compromise they strictly prefer to the anticipated outcome. The disclosed coordination rule settles intended votes before a single final ballot. By default, strictly more than half must choose the same package; otherwise current policy remains. Personal utility ties prefer eligible current policy, then a fixed policy-ID ordering; tied vote totals use that ordering. Everyone knows the rule. In international mode, each side’s choice must be consistent with the other’s known choice. The foreign actor can still choose its own current policy if fully funded.</p>' +
+    '<p>Citizens can consolidate behind a fully funded compromise they strictly prefer to the anticipated outcome. The disclosed coordination rule settles intended votes before a single final ballot. By default, strictly more than half must choose the same package; otherwise current policy remains. Personal indifference favors eligible current policy; other ties use a deterministic hash of policy terms. Everyone knows the rule. In international mode, each side’s choice must be consistent with the other’s known choice. The foreign actor can still choose its own current policy if fully funded.</p>' +
     MODEL_NOTES.map(
       (note) =>
         '<h4>' +

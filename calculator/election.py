@@ -6,10 +6,13 @@ pair passes the complete US ballot and the complete foreign best-response menu.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from typing import Any
 
 from .ballot import NoFundedPoliciesError
+from .policies import policy_tie_key
 from .strategic_ballot import strategic_package_ballot
 
 Policy = dict[str, Any]
@@ -60,6 +63,7 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
                 evaluations += 1
                 yield {
                     "id": current_id,
+                    "tieKey": policy_tie_key(current),
                     "utilities": reference["usUtilities"],
                     "fullyFunded": reference["usAdmissible"],
                 }
@@ -74,6 +78,7 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
                 evaluations += 1
                 yield {
                     "id": policy["id"],
+                    "tieKey": policy_tie_key(policy),
                     "utilities": profile["usUtilities"],
                     "fullyFunded": profile["usAdmissible"],
                 }
@@ -120,7 +125,7 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
         )
         if not ballot["coordination"]["stable"]:
             search["reason"] += (
-                " The fixed resolution rule selects the most-supported passing package among recorded ballots, with canonical tie-breaking."
+                " The fixed resolution rule selects a funded recorded outcome with the smallest strongest-challenger support, then greatest ballot support."
             )
         return {
             "usPolicy": policies[ballot["enactedPolicyId"]],
@@ -238,7 +243,12 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
             if not best.get("policy"):
                 stopped = True
                 break
-            if profile.get("foreignAdmissible") and gain == 0 and ballot["coordination"]["stable"]:
+            if (
+                profile.get("usAdmissible", True)
+                and profile.get("foreignAdmissible")
+                and gain == 0
+                and ballot["coordination"]["stable"]
+            ):
                 consistent[us["id"] + "::" + foreign["id"]] = pair
                 stopped = True
                 break
@@ -251,7 +261,16 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
 
     search["consistentPairsFound"] = len(consistent)
     if consistent:
-        selected = next(iter(consistent.values()))
+        selected = min(
+            consistent.values(),
+            key=lambda pair: (
+                -pair["ballot"]["topSupportPercent"],
+                pair["foreignPolicy"]["id"] != current_id,
+                hashlib.sha256(
+                    json.dumps([pair["usPolicy"], pair["foreignPolicy"]], sort_keys=True).encode()
+                ).hexdigest(),
+            ),
+        )
     else:
         # Explicit bounded-selection convention for response cycles: among
         # funded foreign choices examined, minimize its remaining improvement,
@@ -279,7 +298,7 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
         search["reason"] = (
             f"Verified {count} mutually consistent policy pair{'s' if count != 1 else ''} "
             f"from {search['startsTried']} starting choices. The displayed pair passes a complete US ballot "
-            "and a complete funded foreign best-response check, with no further profitable coalition switch under the disclosed US protocol. Other outcomes may exist."
+            "and a complete funded foreign best-response check, including compromise withdrawals under the US protocol. Among verified pairs, greatest US package support selects the displayed pair. Other outcomes may exist."
         )
     else:
         search["reason"] = (

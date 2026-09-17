@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from calculator import simulation
+from calculator.careers import voter_weights
 from calculator.comparison import compare_policy, count_votes
 from calculator.policies import BASELINE_POLICY, current_policy
 from calculator.population import CALIBRATION
@@ -133,7 +134,7 @@ class ComparisonTests(unittest.TestCase):
         def evaluate(values, policy, foreign, mode, objective, foreign_objective):
             return {
                 "usPolicy": policy,
-                "usUtilities": [1] * len(CALIBRATION["weights"]),
+                "usUtilities": [1] * len(voter_weights(CALIBRATION["weights"])),
                 "usAdmissible": False,
             }
 

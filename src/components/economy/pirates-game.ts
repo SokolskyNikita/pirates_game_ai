@@ -93,7 +93,7 @@ async function run(id: number) {
 el('download').addEventListener('click', () => {
   if (pending || !snapshot) return;
   const payload = {
-    model: 'pirates-strategic-coalitions-v16',
+    model: 'pirates-known-careers-v17',
     interpretation: 'Finite policy model with illustrative economic responses; not a forecast.',
     scenario: {
       inputs: snapshot.inputs,

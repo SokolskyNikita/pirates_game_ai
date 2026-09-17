@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from .config import DISCOUNT_RATE, normalize_inputs
+from .careers import Careers, voter_weights
+from .config import normalize_inputs
 from .policies import (
     BASELINE_POLICY,
     checked_policy,
@@ -18,6 +19,7 @@ from .policies import (
     policies_for_mode,
 )
 from .population import CALIBRATION, PREPARED, US_COHORTS, prepare
+from .preferences import preferences
 from .production import production_record
 from .settlement import settle
 from .trade import baseline_trade
@@ -88,7 +90,8 @@ def simulate(
     c = prepared.calibration
     us = [initial_point(prepared)] if materialize else []
     foreign = [initial_point(prepared)] if materialize and foreign_policy is not None else []
-    utilities = [0.0] * len(prepared.cells)
+    utilities = [0.0] * (len(prepared.cells) * preferences().career_paths)
+    us_careers, foreign_careers = Careers(), Careers()
     us_score = foreign_score = weight_total = 0.0
     us_admissible = foreign_admissible = True
     if materialize and foreign_policy is not None:
@@ -100,10 +103,11 @@ def simulate(
         production_us = production_record(step.us)
         production_foreign = production_record(step.foreign) if step.foreign is not None else None
         flow, foreign_flow = step.us_flow, step.foreign_flow
-        weight = (1 + DISCOUNT_RATE) ** -year
+        weight = (1 + preferences().discount) ** -year
         weight_total += weight
         if not foreign_only:
-            result = settle(us_policy, production_us, year, flow, prepared, materialize)
+            states = us_careers.advance(production_us.labor_state)[0]
+            result = settle(us_policy, production_us, year, flow, prepared, materialize, states)
             for index, utility in enumerate(result.utilities):
                 utilities[index] += weight * utility
             us_score += weight * result.worker_score
@@ -118,6 +122,7 @@ def simulate(
                 foreign_flow,
                 prepared,
                 materialize,
+                foreign_careers.advance(production_foreign.labor_state)[0],
             )
             foreign_admissible = foreign_admissible and result.admissible
             if foreign_objective == "workers":
@@ -237,7 +242,7 @@ def solve_model(
         "foreignPolicies": policies_for_mode(mode) if mode == "strategic" else [],
         "baselinePolicy": BASELINE_POLICY,
         "currentPolicy": current_policy(pace),
-        "weights": list(CALIBRATION["weights"]),
+        "weights": voter_weights(CALIBRATION["weights"]),
         "evaluate": evaluate,
         "evaluateLight": evaluate_light,
         "evaluateForeign": evaluate_foreign,

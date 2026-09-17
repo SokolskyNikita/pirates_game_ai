@@ -124,6 +124,20 @@ def advance_labor(
     employed = original + new
     wage_bill = original_bill + new_bill
     return {
+        "original_removed": old["original_filled"] - old_original,
+        "new_removed": old["new_filled"] - old_new,
+        "removed": removed,
+        "protected_removed": xp.where(protected, removed, 0),
+        "search_layoffs": search_share * laid_off,
+        "original_redeploy": original_redeploy,
+        "new_redeploy": new_redeploy,
+        "original_hires": original_hires,
+        "new_hires": new_hires,
+        "original_survivors": old_original,
+        "new_survivors": old_new,
+        "swap_original": swap_original,
+        "swap_new": swap_new,
+        "search_swaps": search_share * swaps,
         "original_filled": original,
         "original_bill": original_bill,
         "new_filled": new,

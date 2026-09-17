@@ -34,7 +34,7 @@ def pack(artifact):
     original = artifact["snapshot"]
     snapshot = {k: v for k, v in original.items() if k not in {
         "selected", "statusQuo", "baseline", "alternatives", "leading",
-        "foreignBestPolicy", "foreignBestResponseGain"}}
+        "foreignBestPolicy"}}
     source = original["selected"]
     selected = {k: source[k] for k in ("usPolicy", "usAdmissible", "employerPaymentRange")}
     selected["us"] = [display_year(year) for year in source["us"]]

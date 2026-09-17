@@ -106,6 +106,9 @@ export function policyDecisions(
         ? ' Workers can still be displaced by foreign competition when trade is open.'
         : ' There are no AI-driven layoffs in this domestic scenario.');
   }
+  if (p.welfareScale === 0) {
+    details.benefitFormula = 'The selected package provides no benefit payments, so the distribution rule has no effect.';
+  }
   return policyAxes
     .filter((axis) => mode === 'strategic' || axis !== 'allowFreeTrade')
     .map((axis, index) => {

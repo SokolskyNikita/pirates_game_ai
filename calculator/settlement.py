@@ -4,12 +4,20 @@ from __future__ import annotations
 
 from typing import Any
 
+from .careers import RETAINED
 from .finance import employer_budget, fully_funded, household_income, income_utility, public_budget, tax_rate
+from .preferences import preferences
 from .types import Policy, Prepared, Production, Settlement
 
 
 def settle(
-    policy: Policy, production: Production, year: int, flow: float, prepared: Prepared, materialize: bool
+    policy: Policy,
+    production: Production,
+    year: int,
+    flow: float,
+    prepared: Prepared,
+    materialize: bool,
+    career_states=None,
 ) -> Settlement:
     """Pay from actual resources and reject any unfunded annual promise."""
     p = production
@@ -90,7 +98,12 @@ def settle(
         utility_employed = income_utility(employed, cell.prior)
         utility_obsolete = income_utility(obsolete, cell.prior)
         utility = (1 - p.unemployment) * utility_employed + p.unemployment * utility_obsolete
-        utilities.append(utility)
+        if career_states is None:
+            utilities.extend([utility_employed] * preferences().career_paths)
+        else:
+            utilities.extend(
+                utility_employed if state < RETAINED else utility_obsolete for state in career_states
+            )
         if income is not None:
             income.append(expected)
         all_income += cell.weight * expected

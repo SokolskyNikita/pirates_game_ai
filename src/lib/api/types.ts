@@ -99,11 +99,14 @@ export interface PackageBallotResult {
     stable: boolean;
     reason: 'stable' | 'cycle' | 'step-limit';
     steps: number;
-    resolution: 'coalition-stable' | 'most-supported-recorded-ballot';
+    resolution: 'coalition-stable' | 'least-vulnerable-recorded-ballot';
     sincereEnactedPolicyId: string;
     sincereTopSupportPercent: number;
     changedOutcome: boolean;
     strategicVoterPercent: number;
+    abstentionPercent?: number;
+    maxChallengerSupportPercent?: number;
+    withdrawals?: number;
   };
   /** Eligible packages only, sorted by ID, including those receiving zero votes. */
   /** Canonical ID breaks an exact tie for this descriptive leading position. */

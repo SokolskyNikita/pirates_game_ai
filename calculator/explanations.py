@@ -6,7 +6,8 @@ MODEL_NOTES = [
         "detail": "Survey weights represent every US adult citizen equally, without turnout weighting. "
         "Household resources are pooled across all household adults; each citizen evaluates their "
         "own share. Fixed cells preserve joint income source, income band and employment status. "
-        "The approximation cannot recover every individual preference within a cell.",
+        "Each cell has 100 deterministic career paths. Whole-person rounding bounds annual employment-state shares to "
+        "one percentage point; budgets integrate the unsampled job stocks. Income heterogeneity within cells remains unmodeled.",
     },
     {
         "title": "The complete policy package",
@@ -188,21 +189,14 @@ MODEL_NOTES = [
     },
     {
         "title": "One vote on a complete package",
-        "detail": "Voters initially favor their highest-utility funded package, then may coordinate "
-        "on an enactable compromise they strictly prefer to the anticipated outcome. Nonmembers "
-        "keep their intended votes. Funded challengers are checked in fixed policy-ID order until "
-        "no profitable single-package coalition switch remains, a cycle repeats, or 64 switches "
-        "are reached. A fixed rule resolves cycles or limits by selecting the most-supported "
-        "passing package among recorded ballots, with canonical tie-breaking. This is a specified "
-        "coordination protocol, not a proof of a unique Nash or strong equilibrium. The package with the largest support wins only if it receives "
-        "strictly more than half of adult-citizen population weight; otherwise current US policy "
-        "continues. If the status-quo fallback is disabled, the funded alternative package with the "
-        "most votes wins at any vote share, and the exact current-policy package is excluded from "
-        "US voting. The foreign menu is unchanged. Exact personal utility ties favor current policy "
-        "when eligible, then the lowest canonical policy ID; an exact tie for the largest vote "
-        "share also uses the lowest canonical policy ID. There is no second ballot. In "
-        "international scenarios, each side evaluates its choice knowing the other side’s policy; a "
-        "reported mutually consistent outcome must reproduce those choices. All policies last for "
-        "the modeled ten years.",
+        "detail": "Voters know their modeled career and income path. They initially favor their highest-utility funded package. "
+        "Compromises are considered by a conservative estimate of their benefiting coalition, not policy names. Voters may "
+        "withdraw support through abstention to restore a preferred status quo; abstention never lowers the majority threshold. "
+        "Exact ties use a deterministic policy-terms hash, with eligible current policy preferred on personal indifference. "
+        "A cycle or 64 switches selects a funded recorded outcome with the smallest strongest-challenger support, then "
+        "greatest ballot support. This rule-selected outcome is not certified stable. A complete package needs more than "
+        "half of adult-citizen weight; otherwise current policy remains. There is one ballot. International choices are "
+        "checked against the other side’s known policy; only verified pairs are described as mutually consistent. "
+        "The public horizon is ten years. This is an explicit bargaining protocol, not a proof of unique Nash play.",
     },
 ]

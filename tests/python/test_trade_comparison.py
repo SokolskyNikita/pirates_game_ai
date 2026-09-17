@@ -3,6 +3,7 @@
 import unittest
 from unittest.mock import patch
 
+from calculator.careers import voter_weights
 from calculator.comparison import compare_policy
 from calculator.policies import current_policy
 from calculator.population import CALIBRATION
@@ -19,7 +20,7 @@ class TradeComparisonTests(unittest.TestCase):
             return {
                 "usPolicy": policy,
                 "foreignPolicy": foreign,
-                "usUtilities": [int(not policy["allowFreeTrade"])] * len(CALIBRATION["weights"]),
+                "usUtilities": [int(not policy["allowFreeTrade"])] * len(voter_weights(CALIBRATION["weights"])),
                 "usAdmissible": True,
             }
 

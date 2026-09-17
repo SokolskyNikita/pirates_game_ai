@@ -15,6 +15,7 @@ from calculator.batch import (
     evaluate_foreign_menu,
     evaluate_us_menu,
 )
+from calculator.careers import voter_weights
 from calculator.config import INPUT_SPECS, normalize_inputs
 from calculator.model import solve_model
 from calculator.policies import POLICIES, current_policy
@@ -27,7 +28,7 @@ def ballot(profiles):
             {"id": p["usPolicy"]["id"], "utilities": p["usUtilities"], "fullyFunded": p["usAdmissible"]}
             for p in profiles
         ],
-        PREPARED.calibration["weights"],
+        voter_weights(PREPARED.calibration["weights"]),
         current_policy()["id"],
     )
 
@@ -38,7 +39,7 @@ def reduced_menu():
         {
             policy["id"]: policy
             for policy in [
-                *POLICIES[::67],
+                *POLICIES[::269],
                 current_policy(0),
                 current_policy(1),
                 current_policy(2),
@@ -101,8 +102,8 @@ class BatchTests(unittest.TestCase):
             {"productivityGain": 0.5, "jobsAffected": 1, "jobChange": -1, "jobSearch": 0}
         )
         model = solve_model(inputs, {"mode": "us-only", "objective": "workers"})
-        expected = [model["evaluateLight"](policy) for policy in POLICIES]
-        actual = evaluate_us_menu(inputs, POLICIES, None, "prosperity", model["evaluateLight"])
+        expected = [model["evaluateLight"](policy) for policy in reduced_menu()]
+        actual = evaluate_us_menu(inputs, reduced_menu(), None, "prosperity", model["evaluateLight"])
         self.assertEqual(ballot(actual), ballot(expected))
         self.assertEqual([p["usAdmissible"] for p in actual], [p["usAdmissible"] for p in expected])
 

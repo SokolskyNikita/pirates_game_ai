@@ -1,0 +1,457 @@
+{
+  "fingerprint": "df1853e95041822a625a",
+  "cases": [
+    {
+      "name": "default",
+      "preferences": {},
+      "seconds": 6.7894357920158654,
+      "usPolicy": {
+        "pace": 0,
+        "replacement": 0,
+        "welfareScale": 1,
+        "benefitFormula": "flat",
+        "laborTax": 0.2180121902674416,
+        "capitalTax": 0.17667238844089894,
+        "allowFreeTrade": true,
+        "id": "0|0|1|flat|0.2180121902674416|0.17667238844089894",
+        "label": "Pause AI \u00b7 Allow layoffs \u00b7 benefits 100% \u00b7 flat \u00b7 noncapital 21.8% / investment 17.7% tax"
+      },
+      "foreignPolicy": null,
+      "selection": "domestic-ballot",
+      "support": 63.64984808265571,
+      "coordination": {
+        "method": "strictly-improving-coalitions",
+        "stable": true,
+        "reason": "stable",
+        "steps": 4,
+        "resolution": "coalition-stable",
+        "sincereEnactedPolicyId": "1|0|1|current|0.2180121902674416|0.17667238844089894",
+        "sincereTopSupportPercent": 26.611407967196136,
+        "changedOutcome": true,
+        "strategicVoterPercent": 98.13643176941355,
+        "withdrawals": 0,
+        "abstentionPercent": 0.0,
+        "maxChallengerSupportPercent": 43.773992101706874,
+        "tieRule": "policy-terms hash; current policy on personal indifference"
+      },
+      "foreignBestResponseGain": null,
+      "yearTen": {
+        "output": 121.89944199947573,
+        "workerIncomeIndex": 128.29940319789458,
+        "allIncomeIndex": 119.22658989644023,
+        "resourceResidual": 1.4551915228366852e-11
+      }
+    },
+    {
+      "name": "50-career-resolution",
+      "preferences": {
+        "career_paths": 50
+      },
+      "seconds": 4.351623707916588,
+      "usPolicy": {
+        "pace": 0,
+        "replacement": 0,
+        "welfareScale": 1,
+        "benefitFormula": "flat",
+        "laborTax": 0.2180121902674416,
+        "capitalTax": 0.17667238844089894,
+        "allowFreeTrade": true,
+        "id": "0|0|1|flat|0.2180121902674416|0.17667238844089894",
+        "label": "Pause AI \u00b7 Allow layoffs \u00b7 benefits 100% \u00b7 flat \u00b7 noncapital 21.8% / investment 17.7% tax"
+      },
+      "foreignPolicy": null,
+      "selection": "domestic-ballot",
+      "support": 63.64984808265506,
+      "coordination": {
+        "method": "strictly-improving-coalitions",
+        "stable": true,
+        "reason": "stable",
+        "steps": 4,
+        "resolution": "coalition-stable",
+        "sincereEnactedPolicyId": "1|0|1|current|0.2180121902674416|0.17667238844089894",
+        "sincereTopSupportPercent": 26.58949651224021,
+        "changedOutcome": true,
+        "strategicVoterPercent": 98.11899767003064,
+        "withdrawals": 0,
+        "abstentionPercent": 0.0,
+        "maxChallengerSupportPercent": 43.773992101706874,
+        "tieRule": "policy-terms hash; current policy on personal indifference"
+      },
+      "foreignBestResponseGain": null,
+      "yearTen": {
+        "output": 121.89944199947573,
+        "workerIncomeIndex": 128.29940319789458,
+        "allIncomeIndex": 119.22658989644023,
+        "resourceResidual": 1.4551915228366852e-11
+      }
+    },
+    {
+      "name": "200-career-resolution",
+      "preferences": {
+        "career_paths": 200
+      },
+      "seconds": 24.36504674993921,
+      "usPolicy": {
+        "pace": 0,
+        "replacement": 0,
+        "welfareScale": 1,
+        "benefitFormula": "flat",
+        "laborTax": 0.2180121902674416,
+        "capitalTax": 0.17667238844089894,
+        "allowFreeTrade": true,
+        "id": "0|0|1|flat|0.2180121902674416|0.17667238844089894",
+        "label": "Pause AI \u00b7 Allow layoffs \u00b7 benefits 100% \u00b7 flat \u00b7 noncapital 21.8% / investment 17.7% tax"
+      },
+      "foreignPolicy": null,
+      "selection": "domestic-ballot",
+      "support": 63.64984808265567,
+      "coordination": {
+        "method": "strictly-improving-coalitions",
+        "stable": true,
+        "reason": "stable",
+        "steps": 4,
+        "resolution": "coalition-stable",
+        "sincereEnactedPolicyId": "1|0|1|current|0.2180121902674416|0.17667238844089894",
+        "sincereTopSupportPercent": 26.695011194186204,
+        "changedOutcome": true,
+        "strategicVoterPercent": 98.11866922288134,
+        "withdrawals": 0,
+        "abstentionPercent": 0.0,
+        "maxChallengerSupportPercent": 43.773992101706874,
+        "tieRule": "policy-terms hash; current policy on personal indifference"
+      },
+      "foreignBestResponseGain": null,
+      "yearTen": {
+        "output": 121.89944199947573,
+        "workerIncomeIndex": 128.29940319789458,
+        "allIncomeIndex": 119.22658989644023,
+        "resourceResidual": 1.4551915228366852e-11
+      }
+    },
+    {
+      "name": "linear-income",
+      "preferences": {
+        "curvature": 0
+      },
+      "seconds": 10.614725124905817,
+      "usPolicy": {
+        "pace": 0,
+        "replacement": 0,
+        "welfareScale": 1,
+        "benefitFormula": "flat",
+        "laborTax": 0.2180121902674416,
+        "capitalTax": 0.17667238844089894,
+        "allowFreeTrade": true,
+        "id": "0|0|1|flat|0.2180121902674416|0.17667238844089894",
+        "label": "Pause AI \u00b7 Allow layoffs \u00b7 benefits 100% \u00b7 flat \u00b7 noncapital 21.8% / investment 17.7% tax"
+      },
+      "foreignPolicy": null,
+      "selection": "domestic-ballot",
+      "support": 74.64511017114287,
+      "coordination": {
+        "method": "strictly-improving-coalitions",
+        "stable": true,
+        "reason": "stable",
+        "steps": 3,
+        "resolution": "coalition-stable",
+        "sincereEnactedPolicyId": "1|0|1|current|0.2180121902674416|0.17667238844089894",
+        "sincereTopSupportPercent": 25.108407841360165,
+        "changedOutcome": true,
+        "strategicVoterPercent": 94.68024445422765,
+        "withdrawals": 0,
+        "abstentionPercent": 0.0,
+        "maxChallengerSupportPercent": 43.773992101706874,
+        "tieRule": "policy-terms hash; current policy on personal indifference"
+      },
+      "foreignBestResponseGain": null,
+      "yearTen": {
+        "output": 121.89944199947573,
+        "workerIncomeIndex": 128.29940319789458,
+        "allIncomeIndex": 119.22658989644023,
+        "resourceResidual": 1.4551915228366852e-11
+      }
+    },
+    {
+      "name": "zero-discount",
+      "preferences": {
+        "discount": 0
+      },
+      "seconds": 8.38224766694475,
+      "usPolicy": {
+        "pace": 0,
+        "replacement": 0,
+        "welfareScale": 1,
+        "benefitFormula": "flat",
+        "laborTax": 0.2180121902674416,
+        "capitalTax": 0.17667238844089894,
+        "allowFreeTrade": true,
+        "id": "0|0|1|flat|0.2180121902674416|0.17667238844089894",
+        "label": "Pause AI \u00b7 Allow layoffs \u00b7 benefits 100% \u00b7 flat \u00b7 noncapital 21.8% / investment 17.7% tax"
+      },
+      "foreignPolicy": null,
+      "selection": "domestic-ballot",
+      "support": 74.78507624099437,
+      "coordination": {
+        "method": "strictly-improving-coalitions",
+        "stable": true,
+        "reason": "stable",
+        "steps": 3,
+        "resolution": "coalition-stable",
+        "sincereEnactedPolicyId": "1|0|1|current|0.2180121902674416|0.17667238844089894",
+        "sincereTopSupportPercent": 27.362271542275874,
+        "changedOutcome": true,
+        "strategicVoterPercent": 86.78220556008982,
+        "withdrawals": 0,
+        "abstentionPercent": 0.0,
+        "maxChallengerSupportPercent": 43.511477931113866,
+        "tieRule": "policy-terms hash; current policy on personal indifference"
+      },
+      "foreignBestResponseGain": null,
+      "yearTen": {
+        "output": 121.89944199947573,
+        "workerIncomeIndex": 128.29940319789458,
+        "allIncomeIndex": 119.22658989644023,
+        "resourceResidual": 1.4551915228366852e-11
+      }
+    },
+    {
+      "name": "ten-percent-discount",
+      "preferences": {
+        "discount": 0.1
+      },
+      "seconds": 14.057939916965552,
+      "usPolicy": {
+        "pace": 0,
+        "replacement": 0,
+        "welfareScale": 1,
+        "benefitFormula": "flat",
+        "laborTax": 0.2180121902674416,
+        "capitalTax": 0.17667238844089894,
+        "allowFreeTrade": true,
+        "id": "0|0|1|flat|0.2180121902674416|0.17667238844089894",
+        "label": "Pause AI \u00b7 Allow layoffs \u00b7 benefits 100% \u00b7 flat \u00b7 noncapital 21.8% / investment 17.7% tax"
+      },
+      "foreignPolicy": null,
+      "selection": "selected-by-rule",
+      "support": 53.05153381599327,
+      "coordination": {
+        "method": "strictly-improving-coalitions",
+        "stable": false,
+        "reason": "cycle",
+        "steps": 9,
+        "resolution": "least-vulnerable-recorded-ballot",
+        "sincereEnactedPolicyId": "1|0|1|current|0.2180121902674416|0.17667238844089894",
+        "sincereTopSupportPercent": 26.376336479431522,
+        "changedOutcome": true,
+        "strategicVoterPercent": 90.64571883286388,
+        "withdrawals": 1,
+        "abstentionPercent": 0.0,
+        "maxChallengerSupportPercent": 46.94846618400693,
+        "tieRule": "policy-terms hash; current policy on personal indifference"
+      },
+      "foreignBestResponseGain": null,
+      "yearTen": {
+        "output": 121.89944199947573,
+        "workerIncomeIndex": 128.29940319789458,
+        "allIncomeIndex": 119.22658989644023,
+        "resourceResidual": 1.4551915228366852e-11
+      }
+    },
+    {
+      "name": "twenty-year-horizon",
+      "preferences": {
+        "horizon": 20
+      },
+      "seconds": 15.570440292009152,
+      "usPolicy": {
+        "pace": 1,
+        "replacement": 1.25,
+        "welfareScale": 1.5,
+        "benefitFormula": "flat",
+        "laborTax": 0.3,
+        "capitalTax": 0,
+        "allowFreeTrade": true,
+        "id": "1|1.25|1.5|flat|0.3|0",
+        "label": "Allow current AI pace \u00b7 Retain at 125% \u00b7 benefits 150% \u00b7 flat \u00b7 noncapital 30% / investment 0% tax"
+      },
+      "foreignPolicy": null,
+      "selection": "selected-by-rule",
+      "support": 63.479763116294805,
+      "coordination": {
+        "method": "strictly-improving-coalitions",
+        "stable": false,
+        "reason": "cycle",
+        "steps": 7,
+        "resolution": "least-vulnerable-recorded-ballot",
+        "sincereEnactedPolicyId": "1|0|1|current|0.2180121902674416|0.17667238844089894",
+        "sincereTopSupportPercent": 24.46751496941718,
+        "changedOutcome": true,
+        "strategicVoterPercent": 88.04673017943972,
+        "withdrawals": 1,
+        "abstentionPercent": 0.0,
+        "maxChallengerSupportPercent": 46.32472831778844,
+        "tieRule": "policy-terms hash; current policy on personal indifference"
+      },
+      "foreignBestResponseGain": null,
+      "yearTen": {
+        "output": 248.48234521529622,
+        "workerIncomeIndex": 198.16551140417837,
+        "allIncomeIndex": 252.968927267323,
+        "resourceResidual": -5.820766091346741e-11
+      }
+    },
+    {
+      "name": "international-workers",
+      "preferences": {},
+      "seconds": 272.0540797089925,
+      "usPolicy": {
+        "pace": 0,
+        "replacement": 0,
+        "welfareScale": 1,
+        "benefitFormula": "flat",
+        "laborTax": 0.2180121902674416,
+        "capitalTax": 0.17667238844089894,
+        "allowFreeTrade": true,
+        "id": "0|0|1|flat|0.2180121902674416|0.17667238844089894",
+        "label": "Pause AI \u00b7 Allow layoffs \u00b7 benefits 100% \u00b7 flat \u00b7 noncapital 21.8% / investment 17.7% tax"
+      },
+      "foreignPolicy": {
+        "pace": 0,
+        "replacement": 0,
+        "welfareScale": 0,
+        "benefitFormula": "current",
+        "laborTax": 0.1,
+        "capitalTax": 0.1,
+        "allowFreeTrade": true,
+        "id": "0|0|0|current|0.1|0.1",
+        "label": "Pause AI \u00b7 Allow layoffs \u00b7 benefits 0% \u00b7 current \u00b7 noncapital 10% / investment 10% tax"
+      },
+      "selection": "verified-consistent",
+      "support": 79.58416700226836,
+      "coordination": {
+        "method": "strictly-improving-coalitions",
+        "stable": true,
+        "reason": "stable",
+        "steps": 3,
+        "resolution": "coalition-stable",
+        "sincereEnactedPolicyId": "1|0|1|current|0.2180121902674416|0.17667238844089894",
+        "sincereTopSupportPercent": 28.80748651105349,
+        "changedOutcome": true,
+        "strategicVoterPercent": 95.80354201808785,
+        "withdrawals": 0,
+        "abstentionPercent": 0.0,
+        "maxChallengerSupportPercent": 43.773992101706874,
+        "tieRule": "policy-terms hash; current policy on personal indifference"
+      },
+      "foreignBestResponseGain": 0,
+      "yearTen": {
+        "output": 121.89944199947573,
+        "workerIncomeIndex": 128.5927842108888,
+        "allIncomeIndex": 119.49472481912817,
+        "resourceResidual": 1.4551915228366852e-11
+      }
+    },
+    {
+      "name": "international-prosperity",
+      "preferences": {},
+      "seconds": 459.9300560839474,
+      "usPolicy": {
+        "pace": 0,
+        "replacement": 0,
+        "welfareScale": 1,
+        "benefitFormula": "flat",
+        "laborTax": 0.2180121902674416,
+        "capitalTax": 0.17667238844089894,
+        "allowFreeTrade": true,
+        "id": "0|0|1|flat|0.2180121902674416|0.17667238844089894",
+        "label": "Pause AI \u00b7 Allow layoffs \u00b7 benefits 100% \u00b7 flat \u00b7 noncapital 21.8% / investment 17.7% tax"
+      },
+      "foreignPolicy": {
+        "pace": 0,
+        "replacement": 0,
+        "welfareScale": 1,
+        "benefitFormula": "current",
+        "laborTax": 0.2180121902674416,
+        "capitalTax": 0.1,
+        "allowFreeTrade": true,
+        "id": "0|0|1|current|0.2180121902674416|0.1",
+        "label": "Pause AI \u00b7 Allow layoffs \u00b7 benefits 100% \u00b7 current \u00b7 noncapital 21.8% / investment 10% tax"
+      },
+      "selection": "verified-consistent",
+      "support": 79.58416700226836,
+      "coordination": {
+        "method": "strictly-improving-coalitions",
+        "stable": true,
+        "reason": "stable",
+        "steps": 3,
+        "resolution": "coalition-stable",
+        "sincereEnactedPolicyId": "1|0|1|current|0.2180121902674416|0.17667238844089894",
+        "sincereTopSupportPercent": 28.80748651105349,
+        "changedOutcome": true,
+        "strategicVoterPercent": 95.80354201808785,
+        "withdrawals": 0,
+        "abstentionPercent": 0.0,
+        "maxChallengerSupportPercent": 43.773992101706874,
+        "tieRule": "policy-terms hash; current policy on personal indifference"
+      },
+      "foreignBestResponseGain": 0,
+      "yearTen": {
+        "output": 121.89944199947573,
+        "workerIncomeIndex": 128.52281030286065,
+        "allIncomeIndex": 119.4307723219034,
+        "resourceResidual": 0.0
+      }
+    },
+    {
+      "name": "international-output",
+      "preferences": {},
+      "seconds": 434.30024279200006,
+      "usPolicy": {
+        "pace": 0,
+        "replacement": 0,
+        "welfareScale": 1.5,
+        "benefitFormula": "flat",
+        "laborTax": 0.3,
+        "capitalTax": 0,
+        "allowFreeTrade": false,
+        "id": "0|0|1.5|flat|0.3|0|closed",
+        "label": "Pause AI \u00b7 Allow layoffs \u00b7 benefits 150% \u00b7 flat \u00b7 noncapital 30% / investment 0% tax \u00b7 Ban US\u2013world trade"
+      },
+      "foreignPolicy": {
+        "pace": 2,
+        "replacement": 0,
+        "welfareScale": 0,
+        "benefitFormula": "current",
+        "laborTax": 0.2,
+        "capitalTax": 0.1,
+        "allowFreeTrade": false,
+        "id": "2|0|0|current|0.2|0.1|closed",
+        "label": "Accelerate AI \u00b7 Allow layoffs \u00b7 benefits 0% \u00b7 current \u00b7 noncapital 20% / investment 10% tax \u00b7 Ban US\u2013world trade"
+      },
+      "selection": "selected-by-rule",
+      "support": 75.4554459972644,
+      "coordination": {
+        "method": "strictly-improving-coalitions",
+        "stable": false,
+        "reason": "cycle",
+        "steps": 9,
+        "resolution": "least-vulnerable-recorded-ballot",
+        "sincereEnactedPolicyId": "1|0|1|current|0.2180121902674416|0.17667238844089894",
+        "sincereTopSupportPercent": 24.405143862256445,
+        "changedOutcome": true,
+        "strategicVoterPercent": 98.04112751690953,
+        "withdrawals": 1,
+        "abstentionPercent": 1.599583627950213,
+        "maxChallengerSupportPercent": 51.220500696131026,
+        "tieRule": "policy-terms hash; current policy on personal indifference"
+      },
+      "foreignBestResponseGain": 0,
+      "yearTen": {
+        "output": 122.02039494194918,
+        "workerIncomeIndex": 118.75815644801966,
+        "allIncomeIndex": 112.89295477512027,
+        "resourceResidual": 0.0
+      }
+    }
+  ]
+}
