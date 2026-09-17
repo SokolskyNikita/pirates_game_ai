@@ -26,13 +26,13 @@ def requests():
             ("strategic", "prosperity"),
             ("strategic", "output"),
         ]:
-            for pause, plurality in product((False, True), repeat=2):
+            for pause in (False, True):
                 yield dict(
                     inputs=inputs,
                     mode=mode,
                     foreignObjective=objective,
                     pauseUnavailable=pause,
-                    statusQuoUnavailable=plurality,
+                    statusQuoUnavailable=False,
                 )
 
 

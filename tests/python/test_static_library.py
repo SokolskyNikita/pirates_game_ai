@@ -21,9 +21,9 @@ spec.loader.exec_module(builder)
 class StaticLibraryTests(unittest.TestCase):
     def test_grid_has_exactly_one_entry_per_valid_combination(self):
         scenarios = list(requests())
-        self.assertEqual(len(scenarios), 768)
-        self.assertEqual(len({lookup_key(r) for r in scenarios}), 768)
-        self.assertEqual(len({scenario_key(r) for r in scenarios}), 768)
+        self.assertEqual(len(scenarios), 384)
+        self.assertEqual(len({lookup_key(r) for r in scenarios}), 384)
+        self.assertEqual(len({scenario_key(r) for r in scenarios}), 384)
         for request in scenarios:
             inputs = request["inputs"]
             self.assertGreaterEqual(inputs["jobsAffected"], max(0, -inputs["jobChange"]))
@@ -35,7 +35,7 @@ class StaticLibraryTests(unittest.TestCase):
         )
         self.assertEqual(
             {(r["pauseUnavailable"], r["statusQuoUnavailable"]) for r in scenarios},
-            {(False, False), (True, False), (False, True), (True, True)},
+            {(False, False), (True, False)},
         )
 
     def test_compact_export_preserves_decisions_and_discards_diagnostics(self):

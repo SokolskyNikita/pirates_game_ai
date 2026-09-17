@@ -1,6 +1,6 @@
 # Complete local precomputation
 
-The static edition covers **all 768 valid selectable scenarios**. It does not calculate custom assumptions on a server. The user approved reducing control choices after measuring the original grid: 120,578,220 domestic scenarios and at least 2,140,263,771,557,788,800 international scenarios, excluding an unused population axis and arbitrary legacy URL values.
+The static edition covers **all 384 valid selectable scenarios**. It does not calculate custom assumptions on a server. The user approved reducing control choices after measuring the original grid: 120,578,220 domestic scenarios and at least 2,140,263,771,557,788,800 international scenarios, excluding an unused population axis and arbitrary legacy URL values.
 
 ## Supported assumptions
 
@@ -13,9 +13,8 @@ The static edition covers **all 768 valid selectable scenarios**. It does not ca
 | Laid-off workers entering search | 0% or 85% |
 | Mode | Domestic; international workers, prosperity or output objective |
 | Pause unavailable | Off or on |
-| Status quo unavailable | Off or on |
 
-All other economic parameters remain at their disclosed references, including a 5-point foreign growth increment, 35% investment response and 50% capital mobility. The interface shows these as fixed assumptions. There are 48 valid economic input combinations × four mode/objective combinations × four checkbox combinations. Invalid job-count/affected-share pairs are never generated or offered.
+All other economic parameters remain at their disclosed references, including a 5-point foreign growth increment, 35% investment response and 50% capital mobility. The interface shows these as fixed assumptions. There are 48 valid economic input combinations × four mode/objective combinations × two pause settings. Invalid job-count/affected-share pairs are never generated or offered.
 
 Each scenario evaluates the full valid policy menu: 4,860 domestic packages or 9,720 international packages when pausing is available. The foreign actor's choice remains independent. Every supported scenario returns a selected outcome. Stable coalitions and mutually consistent international choices are preferred; fixed selection rules resolve cycling or limited searches. The method is disclosed rather than claiming all selected outcomes are unique equilibria.
 
@@ -40,7 +39,7 @@ The pause-retention restriction recalculation of all 768 scenarios on September 
 
 ## Size and delivery
 
-The complete presentation library is **368,641 bytes gzip** for all 768 scenarios, below the enforced **3,500,000-byte** limit. The earlier 212.8 MB export included alternative trajectories, cohort arrays and ballot tallies that the compact interface no longer needs.
+The complete presentation library is **176,107 bytes gzip** for all 384 scenarios, below the enforced **3,500,000-byte** limit. The earlier 212.8 MB export included alternative trajectories, cohort arrays and ballot tallies that the compact interface no longer needs.
 
 `src/generated/results.json.gz` is the committed, reproducible source. The build validates coverage and the model fingerprint, then embeds every result in the page. Controls perform local lookups, without scenario downloads or a calculation backend. The old per-scenario public assets are removed.
 
@@ -57,3 +56,5 @@ npm run build
 Cloudflare serves the static page and canonical redirects. No Python Worker or calculation endpoint is deployed. Old links are snapped to supported choices with a visible notice; no interpolation is performed.
 
 Pause AI packages fix employer retention to None (0%). This restriction applies independently to both countries, including when open trade permits foreign competition. Other AI paces retain all wage-retention options.
+
+The public status-quo-exclusion control was removed on September 17. The 384 majority-rule results were repackaged from the validated calculation records above; no economic recalculation was needed. Legacy plurality links now select majority voting and display a migration notice.

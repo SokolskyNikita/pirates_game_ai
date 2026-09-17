@@ -51,7 +51,7 @@ export function inputSliderChoices(spec: InputSpec, inputs: ModelInputs): number
 export function unsupportedURLValues(search: string): boolean {
   const query = new URLSearchParams(search);
   const displayed = readScenarioURL(search);
-  return ['displacement', 'usGdpGrowth', 'foreignGdpGrowth', 'reemployment'].some(key => query.has(key)) ||
+  return query.get('statusQuoUnavailable') === '1' || ['displacement', 'usGdpGrowth', 'foreignGdpGrowth', 'reemployment'].some(key => query.has(key)) ||
     INPUT_SPECS.some(spec => query.has(spec.key) && Number(query.get(spec.key)) !== displayed.inputs[spec.key]);
 }
 
@@ -92,7 +92,7 @@ export function readScenarioURL(search: string): ScenarioState {
   state.inputs = normalizeInputConstraints(state.inputs);
   state.mode = query.get('world') === 'strategic' ? 'strategic' : 'us-only';
   state.pauseUnavailable = query.get('pauseUnavailable') === '1';
-  state.statusQuoUnavailable = query.get('statusQuoUnavailable') === '1';
+  state.statusQuoUnavailable = false;
   const foreign = query.get('foreignObjective');
   state.foreignObjective = foreign === 'workers' || foreign === 'output' ? foreign : 'prosperity';
   return state;
@@ -104,12 +104,11 @@ export function scenarioURL(state: ScenarioState, href = location.href): URL {
   url.searchParams.set('v', '16');
   url.searchParams.set('world', state.mode);
   url.searchParams.set('pauseUnavailable', state.pauseUnavailable ? '1' : '0');
-  url.searchParams.set('statusQuoUnavailable', state.statusQuoUnavailable ? '1' : '0');
   if (state.mode === 'strategic') url.searchParams.set('foreignObjective', state.foreignObjective);
   const inputs = normalizeInputConstraints(state.inputs);
   for (const spec of INPUT_SPECS) url.searchParams.set(spec.key, String(inputs[spec.key]));
   return url;
 }
 export function scenarioRequest(state: ScenarioState, id: number): ScenarioRequest {
-  return { id, ...state, inputs: normalizeInputConstraints(state.inputs) };
+  return { id, ...state, statusQuoUnavailable: false, inputs: normalizeInputConstraints(state.inputs) };
 }

@@ -24,9 +24,11 @@ describe('finite static scenario grid', () => {
     expect(unsupportedURLValues('?jobsAffected=0&jobChange=-1')).toBe(true);
     expect(readScenarioURL('?jobsAffected=0&jobChange=-1').inputs.jobsAffected).toBe(1);
   });
-  it('preserves both checkbox rules independently', () => {
+  it('preserves the pause setting and migrates removed plurality links to majority voting', () => {
     const state = readScenarioURL('?pauseUnavailable=1&statusQuoUnavailable=1');
-    expect(scenarioRequest(state, 7)).toMatchObject({ id: 7, pauseUnavailable: true, statusQuoUnavailable: true });
+    expect(unsupportedURLValues('?statusQuoUnavailable=1')).toBe(true);
+    expect(scenarioURL(state, 'https://ai-pirates-game.com/').searchParams.has('statusQuoUnavailable')).toBe(false);
+    expect(scenarioRequest(state, 7)).toMatchObject({ id: 7, pauseUnavailable: true, statusQuoUnavailable: false });
   });
   it('offers only affected-job choices that cover net job losses', () => {
     const spec = INPUT_SPECS.find(s => s.key === 'jobsAffected')!;

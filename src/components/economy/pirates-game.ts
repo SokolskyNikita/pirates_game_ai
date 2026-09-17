@@ -11,6 +11,9 @@ import { readScenarioURL, scenarioRequest, scenarioURL, unsupportedURLValues } f
 
 const state = readScenarioURL(location.search);
 el('grid-link-notice').hidden = !unsupportedURLValues(location.search);
+if (new URLSearchParams(location.search).get('statusQuoUnavailable') === '1') {
+  el('grid-link-notice').textContent = 'This older link used a voting option that has been removed. The simulator now requires a majority, with current policy as the fallback. The controls show the supported assumptions being used.';
+}
 const view = new ResultsView();
 let snapshot: ScenarioSnapshot | undefined;
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -132,6 +135,9 @@ el('download').addEventListener('click', () => {
 });
 window.addEventListener('popstate', () => {
   el('grid-link-notice').hidden = !unsupportedURLValues(location.search);
+if (new URLSearchParams(location.search).get('statusQuoUnavailable') === '1') {
+  el('grid-link-notice').textContent = 'This older link used a voting option that has been removed. The simulator now requires a majority, with current policy as the fallback. The controls show the supported assumptions being used.';
+}
   controls.replaceState(readScenarioURL(location.search));
   scheduleSolve();
 });
