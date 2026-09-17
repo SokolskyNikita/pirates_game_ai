@@ -124,13 +124,13 @@ Annual results report job availability and worker outcomes alongside consumer pr
 
 All 768 valid combinations in the reduced grid are saved. US AI growth offers 0 or 5 additional points, employer gain 0 or 40%, net jobs −100%, −90%, 0% or +100%, affected roles 0 or 100%, and search participation 0 or 85%. The job constraint removes invalid combinations. Both voting rules and pause settings remain independent; international mode retains all three foreign objectives. Advanced assumptions remain at their disclosed defaults.
 
-Every scenario still evaluates the full policy ballot. Saved manual comparisons cover the selected package, current policy and up to eight leading packages with the foreign choice fixed. Old off-grid links move to supported choices with a visible notice. There is no interpolation or calculation fallback.
+Every scenario still evaluates the full policy ballot. The compact interface shows enacted policies, the main income chart and outcome summaries; detailed alternative comparisons are retained only in local calculation records. Old off-grid links move to supported choices with a visible notice. There is no interpolation or calculation fallback.
 
 See [coverage, timings and regeneration](docs/precomputation-options.md).
 
 ## Architecture
 
-All economic calculations, utility comparisons, ballots, international responses and manual policy comparisons live in `calculator/`. Astro creates the page markup. Browser TypeScript handles controls, links, formatting, charts and HTTP requests; it contains no second implementation of the calculator.
+All economic calculations, utility comparisons, ballots, international responses and manual policy comparisons live in `calculator/`. Astro creates the page markup. Browser TypeScript handles controls, links, formatting, charts and embedded-data lookup; it contains no second implementation of the calculator.
 
 | Area | Files and responsibility |
 | --- | --- |
@@ -146,11 +146,11 @@ All economic calculations, utility comparisons, ballots, international responses
 | Build and research | `scripts/precompute-local.py` runs a resumable process pool. `scripts/static_grid.py` declares the supported grid. `scripts/build-static-library.py` validates and packages the completed results. `scripts/build-us-electorate.py` reproduces the Census aggregates. |
 | Tests | `tests/python/` covers the Python calculator and HTTP boundary; `tests/fixtures/` contains migration references. Frontend tests live beside the API and presentation modules. |
 
-Generated `src/generated/calculator-config.json` supplies the interface with Python-owned labels, choices and reference values. The complete compressed library lives in `public/static-library/`; `src/generated/static-library.json` indexes it. Shared Python data structures are in `calculator/types.py`.
+Generated `src/generated/calculator-config.json` supplies the interface with Python-owned labels, choices and reference values. The complete compact library lives in `src/generated/results.json.gz`; the build validates and embeds it in the page. Shared Python data structures are in `calculator/types.py`.
 
 ## Static delivery
 
-`src/generated/static-grid.json` defines all supported control stops and fixed assumptions. `src/generated/static-library.json` maps each exact valid combination to its saved gzip file. `src/lib/api/calculator.ts` performs lookup and lossless decompression only. Comparison vote shares are computed in Python during packaging, not in the browser. The former `/api/health`, `/api/simulate` and `/api/compare` endpoints are no longer served.
+`src/generated/static-grid.json` defines all supported control stops and fixed assumptions. `src/generated/static-library.json` records coverage, fingerprint and compressed size. `src/lib/api/calculator.ts` reads exact saved results from the embedded library without network requests. The complete library must remain below 3.5 MB gzip. The former `/api/health`, `/api/simulate` and `/api/compare` endpoints are no longer served.
 
 This repository is independent of the original personal website. It contains no personal-site APIs or analytics integration. Fonts are requested from Google Fonts, with local fallback fonts.
 

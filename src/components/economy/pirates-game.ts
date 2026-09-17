@@ -1,6 +1,6 @@
 /** Presentation coordinator: collect inputs, request Python results, render them. */
-import type { ProfileOutcome, ScenarioSnapshot } from '../../lib/api/types';
-import { CalculationError, comparePolicy, simulateScenario } from '../../lib/api/calculator';
+import type { ScenarioSnapshot } from '../../lib/api/types';
+import { CalculationError, simulateScenario } from '../../lib/api/calculator';
 import { US_ELECTORATE } from '../../lib/presentation/config';
 import { ScenarioControls } from '../../lib/presentation/controls';
 import { el } from '../../lib/presentation/dom';
@@ -13,12 +13,9 @@ const state = readScenarioURL(location.search);
 el('grid-link-notice').hidden = !unsupportedURLValues(location.search);
 const view = new ResultsView();
 let snapshot: ScenarioSnapshot | undefined;
-let manual: ProfileOutcome | undefined;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let calculation: AbortController | undefined;
-let comparison: AbortController | undefined;
 let revision = 0;
-let comparisonRevision = 0;
 let pending = true;
 const controls = new ScenarioControls(state, scheduleSolve);
 renderPopulation();
@@ -29,7 +26,7 @@ function setBusy(busy: boolean) {
   el('computation-message').classList.remove('error');
   el('results').setAttribute('aria-busy', String(busy));
   el('results').classList.toggle('is-stale', busy && Boolean(snapshot));
-  for (const id of ['apply-manual', 'download', 'share'])
+  for (const id of ['download', 'share'])
     el<HTMLButtonElement>(id).disabled = busy || !snapshot;
 }
 
@@ -39,10 +36,9 @@ function failCalculation(error: unknown, displayFailure = false) {
   el('computation-message').classList.add('error');
   if (error instanceof CalculationError && error.status === 422) {
     snapshot = undefined;
-    manual = undefined;
     el('results').hidden = true;
     el('computation-message').textContent = error.message;
-    for (const id of ['apply-manual', 'download', 'share']) el<HTMLButtonElement>(id).disabled = true;
+    for (const id of ['download', 'share']) el<HTMLButtonElement>(id).disabled = true;
     return;
   }
   el('results').classList.add('is-stale');
@@ -52,7 +48,7 @@ function failCalculation(error: unknown, displayFailure = false) {
     : snapshot
       ? 'The saved result could not be loaded. The result below uses the previous assumptions. Change an input or Reset to try again.'
       : 'The saved result is unavailable. Check your connection, then reload the page or Reset to try again.';
-  for (const id of ['apply-manual', 'download', 'share']) el<HTMLButtonElement>(id).disabled = true;
+  for (const id of ['download', 'share']) el<HTMLButtonElement>(id).disabled = true;
   console.error(error);
 }
 
@@ -60,8 +56,6 @@ function scheduleSolve() {
   const id = ++revision;
   if (timer) clearTimeout(timer);
   calculation?.abort();
-  comparison?.abort();
-  comparisonRevision++;
   setBusy(true);
   el('solve-status').textContent = 'Loading…';
   el('computation-message').textContent = 'Loading the saved result for these exact assumptions…';
@@ -77,10 +71,8 @@ async function run(id: number) {
     if (id !== revision || controller.signal.aborted) return;
     if (!response.snapshot) throw new Error('Missing saved scenario');
     snapshot = response.snapshot;
-    manual = undefined;
     setBusy(false);
     el('computation-message').textContent = '';
-    el('manual-result').textContent = '';
     el('action-status').textContent = '';
     try {
       el('results').hidden = false;
@@ -102,48 +94,6 @@ async function run(id: number) {
     if (calculation === controller) calculation = undefined;
   }
 }
-
-el('apply-manual').addEventListener('click', async () => {
-  if (pending || !snapshot) return;
-  const policyId = controls.selectedManualPolicyId();
-  if (!policyId) return;
-  comparison?.abort();
-  const controller = new AbortController();
-  comparison = controller;
-  const scenarioRevision = revision;
-  const id = ++comparisonRevision;
-  const current = snapshot;
-  el<HTMLButtonElement>('apply-manual').disabled = true;
-  el('manual-result').textContent = 'Comparing this package with the selected outcome…';
-  try {
-    const response = await comparePolicy(
-      {
-        scenario: {
-          inputs: current.inputs,
-          mode: current.mode,
-          foreignObjective: current.foreignObjective,
-          pauseUnavailable: current.pauseUnavailable,
-          statusQuoUnavailable: current.statusQuoUnavailable,
-        },
-        policyId,
-        selectedPolicyId: current.selected.usPolicy.id,
-        foreignPolicyId: current.selected.foreignPolicy?.id,
-      },
-      controller.signal,
-    );
-    if (scenarioRevision !== revision || id !== comparisonRevision || controller.signal.aborted) return;
-    manual = response.profile;
-    view.showComparison(manual, response.voteShare);
-  } catch (error) {
-    if (scenarioRevision !== revision || id !== comparisonRevision || controller.signal.aborted) return;
-    el('manual-result').textContent = 'The comparison could not finish. Check your connection and try again.';
-    console.error(error);
-  } finally {
-    if (comparison === controller) comparison = undefined;
-    if (scenarioRevision === revision && id === comparisonRevision)
-      el<HTMLButtonElement>('apply-manual').disabled = pending;
-  }
-});
 
 el('share').addEventListener('click', async () => {
   if (pending) return;
@@ -170,7 +120,6 @@ el('download').addEventListener('click', () => {
     selected: snapshot.selected,
     ballot: snapshot.ballot,
     search: snapshot.search,
-    comparison: { noAI: snapshot.baseline, currentPolicy: snapshot.statusQuo, manual },
     electorate: US_ELECTORATE,
   };
   const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));

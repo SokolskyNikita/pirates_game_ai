@@ -38,9 +38,6 @@ export class ScenarioControls {
     this.clearPreset();
     this.syncInputs();
   }
-  selectedManualPolicyId(): string | undefined {
-    return el<HTMLSelectElement>('manual-package').value || undefined;
-  }
   private buildInputs() {
     for (const spec of visibleInputSpecs) {
       if (STATIC_CHOICES[spec.key].length === 1) {
@@ -93,7 +90,6 @@ export class ScenarioControls {
         this.changed();
       });
     }
-    el('manual-inputs').innerHTML = '<label for="manual-package">Saved policy package</label><select id="manual-package"></select>';
   }
 
   private updateInputLabel(key: keyof ModelInputs) {

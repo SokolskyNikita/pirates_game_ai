@@ -58,91 +58,32 @@ export interface Calibration {
 export interface RegionYear {
   year: number;
   adoption: number;
-  exposure: number;
   output: number;
-  netOutput: number;
-  potentialOutput: number;
-  potentialGrowthRate: number;
   gdpGrowthRate: number;
-  workerIncome: number;
-  ownerIncome: number;
-  allIncome: number;
   workerIncomeIndex: number;
-  ownerIncomeIndex: number;
   allIncomeIndex: number;
   employedIncomeIndex: number;
   displacedIncomeIndex: number;
-  newlyDisplacedIncomeIndex: number;
-  longTermDisplacedIncomeIndex: number;
-  cohortIncome: number[];
   unemployment: number;
-  jobsAffected: number;
-  jobSlots: number;
   productiveEmployment: number;
   retainedWorkers: number;
-  jobSeekers: number;
-  exitedWorkers: number;
-  marketWageFactor: number;
-  averageWageFactor: number;
-  competitionDisplaced: number;
-  aiUnemployment: number;
-  tradeUnemployment: number;
   consumerPriceIndex: number;
   tradeOpen: boolean;
-  importShare: number;
-  exportShare: number;
-  relativeProducerPrice: number;
-  newlyDisplaced: number;
-  longTermDisplaced: number;
-  reemployed: number;
-  employerPay: number;
-  employerPayRatio: number;
   employerNetPayRatio: number;
-  employerFundingGap: number;
   benefitsRequired: number;
   benefitsPaid: number;
   benefitsScalePaid: number;
   baselineBenefits: number;
-  nonTransferSpending: number;
-  governmentFundingGap: number;
-  welfareFundingGap: number;
-  taxRevenue: number;
-  laborTaxRevenue: number;
-  capitalTaxRevenue: number;
-  laborTaxBase: number;
-  capitalTaxBase: number;
   effectiveLaborTax: number;
   effectiveCapitalTax: number;
-  laborIncome: number;
-  capitalIncome: number;
-  capitalAfterRetention: number;
-  investmentBurden: number;
-  laborEffort: number;
   capacityFactor: number;
-  investmentCost: number;
-  adjustmentCost: number;
-  netRentFlow: number;
-  consumption: number;
-  resourceResidual: number;
-  feasible: boolean;
 }
-export interface LightProfile {
-  id: string;
+export interface ProfileOutcome {
   usPolicy: Policy;
   foreignPolicy?: Policy;
-  usUtilities: number[];
-  usScore: number;
-  foreignScore?: number;
   usAdmissible: boolean;
-  foreignAdmissible?: boolean;
-}
-export interface ProfileOutcome extends LightProfile {
   us: RegionYear[];
   foreign?: RegionYear[];
-  feasible: boolean;
-  foreignFeasible?: boolean;
-  fundingGap: number;
-  foreignFundingGap?: number;
   employerPaymentRange: { low: number; high: number } | null;
 }
 export interface PackageBallotTally {
@@ -154,7 +95,6 @@ export interface PackageBallotTally {
 export interface PackageBallotResult {
   votingRule: 'majority' | 'plurality';
   /** Eligible packages only, sorted by ID, including those receiving zero votes. */
-  tallies: PackageBallotTally[];
   /** Canonical ID breaks an exact tie for this descriptive leading position. */
   leadingPolicyId: string | null;
   topSupportPercent: number;
@@ -166,7 +106,6 @@ export interface PackageBallotResult {
   statusQuoFullyFunded: boolean;
   statusQuoExcluded: boolean;
   /** One eligible choice per cell; null throughout when no package is eligible. */
-  voterChoices: (string | null)[];
   totalPopulationWeight: number;
   /** Entire evaluated menu, including underfunded packages. */
   candidateCount: number;
@@ -203,11 +142,7 @@ export interface ScenarioSnapshot {
   pauseUnavailable: boolean;
   statusQuoUnavailable: boolean;
   selected: ProfileOutcome;
-  statusQuo: ProfileOutcome;
-  baseline: ProfileOutcome;
-  /** At most eight highest-support funded packages, including the selected policy when it ranks. */
-  alternatives: ProfileOutcome[];
-  leading?: ProfileOutcome;
+  leading?: { usPolicy: Policy };
   ballot: PackageBallotResult;
   selection: 'domestic-ballot' | 'verified-consistent' | 'search-incomplete';
   policyCount: number;

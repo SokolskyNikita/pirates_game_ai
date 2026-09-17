@@ -1,4 +1,4 @@
-import type { ProfileOutcome, ScenarioSnapshot } from '../api/types';
+import type { ScenarioSnapshot } from '../api/types';
 import { GROWTH_BASELINE } from './config';
 import { el } from './dom';
 import {
@@ -6,44 +6,19 @@ import {
   num,
   change,
   last,
-  dollars,
   voteShare,
   policyDescription,
   paymentRange,
 } from './format';
 import { objectiveLabels } from './state';
 import { renderChart } from './charts';
-import { renderLaborMarket } from './labor-market';
 import { policyDecisions } from './policy-decisions';
 
 export class ResultsView {
   private snapshot!: ScenarioSnapshot;
-  private manual: ProfileOutcome | undefined;
   show(snapshot: ScenarioSnapshot) {
     this.snapshot = snapshot;
-    this.manual = undefined;
     this.render();
-  }
-  showComparison(profile: ProfileOutcome, support: number) {
-    this.manual = profile;
-    el('manual-result').textContent =
-      (paymentRange(profile) === 'not applicable'
-        ? 'No employer retention pay is due in this scenario. '
-        : 'Employer pay after tax: ' + paymentRange(profile) + ' of prior wages. ') +
-      'Funded government benefits: ' +
-      pct(last(profile).benefitsScalePaid) +
-      ' of the reference budget. ' +
-      voteShare(support) +
-      ' of adult citizens prefer this entire package to the selected outcome.' +
-      (this.snapshot.statusQuoUnavailable && profile.usPolicy.id === this.snapshot.statusQuo.usPolicy.id
-        ? ' Current policy is excluded from this ballot; it is shown only as a counterfactual comparison.'
-        : '') +
-      (profile.usAdmissible
-        ? ''
-        : ' This package cannot fully fund retained wages, benefits and other required public spending in every year, so it is ineligible for the ballot.') +
-      ' This pairwise preference is not its first-choice ballot share.' +
-      (this.snapshot.mode === 'strategic' ? ' The foreign policy is held fixed for this comparison.' : '');
-    this.renderComparison();
   }
   private render() {
     const current = this.snapshot;
@@ -106,7 +81,6 @@ export class ResultsView {
           '<div class="policy-item"><strong>' + value + '</strong><span>' + label + '</span></div>',
       )
       .join('');
-    el('manual-help').textContent = 'Compare the selected package, current policy or one of the eight leading candidates. All results and preference shares were calculated in Python in advance. This comparison does not add a second vote.' + (current.mode === 'strategic' ? ' Foreign policy stays fixed.' : '');
     el('policy-meaning').textContent =
       'Benefits include modeled cash payments and consumption support. Health insurance is not counted as cash. Year-ten US AI adoption: ' +
       pct(end.adoption) +
@@ -122,57 +96,13 @@ export class ResultsView {
     verdict.hidden = !shortfall || plurality;
     verdict.classList.toggle('shortfall', shortfall);
     verdict.textContent = shortfall && !plurality
-      ? 'The automatic current-policy fallback cannot fund all commitments in this scenario. It could not receive votes, but remains because no eligible package won a majority. Income figures use actual payments; “Follow the money” shows the shortfalls.'
+      ? 'The automatic current-policy fallback cannot fund all commitments in this scenario. It could not receive votes, but remains because no eligible package won a majority. Income figures use actual payments rather than the unfunded promises.'
       : '';
-    this.renderBallot();
     renderChart(active.us);
     this.renderInternational();
-    this.renderComparison();
-    this.renderAccounting();
     this.renderVotingDetails();
-    const select = el<HTMLSelectElement>('manual-package');
-    select.replaceChildren();
-    const candidates = new Map([active, current.statusQuo, ...current.alternatives].map(profile => [profile.usPolicy.id, profile]));
-    for (const [id, profile] of candidates) {
-      const option = document.createElement('option');
-      option.value = id;
-      option.textContent = policyDescription(profile.usPolicy, current.mode === 'strategic');
-      select.append(option);
-    }
-    select.value = p.id;
   }
 
-  private renderBallot() {
-    const current = this.snapshot;
-    const support = new Map(current.ballot.tallies.map((row) => [row.policyId, row.supportPercent]));
-    el('ballot-table').innerHTML =
-      current.alternatives
-        .map((profile, index) => {
-          const selected = profile.usPolicy.id === current.ballot.enactedPolicyId;
-          return (
-            '<tr class="' +
-            (selected ? 'selected' : '') +
-            '"><th scope="row">' +
-            (index + 1) +
-            '. ' +
-            policyDescription(profile.usPolicy, current.mode === 'strategic') +
-            (selected ? '<br /><strong>Enacted</strong>' : '') +
-            '</th><td>' +
-            voteShare(support.get(profile.usPolicy.id) ?? 0) +
-            '</td></tr>'
-          );
-        })
-        .join('') || '<tr><td colspan="2">No fully funded packages.</td></tr>';
-    el('ballot-table-note').textContent =
-      'Up to eight packages with the most first-choice votes, from ' +
-      current.ballot.eligibleCandidateCount.toLocaleString() +
-      ' eligible packages. ' +
-      current.ballot.unfundedCandidateCount.toLocaleString() +
-      ' cannot fund every promise in every year and are excluded. ' +
-      (current.statusQuoUnavailable
-        ? 'The exact current-policy package is separately excluded by the voting rule. All other combinations in the displayed policy menu are tested.'
-        : 'All combinations in the displayed policy menu are tested.');
-  }
   private renderVotingDetails() {
     const current = this.snapshot;
     el('selection-explanation').textContent =
@@ -199,7 +129,6 @@ export class ResultsView {
     if (!strategic) return;
     const active = this.snapshot.selected;
     const end = active.foreign!.at(-1)!;
-    renderLaborMarket(active.foreign!, 'foreign-');
     el('foreign-policy-objective').textContent = 'One actor chooses a fully funded package to maximize ' +
       objectiveLabels[current.foreignObjective].toLowerCase() + ' over ten years, given the US choice.';
     el('foreign-policy-decisions').innerHTML = policyDecisions(active.foreignPolicy!, end, {
@@ -236,7 +165,6 @@ export class ResultsView {
   private renderTrade() {
     const active = this.snapshot.selected;
     const us = last(active);
-    const foreign = active.foreign!.at(-1)!;
     el('trade-verdict').textContent = us.tradeOpen
       ? 'Trade stays open: both sides allow it.'
       : 'Trade is closed: ' +
@@ -246,94 +174,7 @@ export class ResultsView {
     el('trade-impact').textContent =
       'Year ten: US consumer prices are ' + pct(us.consumerPriceIndex) +
       ' of their starting level, relative to US producer prices. Income figures include the modeled effects of trade on purchasing power and competition for jobs.';
-    el('trade-price-note').textContent =
-      'Foreign consumer prices: ' + pct(foreign.consumerPriceIndex) +
-      ' of their starting level, relative to foreign producer prices. Lower consumer prices increase what income can buy; they are not extra physical GDP. Trade within the foreign bloc continues even if this border closes.';
-    el('trade-table').innerHTML = active.us.map((point) =>
-      '<tr><th scope="row">' + (point.year === 0 ? 'Today' : 'Year ' + point.year) +
-      '</th><td>' + num(point.consumerPriceIndex * 100) +
-      '</td><td>' + pct(point.importShare) +
-      '</td><td>' + pct(point.exportShare) +
-      '</td><td>' + pct(point.jobSlots) + '</td></tr>',
-    ).join('');
+
   }
-  private renderComparison() {
-    const current = this.snapshot;
-    const rows: [string, ProfileOutcome][] = [
-      [
-        current.pauseUnavailable ? '2025 reference; pause unavailable' : '2025 reference; no new AI',
-        current.baseline,
-      ],
-      [
-        current.ballot.winnerId
-          ? current.statusQuoUnavailable
-            ? 'Enacted most-votes choice'
-            : 'Enacted majority choice'
-          : 'Enacted current-policy fallback',
-        current.selected,
-      ],
-    ];
-    if (current.leading && current.leading.usPolicy.id !== current.selected.usPolicy.id)
-      rows.push(['Leading package; no majority', current.leading]);
-    if (current.selected.usPolicy.id !== current.statusQuo.usPolicy.id)
-      rows.push([
-        current.statusQuoUnavailable ? 'Current policy; not on the ballot' : 'Current taxes and benefit mix',
-        current.statusQuo,
-      ]);
-    if (this.manual) rows.push([
-      current.statusQuoUnavailable && this.manual.usPolicy.id === current.statusQuo.usPolicy.id
-        ? 'Your comparison; current policy is not on the ballot'
-        : 'Your policy',
-      this.manual,
-    ]);
-    el('comparison-table').innerHTML = rows
-      .map(([label, profile]) => {
-        const end = last(profile);
-        return (
-          '<tr class="' +
-          (profile.id === this.snapshot.selected.id ? 'selected' : '') +
-          '"><th scope="row">' +
-          label +
-          '</th><td>' +
-          num(end.allIncomeIndex) +
-          '</td><td>' +
-          num(end.workerIncomeIndex) +
-          '</td><td>' +
-          num(end.ownerIncomeIndex) +
-          '</td><td>' +
-          num(end.output) +
-          '</td></tr>'
-        );
-      })
-      .join('');
-    el('score-help').textContent =
-      'Year-ten indices: each group’s 2025 reference is 100. Household source groups stay fixed. Complete packages can change AI pace as well as protections, benefits and taxes. ' +
-      (current.mode === 'strategic'
-        ? 'Comparisons hold the foreign choice fixed, except for the no-AI reference. '
-        : '') +
-      'Income indices include changes in consumer purchasing power. Output measures production, before those price effects; it is not a GDP forecast.';
-  }
-  private renderAccounting() {
-    const end = last(this.snapshot.selected);
-    const lines: [string, number][] = [
-      ['Household take-home resources', end.consumption],
-      ['Employer retention pay before tax', end.employerPay],
-      ['Unfunded employer retention pay', end.employerFundingGap],
-      ['Work/pension income tax receipts', end.laborTaxRevenue],
-      ['Investment income tax receipts', end.capitalTaxRevenue],
-      ['Reference benefit budget', end.baselineBenefits],
-      ['Requested benefit budget', end.benefitsRequired],
-      ['Actual benefit payments', end.benefitsPaid],
-      ['Other public spending', end.nonTransferSpending],
-      ['Unfunded benefit target', end.welfareFundingGap],
-      ['Unfunded required public spending', end.governmentFundingGap],
-    ];
-    el('accounting-table').innerHTML = lines
-      .map(([label, value]) => '<tr><th scope="row">' + label + '</th><td>' + dollars(value) + '</td></tr>')
-      .join('');
-    el('ownership-note').textContent =
-      'Annual 2025 dollars per adult, averaged across the modeled population. Payments are transfers of existing resources. Budget identity residual: ' +
-      dollars(Math.abs(end.resourceResidual)) +
-      '. Foreign dollar conversions are illustrative; relative GDP weights international rent flows.';
-  }
+
 }

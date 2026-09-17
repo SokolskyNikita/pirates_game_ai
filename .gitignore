@@ -20,3 +20,5 @@ calculator/_generated.py
 
 # Resumable local scenario calculations
 .precompute/
+
+.precompute-refresh/

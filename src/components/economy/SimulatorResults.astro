@@ -1,6 +1,3 @@
----
-import LaborMarketDetails from './LaborMarketDetails.astro';
----
 <div class="result-column">
   <p id="computation-message" class="computation-message" role="status" aria-live="polite">Calculating…</p>
   <div class="results" id="results" aria-busy="true">
@@ -26,7 +23,6 @@ import LaborMarketDetails from './LaborMarketDetails.astro';
       <p id="chart-note" class="chart-note"></p>
       <div id="endpoints" class="endpoints"></div>
       <details class="chart-data"><summary>Read the chart as a table</summary><div class="table-scroll" tabindex="0" role="region" aria-label="Income by year"><table><caption>Income relative to each group’s starting income</caption><thead><tr><th scope="col">Year</th><th scope="col">Outside productive jobs</th><th scope="col">Income: outside productive jobs</th><th scope="col">Income: in productive jobs</th><th scope="col">All adult citizens</th></tr></thead><tbody id="year-table"></tbody></table></div></details>
-      <LaborMarketDetails />
     </figure>
 
     <section id="international-result" class="international-result" hidden aria-labelledby="international-heading">
@@ -38,29 +34,14 @@ import LaborMarketDetails from './LaborMarketDetails.astro';
       <div id="foreign-policy-decisions" class="policy-decisions" role="group" aria-label="Seven terms of foreign policy"></div>
       <div id="foreign-policy-strip" class="policy-strip"></div>
       <p id="foreign-reference-note" class="small-copy"></p>
-      <LaborMarketDetails prefix="foreign-" region="Foreign" />
       <h3 id="trade-verdict"></h3>
       <p id="trade-impact"></p>
-      <details class="chart-data"><summary>How trade affects this result</summary>
-        <p>When trade is open, buyers can substitute foreign goods and services for domestic ones. Cheaper imports raise purchasing power, while changing import competition and export sales can displace workers. Closing the border removes imported varieties and export markets. Displaced workers can search for the jobs that remain; searching does not restore lost jobs.</p>
-        <p id="trade-price-note"></p>
-        <div class="table-scroll" tabindex="0" role="region" aria-label="Annual US trade effects"><table><caption>US trade and available jobs. Consumer prices start at 100. Imports are a share of total spending; exports are a share of net output at producer prices. Job slots are relative to the initial count and reflect all modeled effects, not just trade.</caption><thead><tr><th scope="col">Year</th><th scope="col">Consumer prices</th><th scope="col">Import share</th><th scope="col">Export share</th><th scope="col">Productive job slots</th></tr></thead><tbody id="trade-table"></tbody></table></div>
-        <a href="#trade-assumptions">Trade assumptions and limits</a>
-      </details>
       <div id="deviation" class="deviation"></div>
       <details class="chart-data"><summary>How the two choices are related</summary>
         <p id="equilibrium-explanation" class="small-copy"></p>
       </details>
     </section>
 
-    <details class="result-details alternatives">
-      <summary>Compare alternatives</summary>
-      <section class="ballot-tallies" aria-labelledby="ballot-table-heading"><h3 id="ballot-table-heading">Which packages get the votes?</h3><p id="ballot-table-note" class="small-copy"></p><div class="table-scroll" tabindex="0" role="region" aria-label="Complete-package ballot results"><table class="ballot-table"><thead><tr><th scope="col">Complete policy package</th><th scope="col">First-choice votes</th></tr></thead><tbody id="ballot-table"></tbody></table></div></section>
-      <section class="comparison-section" aria-labelledby="comparison-heading"><h3 id="comparison-heading">Income and output in year ten</h3><p class="small-copy">Starting values = 100. Policies can change several decisions together.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Compare policy packages"><table class="comparison-table"><thead><tr><th scope="col">Policy</th><th scope="col">All citizens</th><th scope="col">Mainly work income</th><th scope="col">Mainly capital income</th><th scope="col">Output</th></tr></thead><tbody id="comparison-table"></tbody></table></div><p id="score-help" class="small-copy"></p></section>
-    </details>
-
-    <details class="result-details manual-policy"><summary>Compare saved US policies</summary><p id="manual-help" class="small-copy">Compare current policy and leading ballot packages. Foreign policy stays fixed.</p><div id="manual-inputs"></div><button type="button" id="apply-manual">Compare with the selected policy</button><p id="manual-result" role="status"></p></details>
-    <details class="result-details accounting"><summary>Follow the money in year ten</summary><p class="small-copy">Year-ten income flows under the selected policy. Transfers change who receives income.</p><div class="table-scroll" tabindex="0" role="region" aria-label="Year ten income accounting"><table><tbody id="accounting-table"></tbody></table></div><p id="ownership-note" class="small-copy"></p></details>
     <details class="result-details vote-audit"><summary>Voting details and tie-breaking</summary><p id="selection-explanation" class="small-copy"></p><div id="agenda-order" class="small-copy"></div></details>
     <div class="result-actions"><button type="button" id="share" class="text-button">Copy scenario link</button><button type="button" id="download" class="text-button">Download results</button><span id="action-status" role="status"></span></div>
   </div>

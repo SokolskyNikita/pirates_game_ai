@@ -38,22 +38,37 @@ class StaticLibraryTests(unittest.TestCase):
             {(False, False), (True, False), (False, True), (True, True)},
         )
 
-    def test_profile_deduplication_is_exact_and_comparison_is_precalculated(self):
+    def test_compact_export_preserves_decisions_and_discards_diagnostics(self):
         request = next(requests())
         profile = evaluate_profile(request["inputs"], current_policy(), mode="us-only")
         original = {
-            **request,
-            "selected": profile,
-            "statusQuo": profile,
-            "baseline": profile,
-            "leading": profile,
-            "alternatives": [profile],
+            **request, "selected": profile, "statusQuo": profile,
+            "baseline": profile, "leading": profile, "alternatives": [profile],
+            "ballot": {"tallies": [1], "voterChoices": [2], "winnerId": "exact",
+                       "topSupportPercent": 50.000000001},
         }
-        packed = builder.pack({"fingerprint": "test", "key": scenario_key(request), "snapshot": original})
-        self.assertEqual(len(packed["profiles"]), 1)
-        restored = dict(packed["snapshot"])
-        for key in ("selected", "statusQuo", "baseline", "leading"):
-            restored[key] = packed["profiles"][restored[key]]
-        restored["alternatives"] = [packed["profiles"][index] for index in restored["alternatives"]]
-        self.assertEqual(restored, original)
-        self.assertEqual(packed["comparisonVotes"], {current_policy()["id"]: 0})
+        packed = builder.pack({"fingerprint": "test", "snapshot": original})
+        snapshot = packed["snapshot"]
+        self.assertEqual(snapshot["selected"]["usPolicy"], profile["usPolicy"])
+        self.assertEqual(snapshot["ballot"], {"winnerId": "exact", "topSupportPercent": 50.000000001})
+        self.assertNotIn("alternatives", snapshot)
+        self.assertNotIn("usUtilities", snapshot["selected"])
+        self.assertNotIn("cohortIncome", snapshot["selected"]["us"][0])
+        self.assertEqual(len(snapshot["selected"]["us"]), 11)
+        for before, after in zip(profile["us"], snapshot["selected"]["us"], strict=True):
+            self.assertEqual(before["productiveEmployment"], after["productiveEmployment"])
+            self.assertAlmostEqual(before["allIncomeIndex"], after["allIncomeIndex"], delta=.000051)
+        self.assertIn("cohortIncome", profile["us"][0])  # never mutate the full local record
+
+    def test_complete_embedded_library_is_under_budget(self):
+        import gzip
+        import json
+        compressed = (ROOT / "src/generated/results.json.gz").read_bytes()
+        self.assertLess(len(compressed), 3_500_000)
+        library = json.loads(gzip.decompress(compressed))
+        self.assertEqual(set(library), {lookup_key(r) for r in requests()})
+        for request in requests():
+            result = library[lookup_key(request)]
+            self.assertEqual(result["schema"], 2)
+            self.assertEqual(scenario_key(result["snapshot"]), scenario_key(request))
+            self.assertEqual(len(result["snapshot"]["selected"]["us"]), 11)

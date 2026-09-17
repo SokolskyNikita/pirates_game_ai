@@ -19,7 +19,7 @@ All other economic parameters remain at their disclosed references, including a 
 
 Each scenario evaluates the unchanged full policy menu: 6,480 domestic packages or 12,960 international packages when pausing is available. The foreign actor's choice remains independent. Precomputation does not turn an incomplete bounded equilibrium search into a verified outcome; search diagnostics are preserved.
 
-The selected package, current policy and up to eight leading candidates can be compared using saved trajectories and pairwise preference shares. Arbitrary manual policy construction is not available in the static edition. Full ballot tallies, cohort detail and numerical precision remain in the saved files. Duplicate profiles within a result share a reference, which the browser expands losslessly.
+The page retains the enacted US and foreign policy decisions, the US income chart and its accessible table, year-ten summaries, the leading package’s vote share, funding warnings and search limitations. Alternative comparisons, detailed labor and trade tables, and the accounting table are removed. Full-precision calculation records remain local.
 
 ## Local calculation and regeneration
 
@@ -36,12 +36,22 @@ Results checkpoint atomically in `.precompute/<model-fingerprint>/`. Interrupted
 
 On the user's 14-core, 48-GB M4 Pro, generating the 768-case manifest with 12 processes took **401.8 seconds** (6 minutes 42 seconds), including compression. Sixteen previously calculated common cases were reused. The 752 new cases all ran locally.
 
+A fresh run of all 768 scenarios on September 16 took **406.4 seconds** using 12 processes, with no reused checkpoints.
+
 ## Size and delivery
 
-The unmodified results total about **1.084 GB JSON**, or **253.4 MB gzip**. Lossless profile sharing reduces the whole-library gzip measurement to about **212.8 MB**. The 768 individual gzip files total **212.4 MB**, averaging about **277 KB per scenario**. These measurements include full detailed results, not just headline policies.
+The complete presentation library is **324,912 bytes gzip** for all 768 scenarios, below the enforced **3,500,000-byte** limit. The earlier 212.8 MB export included alternative trajectories, cohort arrays and ballot tallies that the compact interface no longer needs.
 
-The full library is therefore above the requested **3,500,000-byte** inline limit. Each page loads only its selected scenario, with a small bounded browser cache. The build measures the entire packed JSON library and embeds it if it falls below that threshold in a future smaller edition. Gzip decoding handles both hosts that deliver compressed bytes and hosts that apply HTTP decompression automatically.
+`src/generated/results.json.gz` is the committed, reproducible source. The build validates coverage and the model fingerprint, then embeds every result in the page. Controls perform local lookups, without scenario downloads or a calculation backend. The old per-scenario public assets are removed.
 
-Compressed files are committed for reproducible builds. The static asset paths identify the model and scenario, and a packaging-version query prevents stale browser data after encoding changes. Cloudflare only serves static assets and canonical redirects. No Python Worker or calculation endpoint is deployed.
+Only displayed values are exported: eleven US chart points, the foreign endpoint, policy choices and outcome diagnostics. Reporting metrics are rounded to four decimal places after solving; policy rates, ballot support and worker membership fractions retain full precision. No rounding affects winners, funding eligibility, search verification or chart group presence.
 
-Old links are snapped to supported choices with a visible notice. The resulting controls and updated URL show the actual saved assumptions; there is no interpolation between outcomes.
+Full local records still contain all economic detail for research and debugging. The page download contains only the compact displayed result. To regenerate from a fresh output directory:
+
+```sh
+npm run precompute:local -- --workers 12 --output .precompute-refresh
+npm run precompute:import -- --source .precompute-refresh
+npm run build
+```
+
+Cloudflare serves the static page and canonical redirects. No Python Worker or calculation endpoint is deployed. Old links are snapped to supported choices with a visible notice; no interpolation is performed.

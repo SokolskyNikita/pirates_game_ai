@@ -1,18 +1,23 @@
-/** Smoke-check the published static delivery contract. */
+/** Verify the whole embedded library and that no calculation endpoint remains. */
 import { readFile } from 'node:fs/promises';
-import { gunzipSync } from 'node:zlib';
+import { gzipSync } from 'node:zlib';
 const base = process.argv[2];
 if (!base) throw new Error('Usage: npm run test:api -- http://localhost:8787');
 const manifest = JSON.parse(await readFile(new URL('../src/generated/static-library.json', import.meta.url)));
-for (const path of ['/', ...Object.values(manifest.paths).filter((_, i) => i % 97 === 0)]) {
-  const response = await fetch(new URL(path, base));
-  if (!response.ok) throw new Error(`${path}: ${response.status}`);
-  if (path !== '/') {
-    const bytes = Buffer.from(await response.arrayBuffer());
-    const value = JSON.parse((bytes[0] === 0x1f && bytes[1] === 0x8b ? gunzipSync(bytes) : bytes).toString());
-    if (value.fingerprint !== manifest.fingerprint || value.schema !== 1) throw new Error('Stale static data');
-  }
+const response = await fetch(base);
+if (!response.ok) throw new Error(`Page: ${response.status}`);
+const html = await response.text();
+const match = html.match(/<script[^>]*id="static-library"[^>]*>([\s\S]*?)<\/script>/);
+if (!match) throw new Error('Missing embedded library');
+const library = JSON.parse(match[1]);
+if (Object.keys(library).length !== manifest.scenarioCount) throw new Error('Incomplete library');
+if (gzipSync(match[1], { level: 9 }).length >= 3_500_000) throw new Error('Embedded library exceeds 3.5 MB');
+for (const value of Object.values(library)) {
+  if (value.fingerprint !== manifest.fingerprint || value.schema !== 2) throw new Error('Stale data');
+  if (value.snapshot.selected.us.length !== 11) throw new Error('Incomplete income chart');
 }
+for (const removed of ['id="manual-inputs"', 'id="accounting-table"', 'id="ballot-table"'])
+  if (html.includes(removed)) throw new Error(`Removed UI remains: ${removed}`);
 const oldApi = await fetch(new URL('/api/simulate', base), { method: 'POST', body: '{}' });
 if (oldApi.ok) throw new Error('The old calculation endpoint should not run');
-console.log(`Static delivery verified; ${manifest.scenarioCount} scenarios indexed; no calculation API.`);
+console.log(`Embedded delivery verified: ${manifest.scenarioCount} scenarios, ${gzipSync(match[1]).length} gzip bytes, no calculation API.`);

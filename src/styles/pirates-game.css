@@ -159,12 +159,6 @@ details summary:hover { color: var(--green); }
 .endpoint-detail { display: block; }
 .chart-data { border-top: 1px solid var(--line); }
 .chart-data summary { color: var(--muted); font-size: 13px; font-weight: 400; }
-.labor-market-data > p { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
-.labor-market-data .table-scroll + .table-scroll { margin-top: 24px; }
-.labor-market-data table { min-width: 560px; }
-.labor-market-data th { white-space: normal; vertical-align: bottom; }
-.labor-market-data th:first-child { min-width: 60px; width: 60px; }
-.labor-market-data > .small-copy { margin-top: 14px; }
 
 
 @container income (max-width: 560px) {
@@ -191,9 +185,6 @@ tr.selected { background: var(--soft-green); }
 tr.selected th, tr.selected td { color: var(--green); font-weight: 650; }
 .ballot-table th:first-child { color: var(--ink); font-size: 12px; line-height: 1.6; min-width: 210px; }
 .ballot-table td:last-child { font-weight: 600; vertical-align: top; }
-.comparison-section { margin-top: 28px; }
-.comparison-section > p, .ballot-tallies > p { margin-top: 9px; }
-.comparison-section h3 { margin-bottom: 8px; }
 #score-help { margin-top: 12px; }
 
 .international-result { margin-top: 27px; padding: 25px 0 10px; border-top: 1px solid var(--line); }
@@ -209,16 +200,6 @@ tr.selected th, tr.selected td { color: var(--green); font-weight: 650; }
 .result-details > p { margin: 5px 0 15px; }
 .result-details[open] { padding-bottom: 21px; }
 .alternatives { margin-top: 28px; }
-#manual-inputs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-block: 14px; }
-#manual-inputs select { min-width: 0; }
-#manual-inputs .input-label, .manual-control > label { display: block; margin-bottom: 9px; font-size: 13px; font-weight: 550; }
-.manual-control { margin: 12px 0; }
-#manual-inputs output { display: block; margin-top: 5px; }
-#apply-manual { margin-bottom: 13px; padding: 10px 16px; border: 1px solid var(--green); border-radius: 2px; color: var(--paper); background: var(--green); font-size: 13px; }
-#manual-result { font-size: 13px; line-height: 1.65; }
-.accounting th { font-size: 12px; }
-.accounting tr:nth-child(4) { background: var(--soft-green); }
-.accounting tr:nth-child(4) th { color: var(--green); font-weight: 650; }
 #ownership-note { margin-top: 13px; }
 .vote-audit p { margin: 9px 0; }
 .vote-audit ol { padding-left: 23px; }
@@ -310,8 +291,6 @@ tr.selected th, tr.selected td { color: var(--green); font-weight: 650; }
   .decision-title { font-size: 29px; }
   .policy-strip { gap: 11px; }
   .policy-item strong { font-size: 21px; }
-  #manual-inputs { grid-template-columns: 1fr; }
-  #manual-inputs .input-control { margin-block: 10px; }
 }
 
 @media (prefers-reduced-motion: no-preference) {

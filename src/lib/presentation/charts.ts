@@ -2,7 +2,6 @@ import type { RegionYear } from '../api/types';
 import { el } from './dom';
 import { pct, num, change } from './format';
 import { hasNonproductiveWorkers, hasProductiveWorkers, incomeScale, incomeSeries, yearTicks } from './chart-layout';
-import { renderLaborMarket } from './labor-market';
 
 export function renderChart(years: RegionYear[]) {
   const chart = el('income-chart');
@@ -10,7 +9,7 @@ export function renderChart(years: RegionYear[]) {
   if (!end) {
     chart.innerHTML = '<p class="chart-empty">No annual income data available.</p>';
     chart.setAttribute('aria-label', 'No annual income data available.');
-    for (const id of ['workforce-summary', 'chart-note', 'endpoints', 'year-table', 'labor-market-summary', 'labor-market-table', 'wage-table']) el(id).textContent = '';
+    for (const id of ['workforce-summary', 'chart-note', 'endpoints', 'year-table']) el(id).textContent = '';
     return;
   }
   const width = Math.max(240, Math.round(chart.clientWidth || 640));
@@ -56,6 +55,5 @@ export function renderChart(years: RegionYear[]) {
     ['owner', 'In productive jobs', productive ? change(end.employedIncomeIndex) : null, productive ? pct(end.productiveEmployment) + ' of the original workforce' : 'No productive workers in year ten'],
     ['output', 'All adult citizens', change(end.allIncomeIndex), 'Including people without work income'],
   ].map(([kind, label, value, detail]) => `<div class="endpoint ${kind}"><span class="endpoint-label">${label}</span><strong${value === null ? ' class="empty"' : ''}>${value ?? 'No workers'}</strong><span class="endpoint-detail">${value === null ? detail : 'Year-ten income change · ' + detail}</span></div>`).join('');
-  renderLaborMarket(years);
   el('year-table').innerHTML = years.map((point) => `<tr><th scope="row">${point.year === 0 ? 'Today' : `Year ${point.year}`}</th><td>${pct(point.unemployment)}</td><td>${hasNonproductiveWorkers(point) ? num(point.displacedIncomeIndex) : '—'}</td><td>${hasProductiveWorkers(point) ? num(point.employedIncomeIndex) : '—'}</td><td>${num(point.allIncomeIndex)}</td></tr>`).join('');
 }
