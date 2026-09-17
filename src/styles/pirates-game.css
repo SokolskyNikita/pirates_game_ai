@@ -209,7 +209,8 @@ tr.selected th, tr.selected td { color: var(--green); font-weight: 650; }
 .result-details > p { margin: 5px 0 15px; }
 .result-details[open] { padding-bottom: 21px; }
 .alternatives { margin-top: 28px; }
-#manual-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
+#manual-inputs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-block: 14px; }
+#manual-inputs select { min-width: 0; }
 #manual-inputs .input-label, .manual-control > label { display: block; margin-bottom: 9px; font-size: 13px; font-weight: 550; }
 .manual-control { margin: 12px 0; }
 #manual-inputs output { display: block; margin-top: 5px; }

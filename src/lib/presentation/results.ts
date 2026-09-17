@@ -1,5 +1,5 @@
 import type { ProfileOutcome, ScenarioSnapshot } from '../api/types';
-import { GROWTH_BASELINE, POLICY_OPTIONS } from './config';
+import { GROWTH_BASELINE } from './config';
 import { el } from './dom';
 import {
   pct,
@@ -8,7 +8,6 @@ import {
   last,
   dollars,
   voteShare,
-  policyAxes,
   policyDescription,
   paymentRange,
 } from './format';
@@ -107,10 +106,7 @@ export class ResultsView {
           '<div class="policy-item"><strong>' + value + '</strong><span>' + label + '</span></div>',
       )
       .join('');
-    el('manual-help').textContent =
-      'Compare another complete US package, including its AI pace.' +
-      (current.mode === 'strategic' ? ' You can also change the US trade choice; the displayed foreign policy stays fixed.' : '') +
-      ' This comparison does not add a second vote.';
+    el('manual-help').textContent = 'Compare the selected package, current policy or one of the eight leading candidates. All results and preference shares were calculated in Python in advance. This comparison does not add a second vote.' + (current.mode === 'strategic' ? ' Foreign policy stays fixed.' : '');
     el('policy-meaning').textContent =
       'Benefits include modeled cash payments and consumption support. Health insurance is not counted as cash. Year-ten US AI adoption: ' +
       pct(end.adoption) +
@@ -134,11 +130,16 @@ export class ResultsView {
     this.renderComparison();
     this.renderAccounting();
     this.renderVotingDetails();
-    for (const axis of policyAxes) {
-      el<HTMLSelectElement>('manual-' + axis).value = POLICY_OPTIONS[axis].find(
-        (option) => option.value === p[axis],
-      )!.idPart;
+    const select = el<HTMLSelectElement>('manual-package');
+    select.replaceChildren();
+    const candidates = new Map([active, current.statusQuo, ...current.alternatives].map(profile => [profile.usPolicy.id, profile]));
+    for (const [id, profile] of candidates) {
+      const option = document.createElement('option');
+      option.value = id;
+      option.textContent = policyDescription(profile.usPolicy, current.mode === 'strategic');
+      select.append(option);
     }
+    select.value = p.id;
   }
 
   private renderBallot() {

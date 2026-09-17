@@ -17,3 +17,6 @@ python_modules/
 __pycache__/
 *.py[cod]
 calculator/_generated.py
+
+# Resumable local scenario calculations
+.precompute/

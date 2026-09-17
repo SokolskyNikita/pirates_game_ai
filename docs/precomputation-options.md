@@ -1,32 +1,47 @@
-# Precomputation coverage and limits
+# Complete local precomputation
 
-The deployed build generates **thirty-two exact common scenarios**, not the full assumption grid. Default assumptions and the all-obsolete/no-return scenario (50% employer gain) each have sixteen results: US only or any of the three international objectives, with both pause-availability settings and both voting rules. The US-only menu has 6,480 packages when pausing is allowed, or 4,320 when it is unavailable. International mode adds both trade choices, giving each side 12,960 or 8,640 packages. Selecting “Retaining status quo isn’t an option” excludes the exact current-policy package from the US ballot, leaving one fewer option. It does not restrict the foreign menu. In every case, packages must be fully funded to receive votes.
+The static edition covers **all 768 valid selectable scenarios**. It does not calculate custom assumptions on a server. The user approved reducing control choices after measuring the original grid: 120,578,220 domestic scenarios and at least 2,140,263,771,557,788,800 international scenarios, excluding an unused population axis and arbitrary legacy URL values.
 
-The Python generator records the model/data/dependency fingerprint, normalized assumption key, votes, selected outcome, references, top eight packages and search diagnostics. It refuses mismatched keys, unfunded winners or an excluded current-policy winner. The Python API accepts only an exact matching result from the deployed assets. Other assumptions use the same Python solver on demand. The browser receives ordinary JSON arrays and renders the result. Build failure prevents publishing a partially generated library.
+## Supported assumptions
 
-## Why five-point steps do not make the full grid small
-
-The unrestricted US-only ballot has 3 AI paces × 4 retained wages × 5 benefit budgets × 3 benefit formulas × 6 work/pension tax benchmarks × 6 capital tax benchmarks = **6,480 packages**. International mode doubles this with the trade choice. Most policy axes are already coarser than five percentage points.
-
-Making every policy percentage a five-point increment would create 26 retained-wage values (0–125%), 41 benefit-budget values (0–200%), 3 formulas, and 21 values for each tax. That is **4,230,954 packages** with the three AI paces, before adding the international trade choice or exact current-tax reference exceptions.
-
-Domestic assumptions alone have 5 growth values (0–20%) × 21 employer gains × 21 obsolescence rates × 21 return-to-work rates × 21 policy-response strengths = **972,405 combinations**. International assumptions add foreign growth, mobile rents, frontier capability, two trade exposures and GDP size. Even with GDP size in 0.25 increments, the Cartesian grid has **30,258,287,488,800 combinations**, before the three foreign objectives, the two checkbox settings, population size, tradable share and trade elasticity. This is a lower-bound illustration, not the full current grid. Calibrated reference values and exact legacy URL values are additional exceptions.
-
-The initial **TypeScript scalar implementation** measured approximately 27 microseconds per domestic policy and 54 microseconds per paired policy on the development machine, before voting/search overhead. At that historical rate the five-point domestic policy grid alone would take roughly **3.54 CPU-years** across all domestic assumptions. These estimates describe the old implementation, not the Python runtime or a lower bound for redesigned algorithms.
-
-The Python engine evaluates menus in NumPy batches and checks candidates near utility maxima and funding thresholds with its scalar model. Before the trade extension, a native Python benchmark of one international, pause-unavailable, all-obsolete scenario took about **1.5 seconds** with approximately **58 MiB peak process memory**. This is a development-machine measurement, not a Cloudflare Workers latency or memory guarantee. The coarser policy menu, cached international responses and thirty-two common scenarios reduce routine work; they do not make the entire assumption grid precomputed.
-
-## A completely precomputed alternative
-
-A fully precomputed interface would need an explicit smaller assumption grid. For example:
-
-| Assumption | Supported choices |
+| Control | Choices |
 | --- | --- |
-| US growth | 0%, 5%, 10% |
-| Obsolete roles | 35%, 100% |
-| Return to work | 0%, 20% |
-| Economy | US only; international workers, prosperity, output |
+| Extra annual US growth from AI | 0 or 5 percentage points |
+| Employer gain from AI | 0% or 40% |
+| Net change in productive jobs | −100%, −90%, 0%, +100% |
+| Current roles eventually affected | 0% or 100%, constrained to cover job losses |
+| Laid-off workers entering search | 0% or 85% |
+| Mode | Domestic; international workers, prosperity or output objective |
+| Pause unavailable | Off or on |
+| Status quo unavailable | Off or on |
 
-This gives **48 results**, with other assumptions fixed and disclosed, including both checkboxes unchecked. Every combination of those controls could then load existing data. This restriction has not been applied: the current interface retains independent controls and calculates custom cases.
+All other economic parameters remain at their disclosed references, including a 5-point foreign growth increment, 35% investment response and 50% capital mobility. The interface shows these as fixed assumptions. There are 48 valid economic input combinations × four mode/objective combinations × four checkbox combinations. Invalid job-count/affected-share pairs are never generated or offered.
 
-Any future complete library must declare its supported axes, policy menu, fixed inputs and expected keys; fail a build if a result is missing; and disclose unsupported legacy links rather than silently substituting unrelated scenarios. A partial cache must never be described as exhaustive precomputation.
+Each scenario evaluates the unchanged full policy menu: 6,480 domestic packages or 12,960 international packages when pausing is available. The foreign actor's choice remains independent. Precomputation does not turn an incomplete bounded equilibrium search into a verified outcome; search diagnostics are preserved.
+
+The selected package, current policy and up to eight leading candidates can be compared using saved trajectories and pairwise preference shares. Arbitrary manual policy construction is not available in the static edition. Full ballot tallies, cohort detail and numerical precision remain in the saved files. Duplicate profiles within a result share a reference, which the browser expands losslessly.
+
+## Local calculation and regeneration
+
+```sh
+npm run precompute:plan       # Size of the original unrestricted UI grid
+npm run precompute:local      # All supported scenarios; up to 12 processes
+npm run precompute:import     # Validate and package completed results
+npm run build                # Revalidate the committed library, then build Astro
+```
+
+Use `npm run precompute:local -- --workers 8` to leave more CPU capacity available. Each Python process evaluates separate scenarios; NumPy/BLAS thread pools are capped to avoid nested oversubscription. The default leaves two logical cores free, up to twelve workers.
+
+Results checkpoint atomically in `.precompute/<model-fingerprint>/`. Interrupted runs reuse matching, validated checkpoints. An explicit `--requests path.json` can calculate another finite manifest, but only the exact grid in `scripts/static_grid.py` can be packaged for this interface. A model/data/dependency change invalidates previous results. Missing or stale files fail the production build rather than enabling a calculation fallback.
+
+On the user's 14-core, 48-GB M4 Pro, generating the 768-case manifest with 12 processes took **401.8 seconds** (6 minutes 42 seconds), including compression. Sixteen previously calculated common cases were reused. The 752 new cases all ran locally.
+
+## Size and delivery
+
+The unmodified results total about **1.084 GB JSON**, or **253.4 MB gzip**. Lossless profile sharing reduces the whole-library gzip measurement to about **212.8 MB**. The 768 individual gzip files total **212.4 MB**, averaging about **277 KB per scenario**. These measurements include full detailed results, not just headline policies.
+
+The full library is therefore above the requested **3,500,000-byte** inline limit. Each page loads only its selected scenario, with a small bounded browser cache. The build measures the entire packed JSON library and embeds it if it falls below that threshold in a future smaller edition. Gzip decoding handles both hosts that deliver compressed bytes and hosts that apply HTTP decompression automatically.
+
+Compressed files are committed for reproducible builds. The static asset paths identify the model and scenario, and a packaging-version query prevents stale browser data after encoding changes. Cloudflare only serves static assets and canonical redirects. No Python Worker or calculation endpoint is deployed.
+
+Old links are snapped to supported choices with a visible notice. The resulting controls and updated URL show the actual saved assumptions; there is no interpolation between outcomes.

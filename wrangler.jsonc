@@ -20,24 +20,12 @@
       "custom_domain": true
     }
   ],
-  "main": ".build/python/worker.py",
-  "compatibility_flags": [
-    "python_workers"
-  ],
+  "main": "worker/static.ts",
   "observability": {
     "enabled": true,
     "head_sampling_rate": 0.1
   },
-  "rules": [
-    {
-      "type": "Text",
-      "globs": [
-        "calculator/data/*.json"
-      ],
-      "fallthrough": true
-    }
-  ],
   "limits": {
-    "cpu_ms": 300000
+    "cpu_ms": 50
   }
 }

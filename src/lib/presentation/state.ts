@@ -1,5 +1,5 @@
 import type { InputSpec, ModelInputs, ModelMode, Objective, ScenarioRequest } from '../api/types';
-import { DEFAULT_INPUTS, GROWTH_BASELINE, INPUT_SPECS } from './config';
+import { DEFAULT_INPUTS, GROWTH_BASELINE, INPUT_SPECS, STATIC_CHOICES } from './config';
 
 export interface ScenarioState {
   inputs: ModelInputs;
@@ -30,20 +30,29 @@ export function defaultState(): ScenarioState {
     statusQuoUnavailable: false,
   };
 }
-/** Enforce the input constraint; the Python model independently validates it. */
+/** Select an explicitly supported grid point; no interpolation of results. */
 export function normalizeInputConstraints(inputs: ModelInputs): ModelInputs {
-  return { ...inputs, jobsAffected: Math.max(inputs.jobsAffected, Math.max(0, -inputs.jobChange)) };
+  const result = { ...inputs };
+  for (const spec of INPUT_SPECS) {
+    const choices = STATIC_CHOICES[spec.key];
+    result[spec.key] = choices.reduce((best, value) =>
+      Math.abs(value - inputs[spec.key]) < Math.abs(best - inputs[spec.key]) ? value : best, choices[0]!);
+  }
+  const allowed = STATIC_CHOICES.jobsAffected.filter(value => value >= Math.max(0, -result.jobChange));
+  if (!allowed.includes(result.jobsAffected)) result.jobsAffected = allowed[0]!;
+  return result;
 }
 
-/** Discrete slider stops, retaining exact values from shared links and metadata. */
 export function inputSliderChoices(spec: InputSpec, inputs: ModelInputs): number[] {
-  const minimum = spec.key === 'jobsAffected' ? Math.max(spec.min, -inputs.jobChange) : spec.min;
-  const values = [minimum, spec.max, DEFAULT_INPUTS[spec.key], inputs[spec.key]];
-  for (let value = Math.ceil(minimum / spec.step) * spec.step; value <= spec.max + 1e-9; value += spec.step)
-    values.push(Number(value.toFixed(8)));
-  return [...new Set(values)]
-    .filter((value) => value >= minimum && value <= spec.max)
-    .sort((a, b) => a - b);
+  return STATIC_CHOICES[spec.key].filter(value => spec.key !== 'jobsAffected' || value >= Math.max(0, -inputs.jobChange));
+}
+
+/** Changes from old links are disclosed beside the controls. */
+export function unsupportedURLValues(search: string): boolean {
+  const query = new URLSearchParams(search);
+  const displayed = readScenarioURL(search);
+  return ['displacement', 'usGdpGrowth', 'foreignGdpGrowth', 'reemployment'].some(key => query.has(key)) ||
+    INPUT_SPECS.some(spec => query.has(spec.key) && Number(query.get(spec.key)) !== displayed.inputs[spec.key]);
 }
 
 /** Parse and migrate form state. Economic calculations happen in Python. */
@@ -92,7 +101,7 @@ export function scenarioURL(state: ScenarioState, href = location.href): URL {
   const url = new URL(href);
   url.search = '';
   url.hash = 'simulator';
-  url.searchParams.set('v', '14');
+  url.searchParams.set('v', '15');
   url.searchParams.set('world', state.mode);
   url.searchParams.set('pauseUnavailable', state.pauseUnavailable ? '1' : '0');
   url.searchParams.set('statusQuoUnavailable', state.statusQuoUnavailable ? '1' : '0');

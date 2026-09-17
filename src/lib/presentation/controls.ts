@@ -1,7 +1,7 @@
 import type { ModelInputs, ModelMode, Objective } from '../api/types';
-import { DEFAULT_INPUTS, INPUT_SPECS, POLICY_OPTIONS } from './config';
+import { DEFAULT_INPUTS, INPUT_SPECS, STATIC_CHOICES } from './config';
 import { el } from './dom';
-import { formatInput, inputRangeValue, policyAxes, axisLabels, axisOptionValue, paceName } from './format';
+import { formatInput, inputRangeValue } from './format';
 import {
   inputSliderChoices,
   normalizeInputConstraints,
@@ -39,22 +39,16 @@ export class ScenarioControls {
     this.syncInputs();
   }
   selectedManualPolicyId(): string | undefined {
-    // ID parts are opaque canonical tokens supplied by Python, not recalculated in JavaScript.
-    const selected = policyAxes
-      .filter((axis) => this.state.mode === 'strategic' || axis !== 'allowFreeTrade')
-      .map((axis) => {
-        const idPart = el<HTMLSelectElement>('manual-' + axis).value;
-        return POLICY_OPTIONS[axis].find((option) => option.idPart === idPart);
-      });
-    if (selected.some((option) => !option) || (this.state.pauseUnavailable && selected[0]?.value === 0))
-      return;
-    return selected
-      .map((option) => option!.idPart)
-      .filter(Boolean)
-      .join('|');
+    return el<HTMLSelectElement>('manual-package').value || undefined;
   }
   private buildInputs() {
     for (const spec of visibleInputSpecs) {
+      if (STATIC_CHOICES[spec.key].length === 1) {
+        const note = document.createElement('p');
+        note.textContent = spec.label + ': ' + formatInput(spec.key, STATIC_CHOICES[spec.key][0]!) + '. ' + spec.description;
+        el(foreignKeys.has(spec.key) ? 'international-inputs' : 'structural-inputs').append(note);
+        continue;
+      }
       const target = foreignKeys.has(spec.key)
         ? 'international-inputs'
         : structuralKeys.has(spec.key)
@@ -99,28 +93,7 @@ export class ScenarioControls {
         this.changed();
       });
     }
-    for (const axis of policyAxes) {
-      const options = POLICY_OPTIONS[axis];
-      const node = document.createElement('div');
-      node.className = 'manual-control';
-      node.id = 'manual-control-' + axis;
-      node.innerHTML =
-        '<label for="manual-' +
-        axis +
-        '">' +
-        axisLabels[axis] +
-        '</label><select id="manual-' +
-        axis +
-        '">' +
-        options
-          .map(
-            (option) =>
-              '<option value="' + option.idPart + '">' + axisOptionValue(axis, option.value) + '</option>',
-          )
-          .join('') +
-        '</select>';
-      el('manual-inputs').append(node);
-    }
+    el('manual-inputs').innerHTML = '<label for="manual-package">Saved policy package</label><select id="manual-package"></select>';
   }
 
   private updateInputLabel(key: keyof ModelInputs) {
@@ -158,15 +131,6 @@ export class ScenarioControls {
       this.state.mode === 'strategic'
         ? 'Remove Pause AI from both the US ballot and the rest of the world’s choices.'
         : 'Remove Pause AI from the US ballot. Current pace and acceleration remain available.';
-    const pace = el<HTMLSelectElement>('manual-pace');
-    const previous = pace.value;
-    pace.innerHTML = POLICY_OPTIONS.pace
-      .filter((option) => !this.state.pauseUnavailable || option.value !== 0)
-      .map(
-        (option) => '<option value="' + option.idPart + '">' + paceName(option.value as number) + '</option>',
-      )
-      .join('');
-    pace.value = this.state.pauseUnavailable && previous === '0' ? '1' : previous || '1';
   }
 
   private syncInput(key: keyof ModelInputs) {
@@ -177,6 +141,7 @@ export class ScenarioControls {
     slider.min = '0';
     slider.max = String(choices.length - 1);
     slider.value = String(choices.indexOf(this.state.inputs[key]));
+    slider.disabled = choices.length === 1;
     // The native value is an index into discrete stops; expose the displayed units to assistive tech.
     slider.setAttribute('aria-valuemin', String(inputRangeValue(key, choices[0]!)));
     slider.setAttribute('aria-valuemax', String(inputRangeValue(key, choices[choices.length - 1]!)));
@@ -197,14 +162,13 @@ export class ScenarioControls {
     this.state.inputs = normalizeInputConstraints(this.state.inputs);
     this.updateElectorate();
     this.syncPauseControl();
-    for (const spec of visibleInputSpecs) this.syncInput(spec.key);
+    for (const spec of visibleInputSpecs) if (STATIC_CHOICES[spec.key].length > 1) this.syncInput(spec.key);
     document.querySelectorAll<HTMLInputElement>('input[name="world"]').forEach((radio) => {
       radio.checked = radio.value === this.state.mode;
     });
     el<HTMLSelectElement>('foreign-objective').value = this.state.foreignObjective;
     el('foreign-objective-help').textContent = objectiveHelp[this.state.foreignObjective];
     el('foreign-inputs').hidden = this.state.mode !== 'strategic';
-    el('manual-control-allowFreeTrade').hidden = this.state.mode !== 'strategic';
     this.updateCalibration();
   }
 
@@ -249,50 +213,5 @@ export class ScenarioControls {
       this.syncInputs();
       this.changed();
     });
-    document.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach((button) =>
-      button.addEventListener('click', () => {
-        this.state.inputs = { ...DEFAULT_INPUTS };
-        if (button.dataset.preset === 'shared')
-          Object.assign(this.state.inputs, {
-            usAiGrowth: 0.05,
-            foreignAiGrowth: 0.05,
-            productivityGain: 0.1,
-            jobsAffected: 1,
-            jobChange: 0.2,
-            investmentResponse: 0.1,
-          });
-        if (button.dataset.preset === 'displacement')
-          Object.assign(this.state.inputs, {
-            usAiGrowth: 0,
-            foreignAiGrowth: 0,
-            productivityGain: 0.25,
-            jobsAffected: 1,
-            jobChange: -0.9,
-          });
-        if (button.dataset.preset === 'tax-response') {
-          this.state.mode = 'us-only';
-          Object.assign(this.state.inputs, {
-            investmentResponse: 1,
-            usAiGrowth: 0.1,
-            foreignAiGrowth: 0.1,
-            productivityGain: 0.4,
-            jobsAffected: 0.5,
-            jobChange: -0.35,
-          });
-        }
-        if (button.dataset.preset === 'rivalry') {
-          this.state.mode = 'strategic';
-          Object.assign(this.state.inputs, {
-            capitalMobility: 1,
-            investmentResponse: 0.7,
-            foreignStrength: 1,
-          });
-        }
-        this.clearPreset();
-        button.setAttribute('aria-pressed', 'true');
-        this.syncInputs();
-        this.changed();
-      }),
-    );
   }
 }

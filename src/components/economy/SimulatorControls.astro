@@ -23,7 +23,8 @@
     <label for="pause-unavailable"><input type="checkbox" id="pause-unavailable" aria-describedby="pause-unavailable-help" /><span>Pausing AI isn’t possible</span></label>
     <p id="pause-unavailable-help" class="control-help">Remove Pause AI from the US ballot. Current pace and acceleration remain available.</p>
   </div>
-  <p class="control-help">Most sliders move in 5-point steps. Exact reference values and values from shared links are also preserved.</p>
+  <p class="control-help">Every selectable combination has been calculated in advance. Sliders use a small set of exact choices; other assumptions stay at the references below. The full policy ballot is still evaluated for each scenario.</p>
+  <p id="grid-link-notice" class="notice" hidden>Values in this older link were moved to the nearest supported choices; fixed assumptions use their reference values. The controls show the exact scenario being displayed.</p>
   <div id="domestic-inputs"></div>
 
   <fieldset id="foreign-inputs" hidden>
@@ -37,12 +38,12 @@
     <p id="foreign-objective-help" class="control-help">One foreign actor chooses its own job protections, benefits, taxes and AI deployment.</p>
     <p class="control-help">US voters and the foreign actor choose independently, each knowing the other’s choice. Every policy term can differ between them. Trade stays open only if both allow it; a domestic AI pause can still leave workers exposed to foreign competition.</p>
     <p id="calibration-summary" class="control-help"></p>
-    <details class="assumption-details"><summary>International assumptions</summary><div id="international-inputs"></div></details>
+    <details class="assumption-details"><summary>Fixed international assumptions</summary><div id="international-inputs"></div></details>
   </fieldset>
 
   <details id="advanced-inputs" class="assumption-details">
-    <summary>Economic responses</summary>
+    <summary>Fixed economic responses</summary>
     <div id="structural-inputs"></div>
   </details>
-  <details class="assumption-details preset-details"><summary>Example assumptions</summary><fieldset class="presets"><legend class="visually-hidden">Choose an example</legend><button type="button" data-preset="shared">Gains widely shared</button><button type="button" data-preset="displacement">Few replacement jobs</button><button type="button" data-preset="rivalry">Strong foreign rivals</button><button type="button" data-preset="tax-response">Strong tax response</button></fieldset></details>
+
 </aside>

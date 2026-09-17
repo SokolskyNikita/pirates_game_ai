@@ -17,7 +17,7 @@ npm ci
 npm run dev
 ```
 
-The development command prints the local address (normally `http://localhost:4321`). Set `PIRATES_SITE_PORT` or `PIRATES_API_PORT` if another project uses its default ports. Changes to Python source restage the local Worker automatically; development disables the production precomputed cache. It serves Astro's rendered pages and the Python calculator together. No account, database, API key or environment file is required for local use.
+Development serves the static Astro site, normally at `http://localhost:4321`. It reads the committed compressed scenario library. No Python server, account or API key is needed to use the site.
 
 Python commands run through `node scripts/python-tool.mjs`, which uses the pinned uv version and the locked project environment. Python dependencies are declared in `pyproject.toml` and locked in `uv.lock`; JavaScript dependencies are pinned in `package-lock.json`. `PIRATES_UV_EXECUTABLE` can point the launcher to an existing uv executable.
 
@@ -32,11 +32,11 @@ npm run preview
 
 Checks cover the Astro/TypeScript rendering layer and Python source. Tests cover economic accounting, job competition, voting rules, API validation and presentation behavior. International tests cover trade accounting, price effects, worker adjustment and mutually consistent choices.
 
-The build runs the Python artifact generator, builds Astro into `dist/`, and stages the Python Worker for deployment. It generates thirty-two common scenario results and presentation metadata from the same Python model used by the API. `npm run preview` serves the built pages and calculator together; an Astro-only file server cannot answer calculation requests.
+The build validates every declared static scenario, measures the compressed library, generates its index and builds Astro into `dist/`. Missing or stale results fail the build. It never starts a live calculation service. `npm run preview` serves the same assets through the small redirect-only Cloudflare Worker.
 
-To check a running deployment against the native Python calculator, run `npm run test:api -- https://ai-pirates-game.com` (or a local preview URL). It checks complete ballots and manual comparisons in both modes, plus request validation.
+Use `npm run test:api -- https://ai-pirates-game.com` to check static asset delivery and confirm the old calculation endpoint is absent. The historical Python HTTP adapter is retained for reference and tests; it is not deployed.
 
-The static output includes a sitemap, `robots.txt`, and a custom `404.html`. Build output and generated scenario assets are not committed.
+Compressed scenario assets are committed so a checkout builds without repeating the expensive calculations. To regenerate after changing the Python model, follow [the static-library instructions](docs/precomputation-options.md).
 
 ## Population and reference policy
 
@@ -68,7 +68,7 @@ Employer retention is paid from capital resources and creates no extra productio
 
 ## Voting and international competition
 
-Every citizen selects the fully funded package with the greatest ten-year expected household-income utility. By default, the package with the most votes passes only if **more than half** the population chooses it; otherwise the exact current-tax/current-benefit package with current AI pace remains. Checking **“Retaining status quo isn’t an option”** changes this to a plurality rule: the fully funded package with the most votes wins regardless of its share. It removes the exact current-policy package from the US ballot, as well as the automatic fallback; the winner must be a different package. Current policy remains available as a counterfactual comparison, clearly labeled as outside the ballot. The foreign actor’s menu is unchanged. Everyone knows the selected rule before choosing a package. The setting defaults to false, is included in links, downloads, API requests and precomputed keys, and is cleared by Reset. There is one vote, with no runoff. Utility uses a 3% discount rate, a logarithm and a small offset at zero income. Displacement risk is equal across labor-income groups. The model computes expected utility across work/no-work states, not utility of average income.
+Every citizen selects the fully funded package with the greatest ten-year expected household-income utility. By default, the package with the most votes passes only if **more than half** the population chooses it; otherwise the exact current-tax/current-benefit package with current AI pace remains. Checking **“Retaining status quo isn’t an option”** changes this to a plurality rule: the fully funded package with the most votes wins regardless of its share. It removes the exact current-policy package from the US ballot, as well as the automatic fallback; the winner must be a different package. Current policy remains available as a counterfactual comparison, clearly labeled as outside the ballot. The foreign actor’s menu is unchanged. Everyone knows the selected rule before choosing a package. The setting defaults to false, is included in links, downloads, saved-result requests and precomputed keys, and is cleared by Reset. There is one vote, with no runoff. Utility uses a 3% discount rate, a logarithm and a small offset at zero income. Displacement risk is equal across labor-income groups. The model computes expected utility across work/no-work states, not utility of average income.
 
 Exact personal-utility ties prefer current policy when eligible, then a fixed policy-ID order. Under plurality, current policy is excluded; both personal-utility ties and ties for the highest vote total use that fixed policy-ID order. This is a specified favorite-package ballot rule. Perfect rationality alone does not uniquely select sincere voting over tactical coordination. A majority failure can result from votes splitting across similar packages.
 
@@ -104,7 +104,7 @@ International size and trade references use 2025 World Bank and BEA data. Invest
 
 This is a finite policy model, not a calibrated general-equilibrium forecast. Its dollar amounts describe household resources, which include pension withdrawals and capital gains; its output index is not observed GDP. It solves relative producer prices and consumer demand in a simplified two-region trade model. It does not solve sector or asset prices, debt, firm investment decisions, repeated elections, or the value of individual public services.
 
-The page includes expandable equations, accounting, comparisons and survey definitions. Common scenarios use precomputed data; other calculations run in the Python API. The browser requests results and renders them; it does not calculate economic outcomes or votes. Scenarios and results can be shared or downloaded. See the [Python refactor and model audit](docs/python-model-audit.md) for the current calculation structure and remaining limits, and the [earlier calculator audit](docs/calculator-audit.md) for the previous version's changes.
+The page includes expandable equations, accounting, comparisons and survey definitions. Every supported scenario uses precomputed data. The browser downloads and decompresses exact saved results; it does not calculate economic outcomes or votes. Scenarios and results can be shared or downloaded. See the [Python refactor and model audit](docs/python-model-audit.md) for the current calculation structure and remaining limits, and the [earlier calculator audit](docs/calculator-audit.md) for the previous version's changes.
 
 ## International trade
 
@@ -120,11 +120,13 @@ Trade-adjustment unemployment reduces productive labor and output; it is not boo
 
 Annual results report job availability and worker outcomes alongside consumer prices, import and export shares, and whether trade is open. The annual trade table separates trade adjustment from domestic AI exposure. This broad two-region model does not resolve individual industries, supply chains, tariffs or exchange-rate policy. Its response parameters and 40% tradable share are assumptions, not values inferred from the cited economy totals.
 
-## Precomputation coverage
+## Complete static library
 
-`npm run build` generates a library of exact common scenario assets, covering US-only mode and the three international objectives, with pausing allowed or unavailable and with majority or plurality voting. Every saved scenario obeys the bound between net job reduction and the share of current jobs affected. Their manifest includes a fingerprint of Python model sources, population data and dependency configuration. The API accepts only the matching version and normalized assumptions; otherwise it calculates the requested scenario with the same Python engine. Results use ordinary JSON arrays.
+All 768 valid combinations in the reduced grid are saved. US AI growth offers 0 or 5 additional points, employer gain 0 or 40%, net jobs −100%, −90%, 0% or +100%, affected roles 0 or 100%, and search participation 0 or 85%. The job constraint removes invalid combinations. Both voting rules and pause settings remain independent; international mode retains all three foreign objectives. Advanced assumptions remain at their disclosed defaults.
 
-Other slider combinations calculate on demand in Python. This is **not exhaustive precomputation** of all possible assumptions. Controls use discrete increments, while retaining exact calibrated references where needed. GDP size uses 0.25 increments and trade elasticity uses whole units. AI growth is shown in additional percentage points per year. Legacy links are normalized to the current assumption schema; the affected-job share is raised when necessary to cover the net job reduction. The policy grid is already coarser than five points on most axes. See [the feasibility and coverage notes](docs/precomputation-options.md) for why a fully precomputed interface would need a smaller declared assumption grid.
+Every scenario still evaluates the full policy ballot. Saved manual comparisons cover the selected package, current policy and up to eight leading packages with the foreign choice fixed. Old off-grid links move to supported choices with a visible notice. There is no interpolation or calculation fallback.
+
+See [coverage, timings and regeneration](docs/precomputation-options.md).
 
 ## Architecture
 
@@ -138,40 +140,22 @@ All economic calculations, utility comparisons, ballots, international responses
 | Batch evaluation | `calculator/batch.py` evaluates policy menus with NumPy; `batch_settlement.py` adapts the shared fiscal equations to policy-by-cohort arrays. Packages sharing production, investment and trade assumptions reuse one economic trajectory; household funding and utility are still evaluated for every package in bounded chunks. Candidates close to utility maxima or funding thresholds are checked with the scalar model before exact ballot comparisons. |
 | Voting | `calculator/ballot.py` counts one favorite-package vote per citizen. `election.py` applies the selected majority-with-fallback or plurality rule and verifies international responses. |
 | Results and comparisons | `calculator/simulation.py` assembles the selected, reference and leading profiles. `comparison.py` evaluates manual packages and their pairwise preference shares. |
-| API and generated data | `calculator/requests.py` validates request payloads. `artifacts.py` generates presentation metadata and common scenario assets. `worker/entry.py` handles HTTP, canonical redirects, API responses and static assets. |
+| API and generated data | `calculator/requests.py` validates request payloads. `artifacts.py` generates presentation metadata and common scenario assets. `worker/static.ts` handles canonical redirects and serves static assets. The Python HTTP adapter is not deployed. |
 | Pages | `src/pages/index.astro` composes the introduction, controls, results, model notes and sources from `src/components/economy/`. |
 | Browser rendering | `src/components/economy/pirates-game.ts` coordinates requests and updates. `src/lib/presentation/` separates state, controls, charts, results, population displays and formatting. `src/lib/api/` holds the HTTP client and response types. |
-| Build and research | `scripts/build-precomputed.py` runs the Python artifact generator. `scripts/stage-worker.py` stages deployable Python source and data. `scripts/build-us-electorate.py` reproduces the Census aggregates. |
+| Build and research | `scripts/precompute-local.py` runs a resumable process pool. `scripts/static_grid.py` declares the supported grid. `scripts/build-static-library.py` validates and packages the completed results. `scripts/build-us-electorate.py` reproduces the Census aggregates. |
 | Tests | `tests/python/` covers the Python calculator and HTTP boundary; `tests/fixtures/` contains migration references. Frontend tests live beside the API and presentation modules. |
 
-Generated `src/generated/calculator-config.json` supplies the interface with Python-owned labels, choices and reference values. The common scenarios live in `public/precomputed/`; `calculator/_generated.py` contains their deployment manifest. Shared Python data structures are in `calculator/types.py`.
+Generated `src/generated/calculator-config.json` supplies the interface with Python-owned labels, choices and reference values. The complete compressed library lives in `public/static-library/`; `src/generated/static-library.json` indexes it. Shared Python data structures are in `calculator/types.py`.
 
-## Calculator API
+## Static delivery
 
-The page and calculator share an origin. Calculation endpoints accept `POST` requests with `Content-Type: application/json` and bodies up to 16 KiB. Invalid assumptions, policy IDs or pause restrictions return a validation error.
-
-- `GET /api/health` returns the engine name and deployed model fingerprint.
-- `POST /api/simulate` accepts `{id, inputs, mode, foreignObjective, pauseUnavailable, statusQuoUnavailable}` and returns `{id, snapshot, source}`. The source is `precomputed` or `calculated`.
-- `POST /api/compare` accepts `{scenario, policyId, selectedPolicyId, foreignPolicyId?}` and returns `{profile, voteShare}`. International comparisons require the selected foreign policy. The share is a pairwise preference diagnostic, not a new full-package election.
-
-The scenario `mode` is `us-only` or `strategic`; the foreign objective is `workers`, `prosperity` or `output`. `pauseUnavailable` and `statusQuoUnavailable` default to false. Missing assumptions use model defaults; finite values are normalized to their permitted ranges, with `jobsAffected >= max(0, -jobChange)` enforced before calculation. Policy IDs come from the published finite menu. Legacy `pace` fields do not restrict the ballot.
+`src/generated/static-grid.json` defines all supported control stops and fixed assumptions. `src/generated/static-library.json` maps each exact valid combination to its saved gzip file. `src/lib/api/calculator.ts` performs lookup and lossless decompression only. Comparison vote shares are computed in Python during packaging, not in the browser. The former `/api/health`, `/api/simulate` and `/api/compare` endpoints are no longer served.
 
 This repository is independent of the original personal website. It contains no personal-site APIs or analytics integration. Fonts are requested from Google Fonts, with local fallback fonts.
 
 ## Publication
 
-The site uses a Python Cloudflare Worker with Workers Static Assets. `wrangler.jsonc` configures the custom domains, Python runtime, static asset binding and resource limits. Run `npm run deploy` with an authenticated Cloudflare deployment session to check, test, build and publish. Python deployment tools run through the pinned uv launcher. The GitHub Actions workflow validates pushes and pull requests; it has read-only repository access and does not store Cloudflare credentials.
+The site uses Cloudflare Workers Static Assets. The tiny `worker/static.ts` only redirects the canonical domain and calls the asset binding; it imports no calculator and exposes no calculation API. `wrangler.jsonc` keeps the existing domain bindings. `npm run deploy` validates, builds and publishes with the existing authenticated Cloudflare session.
 
-The Worker redirects HTTP requests on the custom domain and all `www.ai-pirates-game.com` requests to `https://ai-pirates-game.com` with a 308 response, preserving the path and query. It handles `/api/` in Python and serves page and asset requests through `ASSETS`, retaining static headers, old-path redirects and the custom 404 page. The HTTPS `workers.dev` address remains available for troubleshooting.
-
-Publish the generated `dist/` directory together with the staged Python Worker and its calibration data. The canonical URL is set in `astro.config.mjs` and the homepage metadata. Hosting and deployment configuration belong to this repository; no files from the original personal site are required.
-
-Before publication, run the checks above and verify the homepage, both simulation modes, manual comparisons, scenario links, API health, asset loading, robots file, sitemap and a missing URL over HTTPS.
-
-## Inspiration and sources
-
-Inspired by [Nuño Sempere (@NunoSempere)](https://nunosempere.com/) and [Humans on AI #53, September 15, 2026](https://p3humansonai.substack.com/p/humans-on-ai-53-september-15th-2026). These credits do not imply endorsement of the model or its assumptions.
-
-The job-search default cites the BLS displaced-worker survey. Background growth assumptions are compared with CBO and World Bank forecasts. The international defaults cite the World Bank, BEA and Stanford AI Index 2026. Trade mechanisms cite Simonovska and Waugh on elasticity, Arkolakis, Costinot and Rodríguez-Clare on gains from trade, Gervais and Jensen on tradable services, and Autor, Dorn and Hanson on labor-market adjustment. The page also cites Acemoglu and Restrepo on automation and new tasks; the IMF on AI and fiscal policy; Guerreiro, Rebelo and Teles on robot taxation; the OECD on employment support; and Ian Stewart’s pirate voting puzzle. Source-specific explanations and links are on the page.
-
-No software license has been selected for this repository.
+HTTP and `www` requests redirect to `https://ai-pirates-game.com`, preserving paths and query strings. Scenario files are gzip-compressed JSON fetched individually and decompressed by the browser. The full library is embedded only when its measured compressed size is below 3,500,000 bytes. Otherwise the site remains static and fetches the chosen file; there is still no calculation backend.

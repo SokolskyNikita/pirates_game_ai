@@ -1,4 +1,5 @@
 ---
+import inlineLibrary from '../../generated/static-inline.json';
 import SimulatorControls from './SimulatorControls.astro';
 import SimulatorResults from './SimulatorResults.astro';
 ---
@@ -15,3 +16,5 @@ import SimulatorResults from './SimulatorResults.astro';
     <SimulatorResults />
   </div>
 </section>
+
+{inlineLibrary && <script is:inline id="static-library" type="application/json" set:html={JSON.stringify(inlineLibrary).replace(/</g, "\\u003c")} />}

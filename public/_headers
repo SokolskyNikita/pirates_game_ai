@@ -9,3 +9,7 @@
 
 /precomputed/*
   Cache-Control: public, max-age=31536000, immutable
+
+/static-library/*
+  Cache-Control: public, max-age=31536000, immutable
+  Content-Type: application/gzip

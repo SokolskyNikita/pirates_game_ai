@@ -7,9 +7,10 @@ import { el } from '../../lib/presentation/dom';
 import { renderChart } from '../../lib/presentation/charts';
 import { renderMethod, renderPopulation } from '../../lib/presentation/population';
 import { ResultsView } from '../../lib/presentation/results';
-import { readScenarioURL, scenarioRequest, scenarioURL } from '../../lib/presentation/state';
+import { readScenarioURL, scenarioRequest, scenarioURL, unsupportedURLValues } from '../../lib/presentation/state';
 
 const state = readScenarioURL(location.search);
+el('grid-link-notice').hidden = !unsupportedURLValues(location.search);
 const view = new ResultsView();
 let snapshot: ScenarioSnapshot | undefined;
 let manual: ProfileOutcome | undefined;
@@ -49,8 +50,8 @@ function failCalculation(error: unknown, displayFailure = false) {
   el('computation-message').textContent = displayFailure
     ? 'The result could not be displayed completely. Change an input or Reset to try again; the figures below may be incomplete.'
     : snapshot
-      ? 'The calculation service could not finish. The result below uses the previous assumptions. Change an input or Reset to try again.'
-      : 'The calculation service is unavailable. Check your connection, then reload the page or Reset to try again.';
+      ? 'The saved result could not be loaded. The result below uses the previous assumptions. Change an input or Reset to try again.'
+      : 'The saved result is unavailable. Check your connection, then reload the page or Reset to try again.';
   for (const id of ['apply-manual', 'download', 'share']) el<HTMLButtonElement>(id).disabled = true;
   console.error(error);
 }
@@ -62,13 +63,10 @@ function scheduleSolve() {
   comparison?.abort();
   comparisonRevision++;
   setBusy(true);
-  el('solve-status').textContent = 'Calculating…';
-  el('computation-message').textContent = snapshot
-    ? 'Recalculating. The previous result stays visible until the new one is ready.'
-    : state.mode === 'strategic'
-      ? 'Comparing funded packages and checking both sides’ choices…'
-      : 'Comparing fully funded packages and counting one vote per citizen…';
-  timer = setTimeout(() => run(id), 350);
+  el('solve-status').textContent = 'Loading…';
+  el('computation-message').textContent = 'Loading the saved result for these exact assumptions…';
+  timer = setTimeout(() => run(id), 100);
+
 }
 
 async function run(id: number) {
@@ -77,6 +75,7 @@ async function run(id: number) {
   try {
     const response = await simulateScenario(scenarioRequest(state, id), controller.signal);
     if (id !== revision || controller.signal.aborted) return;
+    if (!response.snapshot) throw new Error('Missing saved scenario');
     snapshot = response.snapshot;
     manual = undefined;
     setBusy(false);
@@ -183,6 +182,7 @@ el('download').addEventListener('click', () => {
   el('action-status').textContent = 'Scenario and annual results downloaded.';
 });
 window.addEventListener('popstate', () => {
+  el('grid-link-notice').hidden = !unsupportedURLValues(location.search);
   controls.replaceState(readScenarioURL(location.search));
   scheduleSolve();
 });

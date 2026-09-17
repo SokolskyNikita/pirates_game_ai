@@ -10,3 +10,7 @@ export const US_ELECTORATE = config.electorate;
 export const MODEL_NOTES = config.modelNotes;
 
 export const GROWTH_BASELINE = config.growthBaseline;
+
+import grid from '../../generated/static-grid.json';
+export const STATIC_CHOICES = grid.choices as Record<keyof import('../api/types').ModelInputs, number[]>;
+export const STATIC_VARIABLE_KEYS = grid.variableKeys as (keyof import('../api/types').ModelInputs)[];

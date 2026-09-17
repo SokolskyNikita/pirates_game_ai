@@ -1,69 +1,54 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CalculationError, comparePolicy, simulateScenario } from './calculator';
+import { gzipSync } from 'node:zlib';
+import type { ProfileOutcome } from './types';
 import { defaultState, scenarioRequest } from '../presentation/state';
 
-afterEach(() => vi.unstubAllGlobals());
-
-describe('Python calculation API boundary', () => {
-  it('sends a cancellable JSON request to the same-origin simulation endpoint', async () => {
-    const request = scenarioRequest(defaultState(), 4);
-    const signal = new AbortController().signal;
-    const fetch = vi
-      .fn()
-      .mockResolvedValue(
-        new Response(
-          JSON.stringify({ id: 4, snapshot: { selection: 'domestic-ballot' }, source: 'precomputed' }),
-        ),
-      );
+vi.mock('../../generated/static-library.json', () => ({ default: {
+  fingerprint: 'test-version', inline: false,
+  paths: { 'us-only|-|0|0|1|1|1|1|1': '/static-library/test.json.gz', 'us-only|-|1|0|1|1|1|1|1': '/static-library/pause.json.gz' },
+} }));
+afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
+function saved() {
+  const state = defaultState();
+  const profile = { usPolicy: { id: 'current' }, usUtilities: [] } as unknown as ProfileOutcome;
+  return { schema:1, fingerprint:'test-version', key:'canonical', profiles:[profile], comparisonVotes:{current:0},
+    snapshot:{...state, selected:0, statusQuo:0, baseline:0, alternatives:[0], selection:'domestic-ballot'} };
+}
+describe('static result delivery', () => {
+  it('loads gzip via GET, preserves request revision and uses saved comparison values', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(gzipSync(JSON.stringify(saved()))));
     vi.stubGlobal('fetch', fetch);
+    const {simulateScenario, comparePolicy} = await import('./calculator');
+    const request = scenarioRequest(defaultState(), 4), signal = new AbortController().signal;
     const result = await simulateScenario(request, signal);
-    expect(fetch).toHaveBeenCalledWith(
-      '/api/simulate',
-      expect.objectContaining({ method: 'POST', body: JSON.stringify(request), signal }),
-    );
-    expect(result.source).toBe('precomputed');
+    expect(result.id).toBe(4); expect(result.source).toBe('precomputed');
+    expect(fetch).toHaveBeenCalledWith('/static-library/test.json.gz', {signal});
+    expect(await comparePolicy({scenario:defaultState(), policyId:'current', selectedPolicyId:'current'}, signal)).toMatchObject({voteShare:0});
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await expect(comparePolicy({scenario:defaultState(), policyId:'unsaved', selectedPolicyId:'current'}, signal)).rejects.toThrow('saved candidate');
   });
-  it('does not accept a response for a different scenario revision', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 3, snapshot: {} }))));
-    await expect(
-      simulateScenario(scenarioRequest(defaultState(), 4), new AbortController().signal),
-    ).rejects.toThrow('unexpected scenario');
+  it('accepts JSON already decompressed by the HTTP stack', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(saved()))));
+    const {simulateScenario} = await import('./calculator');
+    expect((await simulateScenario(scenarioRequest(defaultState(),1),new AbortController().signal)).source).toBe('precomputed');
   });
-  it('surfaces structured service failures and unreadable gateway responses', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'Unknown policy.' }), { status: 400 }))
-        .mockResolvedValueOnce(new Response('<html>Unavailable</html>', { status: 502 })),
-    );
-    const request = scenarioRequest(defaultState(), 1);
-    await expect(simulateScenario(request, new AbortController().signal)).rejects.toThrow('Unknown policy.');
-    await expect(simulateScenario(request, new AbortController().signal)).rejects.toThrow(
-      'unreadable response',
-    );
+  it('rejects an artifact for another model or scenario', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(gzipSync(JSON.stringify({...saved(),fingerprint:'old'})))));
+    const {simulateScenario} = await import('./calculator');
+    await expect(simulateScenario(scenarioRequest(defaultState(),1),new AbortController().signal)).rejects.toThrow('model version');
   });
-  it('preserves a no-funded-policy response so the page can explain the voting constraint', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ error: 'No fully funded policy is available.' }), { status: 422 }),
-    ));
-    const request = scenarioRequest({ ...defaultState(), statusQuoUnavailable: true }, 5);
-    await expect(simulateScenario(request, new AbortController().signal)).rejects.toMatchObject({
-      name: 'CalculationError', status: 422, message: 'No fully funded policy is available.',
-    } satisfies Partial<CalculationError>);
+  it('does not calculate or interpolate unsupported inputs', async () => {
+    const fetch = vi.fn(); vi.stubGlobal('fetch',fetch);
+    const {simulateScenario} = await import('./calculator');
+    const request = scenarioRequest(defaultState(),1); request.inputs.jobSearch=.5;
+    await expect(simulateScenario(request,new AbortController().signal)).rejects.toThrow('outside');
+    expect(fetch).not.toHaveBeenCalled();
   });
-  it('sends manual comparison to Python rather than deriving votes locally', async () => {
-    const response = { profile: { id: 'alternative' }, voteShare: 61.25 };
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(response))));
-    const result = await comparePolicy(
-      {
-        scenario: defaultState(),
-        policyId: 'alternative',
-        selectedPolicyId: 'current',
-        foreignPolicyId: 'foreign',
-      },
-      new AbortController().signal,
-    );
-    expect(result).toEqual(response);
+  it('honors cancellation and reports missing assets', async () => {
+    const {simulateScenario} = await import('./calculator');
+    const controller = new AbortController();controller.abort();
+    await expect(simulateScenario(scenarioRequest(defaultState(),1),controller.signal)).rejects.toThrow();
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('missing',{status:404})));
+    await expect(simulateScenario(scenarioRequest(defaultState(),1),new AbortController().signal)).rejects.toMatchObject({status:404});
   });
 });

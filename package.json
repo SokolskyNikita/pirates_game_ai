@@ -8,18 +8,21 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "node scripts/dev.mjs",
-    "build": "npm run precompute && astro build && npm run stage",
-    "check": "astro check && node scripts/python-tool.mjs ruff check calculator worker/entry.py scripts/build-precomputed.py scripts/stage-worker.py scripts/check-api.py tests/python",
+    "dev": "astro dev --host 127.0.0.1",
+    "build": "npm run precompute && astro build",
+    "check": "astro check && node scripts/python-tool.mjs ruff check calculator worker/entry.py scripts/build-precomputed.py scripts/stage-worker.py scripts/check-api.py tests/python scripts/precompute-local.py scripts/static_grid.py scripts/build-static-library.py",
     "test": "npm run test:python && npm run test:ui",
     "test:python": "node scripts/python-tool.mjs python -m unittest discover -s tests/python -v",
     "test:ui": "vitest run src/lib/api src/lib/presentation",
-    "preview": "node scripts/python-tool.mjs pywrangler dev --port 8787 --local-upstream localhost:8787",
-    "deploy": "npm run check && npm test && npm run build && node scripts/python-tool.mjs pywrangler deploy",
-    "precompute": "node scripts/python-tool.mjs python scripts/build-precomputed.py",
+    "preview": "wrangler dev --port 8787 --local-upstream localhost:8787",
+    "deploy": "npm run check && npm test && npm run build && wrangler deploy",
+    "precompute": "node scripts/python-tool.mjs python scripts/build-static-library.py",
     "stage": "node scripts/python-tool.mjs python scripts/stage-worker.py",
-    "deploy:dry-run": "node scripts/python-tool.mjs pywrangler deploy --dry-run",
-    "test:api": "node scripts/python-tool.mjs python scripts/check-api.py"
+    "deploy:dry-run": "wrangler deploy --dry-run",
+    "test:api": "node scripts/check-static.mjs",
+    "precompute:local": "node scripts/python-tool.mjs python scripts/precompute-local.py",
+    "precompute:plan": "npm run precompute:local -- --plan",
+    "precompute:import": "node scripts/python-tool.mjs python scripts/build-static-library.py --import"
   },
   "dependencies": {
     "@astrojs/sitemap": "3.7.4",
