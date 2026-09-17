@@ -10,7 +10,6 @@ import math
 from typing import Any
 
 from .ballot import NoFundedPoliciesError, tally_package_ballot
-from .config import EQUILIBRIUM_TOLERANCE
 
 Policy = dict[str, Any]
 
@@ -79,9 +78,7 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
                 }
 
         try:
-            ballot = tally_package_ballot(
-                candidates(), model["weights"], current_id, status_quo_unavailable
-            )
+            ballot = tally_package_ballot(candidates(), model["weights"], current_id, status_quo_unavailable)
         except NoFundedPoliciesError:
             ineligible_ballots.add(key)
             search["ineligibleBallots"] += 1
@@ -219,7 +216,7 @@ def solve_package_election(model: dict[str, Any], options: dict[str, Any] | None
                 no_funded_response = True
                 stopped = True
                 break
-            if profile.get("foreignAdmissible") and gain <= EQUILIBRIUM_TOLERANCE:
+            if profile.get("foreignAdmissible") and gain == 0:
                 consistent[us["id"] + "::" + foreign["id"]] = pair
                 stopped = True
                 break

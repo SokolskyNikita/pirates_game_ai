@@ -4,22 +4,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from .config import CAPACITY_RENEWAL_RATE, YEARS, clamp
-from .labor_market import Scalar, advance_labor
-from .types import Calibration, ModelInputs, Policy, Production, TrajectoryState
+from .arithmetic import Scalar
+from .config import CAPACITY_RENEWAL_RATE, YEARS
+from .labor_market import advance_labor
+from .types import Calibration, ModelInputs, Policy, Production
 
 
-def ai_exposure(
-    pace: float, adoption: float, foreign_adoption: float, trade: float, import_progress: float
-) -> float:
-    """A pause blocks domestic and imported AI use, but not goods competition."""
-    if pace == 0:
-        return 0
-    return clamp(adoption + trade * clamp(import_progress) * foreign_adoption * (1 - adoption))
-
-
-def deployment_at_year(target: float, pace: float, year: int, response: float, burden: float) -> float:
-    progress = clamp(pace * year / YEARS)
+def deployment_at_year(target, pace, year: int, response: float, burden, *, xp=None):
+    """Keep installation timing identical for scalar and policy-array inputs."""
+    xp = xp or Scalar
+    progress = xp.minimum(1, xp.maximum(0, pace * year / YEARS))
     return target * progress * (1 - response * burden * (1 - progress))
 
 
@@ -42,18 +36,6 @@ def policy_burden_values(
     )
     shift = policy["capitalTax"] - calibration["capitalTaxRate"]
     return xp.minimum(1, xp.maximum(-1, shift + (1 - xp.maximum(0, shift)) * retained))
-
-
-def policy_burden(
-    inputs: ModelInputs,
-    policy: Policy,
-    other_pace: float,
-    other_strength: float,
-    strength: float,
-    trade: float,
-    calibration: Calibration,
-) -> float:
-    return policy_burden_values(inputs, policy, other_pace, other_strength, strength, trade, calibration)
 
 
 def production_values(
@@ -163,47 +145,15 @@ def production_values(
     }
 
 
-def produce(
-    inputs: ModelInputs,
-    policy: Policy,
-    old: TrajectoryState,
-    adoption: float,
-    foreign_adoption: float,
-    burden: float,
-    trade: float,
-    year: int,
-    calibration: Calibration,
-    ai_growth: float,
-    trade_adjustment: float | None = None,
-    baseline_growth: float = 0.02,
-) -> Production:
-    values = production_values(
-        inputs,
-        policy,
-        {
-            "adoption": old.adoption,
-            "growth": old.growth,
-            "output": old.output,
-            "trade_adjustment": old.trade_adjustment,
-            "labor_state": old.labor_state,
-        },
-        adoption,
-        foreign_adoption,
-        burden,
-        trade,
-        year,
-        calibration,
-        ai_growth,
-        baseline_growth,
-        trade_adjustment,
-    )
+def production_record(values: dict[str, Any]) -> Production:
+    """Adapt one scalar year's shared economic values for public reporting."""
     labor_state = values["labor_state"]
     return Production(
         income_allocation_factor=values["allocation"],
         growth=values["growth"],
         potential_growth_rate=values["potential_growth_rate"],
         gdp_growth_rate=values["gdp_growth_rate"],
-        adoption=adoption,
+        adoption=values["adoption"],
         exposure=values["exposure"],
         unemployment=values["u"],
         newly=labor_state["newly_displaced"],
@@ -216,12 +166,19 @@ def produce(
         investment=values["investment"],
         adjustment=values["adjustment"],
         effort=values["effort"],
-        burden=burden,
+        burden=values["burden"],
         capacity=values["capacity"],
         ai_unemployment=values["ai_u"],
         trade_unemployment=values["trade_u"],
-        trade_adjustment=trade_adjustment if trade_adjustment is not None else old.trade_adjustment,
+        trade_adjustment=values["trade_adjustment"],
         labor_state=labor_state,
         jobs_affected=values["jobs_affected"],
         average_wage_factor=values["average_wage"],
+        consumer_price_index=values["consumer_price_index"],
+        trade_open=values.get("trade_open", False),
+        import_share=values.get("import_share", 0),
+        export_share=values.get("export_share", 0),
+        export_volume=values.get("export_volume", 0),
+        relative_producer_price=values.get("relative_producer_price", 1),
+        trade_balance_residual=values.get("trade_balance_residual", 0),
     )

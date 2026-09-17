@@ -10,14 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-
-class Scalar:
-    maximum = staticmethod(max)
-    minimum = staticmethod(min)
-
-    @staticmethod
-    def where(condition: bool, yes: Any, no: Any) -> Any:
-        return yes if condition else no
+from .arithmetic import Scalar
 
 
 def initial_labor(zero: Any = 0.0) -> dict[str, Any]:

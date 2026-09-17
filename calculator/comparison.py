@@ -6,7 +6,6 @@ import math
 from collections.abc import Sequence
 from typing import Any
 
-from .config import EQUILIBRIUM_TOLERANCE
 from .model import evaluate_profile
 from .policies import policy_by_id
 from .population import CALIBRATION
@@ -40,7 +39,7 @@ def count_votes(
     for candidate, current, weight in zip(challenger, incumbent, weights, strict=True):
         if not math.isfinite(candidate) or not math.isfinite(current):
             raise ValueError("Every voter utility must be finite.")
-        if candidate > current + EQUILIBRIUM_TOLERANCE:
+        if candidate > current:
             votes += weight / total * 100
     return min(100, max(0, votes))
 

@@ -71,9 +71,13 @@ def prepare(cohorts: list[dict[str, Any]]) -> Prepared:
             "benefits",
             "laborTaxBaseline",
             "capitalTaxBaseline",
+            "capitalTaxBase",
+            "noncapitalTaxBase",
         ]
         if any(not math.isfinite(cohort[field]) for field in fields):
             raise ValueError("Cohort income and tax values must be finite.")
+        if cohort["capitalTaxBase"] < 0 or cohort["noncapitalTaxBase"] < 0:
+            raise ValueError("Cohort tax bases must be nonnegative.")
         weight = cohort["weight"] / total_weight
         labor = max(0, cohort["laborIncome"])
         capital = max(0, cohort["capitalTaxBase"])
@@ -121,6 +125,8 @@ def prepare(cohorts: list[dict[str, Any]]) -> Prepared:
         )
     if calibration["marketIncome"] <= 0 or calibration["capitalIncome"] <= 0:
         raise ValueError("Calibration requires positive market resources and investment income.")
+    if calibration["laborTaxBase"] <= 0:
+        raise ValueError("Calibration requires a positive non-capital tax base.")
     calibration["laborTaxRate"] = labor_tax / calibration["laborTaxBase"]
     calibration["capitalTaxRate"] = capital_tax / calibration["capitalTaxBase"]
     if calibration["tax"] + 1e-7 < calibration["benefits"]:

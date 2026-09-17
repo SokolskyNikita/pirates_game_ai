@@ -54,6 +54,17 @@ def split_preferences(us, _foreign):
 
 
 class ElectionTests(unittest.TestCase):
+    def test_foreign_actor_never_accepts_a_strictly_worse_near_tie(self):
+        model = fixture(
+            lambda us, foreign: [1 if us == CURRENT else 0],
+            foreign=[CURRENT, PAUSE],
+            score=lambda us, foreign: 1 + 1e-12 if foreign == PAUSE else 1,
+        )
+        result = solve_package_election(model)
+        self.assertEqual(result["foreignPolicy"], PAUSE)
+        self.assertEqual(result["foreignBestResponseGain"], 0)
+        self.assertEqual(result["selection"], "verified-consistent")
+
     def test_domestic_single_ballot_is_not_pairwise_majority_amendments(self):
         result = solve_package_election(
             fixture(split_preferences, policies=[CURRENT, PAUSE, ACCELERATE, OTHER], weights=[40, 35, 25])

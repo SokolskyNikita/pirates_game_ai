@@ -104,9 +104,7 @@ POLICIES = [
 ]
 # Domestic calculations retain the original menu. International packages add a
 # separate trade vote; open-trade identifiers remain compatible with old links.
-INTERNATIONAL_POLICIES = POLICIES + [
-    make_policy({**policy, "allowFreeTrade": False}) for policy in POLICIES
-]
+INTERNATIONAL_POLICIES = POLICIES + [make_policy({**policy, "allowFreeTrade": False}) for policy in POLICIES]
 _POLICIES_BY_MODE = {
     "us-only": {policy["id"]: policy for policy in POLICIES},
     "strategic": {policy["id"]: policy for policy in INTERNATIONAL_POLICIES},
@@ -164,7 +162,10 @@ def checked_policy(policy: Policy) -> None:
     limits = [(0, 2), (0, 1.25), (0, 2), (0, 1), (0, 1)]
     if (
         any(
-            not math.isfinite(policy[field]) or not low <= policy[field] <= high
+            isinstance(policy.get(field), bool)
+            or not isinstance(policy.get(field), (int, float))
+            or not math.isfinite(policy[field])
+            or not low <= policy[field] <= high
             for field, (low, high) in zip(fields, limits, strict=True)
         )
         or policy["benefitFormula"] not in BENEFIT_FORMULAS

@@ -42,22 +42,6 @@ class Prepared:
 
 
 @dataclass(slots=True)
-class TrajectoryState:
-    unemployment: float = 0
-    exposure: float = 0
-    adoption: float = 0
-    growth: float = 1
-    output: float = 100
-    trade_adjustment: float = 0
-    import_share: float = 0
-    export_share: float = 0
-    export_volume: float = 0
-    net_output: float = 100
-    consumer_price_index: float = 1
-    labor_state: dict[str, Any] = field(default_factory=initial_labor)
-
-
-@dataclass(slots=True)
 class Production:
     income_allocation_factor: float
     growth: float
@@ -92,22 +76,6 @@ class Production:
     export_volume: float = 0
     relative_producer_price: float = 1
     trade_balance_residual: float = 0
-
-    def next_state(self) -> TrajectoryState:
-        return TrajectoryState(
-            unemployment=self.unemployment,
-            exposure=self.exposure,
-            adoption=self.adoption,
-            growth=self.growth,
-            output=self.output,
-            trade_adjustment=self.trade_adjustment,
-            import_share=self.import_share,
-            export_share=self.export_share,
-            export_volume=self.export_volume,
-            net_output=self.output - self.investment - self.adjustment,
-            consumer_price_index=self.consumer_price_index,
-            labor_state=self.labor_state,
-        )
 
 
 @dataclass(slots=True)

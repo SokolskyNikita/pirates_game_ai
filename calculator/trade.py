@@ -11,16 +11,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-
-class _Scalar:
-    exp = staticmethod(math.exp)
-    maximum = staticmethod(max)
-    minimum = staticmethod(min)
-    all = staticmethod(bool)
-
-    @staticmethod
-    def where(condition: bool, yes: Any, no: Any) -> Any:
-        return yes if condition else no
+from .arithmetic import Scalar
 
 
 def _field(value: Any, name: str) -> Any:
@@ -56,7 +47,7 @@ def competition_displacement(
     cannot. Opposing import/export changes may offset, including import
     substitution following a bilateral ban. Lost varieties still affect prices.
     """
-    xp = xp or _Scalar
+    xp = xp or Scalar
     pressure = (
         import_share
         - previous_import_share
@@ -77,7 +68,7 @@ def trade_retention_burden(
     xp: Any = None,
 ) -> Any:
     """Add actual retained payroll beyond domestic lost slots to investment costs."""
-    xp = xp or _Scalar
+    xp = xp or Scalar
     extra = (
         calibration["laborIncome"]
         * xp.maximum(0, previous_retained - xp.maximum(0, 1 - previous_nominal_slots))
@@ -104,7 +95,7 @@ def trade_market(
     removes imported varieties, AI imports and modeled cross-border AI-service
     returns. It does not purport to simulate all international asset ownership.
     """
-    xp = xp or _Scalar
+    xp = xp or Scalar
     size = inputs["foreignMarketSize"]
     theta = inputs.get("tradeElasticity", 4)
     baseline_us, baseline_foreign, beta = baseline_trade(inputs)

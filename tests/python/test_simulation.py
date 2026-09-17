@@ -7,7 +7,6 @@ from unittest.mock import patch
 
 from calculator import simulation
 from calculator.comparison import compare_policy, count_votes
-from calculator.config import EQUILIBRIUM_TOLERANCE
 from calculator.policies import BASELINE_POLICY, current_policy
 from calculator.population import CALIBRATION
 
@@ -128,7 +127,7 @@ class ComparisonTests(unittest.TestCase):
         self.assertEqual(count_votes([2, 0], [0, 0], [3, 1]), 75)
         self.assertEqual(count_votes([2, 0], [0, 0], [300, 100]), 75)
         self.assertEqual(count_votes([0, 0], [0, 0], [3, 1]), 0)
-        self.assertEqual(count_votes([1 + EQUILIBRIUM_TOLERANCE / 2], [1], [1]), 0)
+        self.assertEqual(count_votes([1 + 1e-12], [1], [1]), 100)
 
     def test_comparison_returns_profile_and_separate_pairwise_share(self):
         def evaluate(values, policy, foreign, mode, objective, foreign_objective):
